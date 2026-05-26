@@ -1,197 +1,317 @@
-// Navbar.jsx
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  GraduationCap,
-  Menu,
-  X,
-  LogIn,
-  UserCircle2,
-} from "lucide-react";
-
-import { Button } from "../components/ui/button";
-
-// Fake auth example
-const useAuth = () => ({
-  user: null,
-  // user: { name: "أحمد بن علي" },
-});
-
-function UserPill({ user }) {
-  if (user) {
-    return (
-      <div className="flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5">
-        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-[11px] font-bold text-white">
-          {user.name
-            .split(" ")
-            .map((w) => w[0])
-            .join("")
-            .slice(0, 2)}
-        </div>
-
-        <span className="text-sm font-semibold text-slate-800">
-          {user.name}
-        </span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
-      <UserCircle2 className="h-4 w-4 text-slate-400" />
-      <span className="text-sm font-medium text-slate-500">
-        زائر
-      </span>
-
-      <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-    </div>
-  );
-}
+import { Link, useNavigate } from "react-router-dom";
+import { GraduationCap, LayoutDashboard, LogOut } from "lucide-react";
+import { useAuth } from "../context/mockAuth";
 
 export default function Navbar() {
-  const [open, setOpen] = useState(false);
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   return (
     <header
       dir="rtl"
-      className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl"
+      style={{
+        background: "#fff",
+        borderBottom: "1.5px solid #E8EEF6",
+        position: "sticky",
+        top: 0,
+        zIndex: 50,
+        padding: "0 1.5rem",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        height: 60,
+        fontFamily: "system-ui, 'Cairo', Arial, sans-serif",
+      }}
     >
-      <div className="container mx-auto flex items-center justify-between px-6 py-3.5">
+      {/* Logo */}
+      <Link
+        to="/"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          textDecoration: "none",
+        }}
+      >
+        <div
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: 9,
+            background: "#185FA5",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          <GraduationCap size={18} color="#fff" />
+        </div>
 
-        {/* Logo */}
-        <Link to="/" className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-sm">
-            <GraduationCap className="h-5 w-5" />
-          </div>
+        <span
+          style={{
+            fontSize: 16,
+            fontWeight: 700,
+            color: "#185FA5",
+          }}
+        >
+          منصة مدارس الدعم
+        </span>
+      </Link>
 
-          <div>
-            <h1 className="text-lg font-extrabold text-slate-900 leading-tight">
-              ZeroKen
-            </h1>
-
-            <p className="text-xs text-slate-400">
-              منصة مدارس الدعم
-            </p>
-          </div>
+      {/* Nav */}
+      <nav
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+        }}
+      >
+        {/* Browse schools */}
+        <Link
+          to="/schools"
+          style={{
+            padding: "6px 12px",
+            borderRadius: 8,
+            fontSize: 13,
+            fontWeight: 500,
+            color: "#475569",
+            textDecoration: "none",
+            transition: "background .15s, color .15s",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "#F1F5F9";
+            e.currentTarget.style.color = "#0F172A";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "transparent";
+            e.currentTarget.style.color = "#475569";
+          }}
+        >
+          تصفح المدارس
         </Link>
 
-        {/* Desktop Nav */}
-        <nav className="hidden items-center gap-2 md:flex">
-
-          <Link to="/">
-            <Button
-              variant="ghost"
-              className="rounded-xl text-slate-600 text-sm"
-            >
-              الرئيسية
-            </Button>
-          </Link>
-
-          <Link to="/schools">
-            <Button
-              variant="ghost"
-              className="rounded-xl text-slate-600 text-sm"
-            >
-              تصفح المدارس
-            </Button>
-          </Link>
-
-          <Link to="/schoolregister">
-            <Button
-              variant="ghost"
-              className="rounded-xl text-slate-600 text-sm"
-            >
-              سجّل مدرستك
-            </Button>
-          </Link>
-
-          <div className="mx-1 h-5 w-px bg-slate-200" />
-
-          <UserPill user={user} />
-
-          {!user && (
-            <Link to="/login">
-              <Button className="h-9 rounded-xl bg-blue-600 px-4 text-sm hover:bg-blue-700 gap-1.5">
-                <LogIn className="h-4 w-4" />
-                تسجيل الدخول
-              </Button>
-            </Link>
-          )}
-        </nav>
-
-        {/* Mobile Button */}
-        <button
-          onClick={() => setOpen(!open)}
-          className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 md:hidden"
-        >
-          {open ? (
-            <X className="h-5 w-5" />
-          ) : (
-            <Menu className="h-5 w-5" />
-          )}
-        </button>
-      </div>
-
-      {/* Mobile Menu */}
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: -15 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -15 }}
-            transition={{ duration: 0.2 }}
-            className="border-t border-slate-200 bg-white/95 backdrop-blur-xl md:hidden"
+        {user?.role === "student" ? (
+          /* ───────── Logged-in Student ───────── */
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginRight: 8,
+            }}
           >
-            <div className="container mx-auto flex flex-col gap-2 px-6 py-5">
+            {/* Dashboard */}
+            <button
+              onClick={() => navigate("/studentdashboard")}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "6px 12px",
+                borderRadius: 8,
+                border: "1px solid #E8EEF6",
+                background: "#F8FAFC",
+                fontSize: 13,
+                fontWeight: 500,
+                color: "#475569",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                transition: "all .15s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "#185FA5";
+                e.currentTarget.style.color = "#185FA5";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "#E8EEF6";
+                e.currentTarget.style.color = "#475569";
+              }}
+            >
+              <LayoutDashboard size={14} />
+              لوحتي
+            </button>
 
-              <Link to="/" onClick={() => setOpen(false)}>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start rounded-xl"
-                >
-                  الرئيسية
-                </Button>
-              </Link>
+            {/* User */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "5px 12px 5px 6px",
+                borderRadius: 999,
+                background: "#EBF4FE",
+                border: "1.5px solid #B5D4F4",
+                cursor: "pointer",
+              }}
+              onClick={() => navigate("/studentdashboard")}
+            >
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: "50%",
+                  background: "#185FA5",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: "#fff",
+                  flexShrink: 0,
+                }}
+              >
+                {user.avatar ||
+                  user.name
+                    .split(" ")
+                    .map((w) => w[0])
+                    .join("")
+                    .slice(0, 2)}
+              </div>
 
-              <Link to="/schools" onClick={() => setOpen(false)}>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start rounded-xl"
-                >
-                  تصفح المدارس
-                </Button>
-              </Link>
-
-              <Link to="/schoolregister" onClick={() => setOpen(false)}>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start rounded-xl"
-                >
-                  سجّل مدرستك
-                </Button>
-              </Link>
-
-              <div className="my-2 h-px bg-slate-200" />
-
-              <UserPill user={user} />
-
-              {!user && (
-                <Link
-                  to="/login"
-                  onClick={() => setOpen(false)}
-                >
-                  <Button className="mt-3 h-11 w-full rounded-xl bg-blue-600 hover:bg-blue-700">
-                    <LogIn className="mr-2 h-4 w-4" />
-                    تسجيل الدخول
-                  </Button>
-                </Link>
-              )}
+              <span
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: "#0C447C",
+                }}
+              >
+                {user.name}
+              </span>
             </div>
-          </motion.div>
+
+            {/* Logout */}
+            <button
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 8,
+                border: "1.5px solid #E8EEF6",
+                background: "#fff",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "all .15s",
+                color: "#94A3B8",
+              }}
+              onClick={() => navigate("/")}
+              title="تسجيل الخروج"
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "#FCA5A5";
+                e.currentTarget.style.color = "#DC2626";
+                e.currentTarget.style.background = "#FEE2E2";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "#E8EEF6";
+                e.currentTarget.style.color = "#94A3B8";
+                e.currentTarget.style.background = "#fff";
+              }}
+            >
+              <LogOut size={14} />
+            </button>
+          </div>
+        ) : (
+          /* ───────── Guest ───────── */
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginRight: 8,
+            }}
+          >
+            {/* Guest badge */}
+            <div
+              style={{
+                padding: "6px 14px",
+                borderRadius: 999,
+                background: "#F1F5F9",
+                border: "1px solid #E2E8F0",
+                fontSize: 13,
+                fontWeight: 600,
+                color: "#64748B",
+              }}
+            >
+              Guest
+            </div>
+
+            {/* Register school */}
+            <Link
+              to="/schoolregister"
+              style={{
+                padding: "6px 14px",
+                borderRadius: 8,
+                background: "#EEF6FF",
+                border: "1px solid #BFDBFE",
+                color: "#185FA5",
+                fontSize: 13,
+                fontWeight: 600,
+                textDecoration: "none",
+                transition: "all .15s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "#DBEAFE";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "#EEF6FF";
+              }}
+            >
+              تسجيل مدرسك
+            </Link>
+
+            {/* Login */}
+            <Link
+              to="/login"
+              style={{
+                padding: "6px 14px",
+                borderRadius: 8,
+                border: "1.5px solid #E8EEF6",
+                background: "#fff",
+                fontSize: 13,
+                fontWeight: 500,
+                color: "#475569",
+                textDecoration: "none",
+                transition: "all .15s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "#CBD5E1";
+                e.currentTarget.style.color = "#0F172A";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "#E8EEF6";
+                e.currentTarget.style.color = "#475569";
+              }}
+            >
+              تسجيل الدخول
+            </Link>
+
+            {/* Signup */}
+            <Link
+              to="/signup"
+              style={{
+                padding: "6px 14px",
+                borderRadius: 8,
+                border: "none",
+                background: "#185FA5",
+                fontSize: 13,
+                fontWeight: 600,
+                color: "#fff",
+                textDecoration: "none",
+                transition: "opacity .15s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = ".88";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = "1";
+              }}
+            >
+              إنشاء حساب
+            </Link>
+          </div>
         )}
-      </AnimatePresence>
+      </nav>
     </header>
   );
 }

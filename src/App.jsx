@@ -7,6 +7,9 @@ import { SchoolProvider } from "./context/SchoolContext";
 // Layouts
 import GuestLayout from "./layouts/GuestLayout";
 import DashboardLayout from "./layouts/Dashboardlayout";
+import TeacherLayout from "./layouts/TeacherLayout";
+
+
 
 // Guest Pages
 import Home from "./pages/Home";
@@ -26,7 +29,10 @@ import Schedule from "./pages/Schedule";
 import Settings from "./pages/Settings";
 import StudentDashboard from "./pages/StudentDashboard";
 import Requests from "./pages/Requests";
-
+// teacherdashboard
+import TeacherDashboard from "./pages/teacherDashboard";
+import MyStudents from "./pages/MyStudent";
+import TeacherProfile from "./pages/teacherprofile";
 // Load Google Fonts
 const link = document.createElement("link");
 link.rel = "stylesheet";
@@ -61,7 +67,14 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/schoolregister" element={<SchoolRegister />} />
+
            <Route path="/studentdashboard" element={<StudentDashboard />} />
+           {/* Dashboard teacher layout */} 
+          <Route element={<TeacherLayout/>}>
+          <Route path="/teacherdashboard" element={<TeacherDashboard />} />
+           <Route path="/mystudent" element={<MyStudents/>} />
+           <Route path="/teacherprofile" element={<TeacherProfile/>} />
+           </Route>
 
 
           {/* Dashboard Layout */}

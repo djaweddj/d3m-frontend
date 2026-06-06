@@ -2,7 +2,7 @@ export const MOCK_USER = {
   id:      "s1",
   name:    "أحمد بن يوسف",
   email:   "ahmed@example.com",
-  role:    "student",           // "student" | "guest"
+  role:    "guest",           // "student" | "guest"
   avatar:  "أي",                // initials
 };
 

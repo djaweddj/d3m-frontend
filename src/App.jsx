@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
 import "./App.css";
 
@@ -44,7 +44,7 @@ document.head.appendChild(script);
 export default function App() {
   return (
     <SchoolProvider>
-      <Router>
+   
         <Toaster position="top-center" richColors />
 
         <Routes>
@@ -84,7 +84,7 @@ export default function App() {
             <Route path="/requests" element={<Requests />} />
           </Route>
         </Routes>
-      </Router>
+  
     </SchoolProvider>
   );
 }

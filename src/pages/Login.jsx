@@ -27,12 +27,13 @@ export default function Login() {
   const {login,user,loading}=useAuth();
 
 useEffect(() => {
+   console.log("🔥 useEffect fired, user:", user);
   if (user?.role === "SCHOOL_ADMIN") {
     navigate("/dashboard");
-  } else if (user?.role === "STUDNET") {
+  } else if (user?.role === "STUDENT") {
     navigate("/studentdashboard");
   }else if(user?.role === "TEACHER"){
-        navigate("/studentdashboard");
+        navigate("/teachers");
   }
 }, [user, navigate]);
 
@@ -41,7 +42,7 @@ useEffect(() => {
 
   try {
     await login(email, password);
-  
+     console.log("user :", user);
   } catch (err) {
      setError("login failed email or password are incorrect");
   }

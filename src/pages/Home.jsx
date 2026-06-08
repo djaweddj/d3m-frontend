@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 
 // ─── Auth (from mock) ─────────────────────────────────
-import { useAuth } from "../context/mockAuth";
+import { useAuth } from "../context/authContext";
 
 // ─── Mock schools list ────────────────────────────────────
 const SCHOOL_OPTIONS = [

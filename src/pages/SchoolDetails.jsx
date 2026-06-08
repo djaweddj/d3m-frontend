@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { mockSchools } from "../data/mockData";
-import { useAuth } from "../context/mockAuth";
+import { useAuth } from "../context/authContext";
 
 // ── Small helpers ──────────────────────────────────────────
 function Badge({ children }) {

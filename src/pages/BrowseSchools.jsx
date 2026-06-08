@@ -1,13 +1,24 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, MapPin, Star } from "lucide-react";
+import { Search, MapPin, Star, Building2, AlertCircle } from "lucide-react";
 import { motion } from "framer-motion";
-import { mockSchools } from "../data/mockData";
+import api from "../api/axios";
 
-function Badge({ children }) {
+const STATUS_LABELS = {
+  ACTIVE: { label: "نشط", color: "#0F6E56", bg: "#e6f4f1" },
+  TRIAL: { label: "تجريبي", color: "#BA7517", bg: "#fdf3e3" },
+  EXPIRED: { label: "منتهي", color: "#b91c1c", bg: "#fef2f2" },
+  SUSPENDED: { label: "موقوف", color: "#6b7280", bg: "#f3f4f6" },
+};
+
+function Badge({ status }) {
+  const s = STATUS_LABELS[status] || { label: status, color: "#185FA5", bg: "#eff6ff" };
   return (
-    <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
-      {children}
+    <span
+      style={{ color: s.color, background: s.bg, border: `1px solid ${s.color}22` }}
+      className="rounded-full px-3 py-1 text-xs font-semibold"
+    >
+      {s.label}
     </span>
   );
 }
@@ -15,14 +26,30 @@ function Badge({ children }) {
 export default function BrowseSchools() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
+  const [schools, setSchools] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const filtered = mockSchools.filter(
+  useEffect(() => {
+     api
+    .get("/api/schools")
+    .then((res) => {
+      console.log("DATA:", res.data);
+      const data = Array.isArray(res.data) ? res.data : res.data.content ?? res.data.data ?? [];
+      setSchools(data);})
+      .catch((err) => {
+        console.error(err);
+        setError("تعذّر تحميل بيانات المدارس. تحقق من الاتصال بالخادم.");
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filtered = schools.filter(
     (s) =>
-      s.name.toLowerCase().includes(search.toLowerCase()) ||
-      s.location.toLowerCase().includes(search.toLowerCase()) ||
-      s.subjects.some((x) =>
-        x.toLowerCase().includes(search.toLowerCase())
-      )
+      s.schoolName?.toLowerCase().includes(search.toLowerCase()) ||
+      s.wilaya?.toLowerCase().includes(search.toLowerCase()) ||
+      s.commune?.toLowerCase().includes(search.toLowerCase()) ||
+      s.ownerName?.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -53,8 +80,7 @@ export default function BrowseSchools() {
             transition={{ delay: 0.15, duration: 0.4 }}
             className="mx-auto mb-8 max-w-2xl text-sm leading-7 text-blue-100 md:text-base"
           >
-            ابحث عن مدارس الدعم حسب المدينة أو المادة الدراسية
-            وقارن بين التقييمات والأسعار بسهولة.
+            ابحث عن مدارس الدعم حسب المدينة أو الولاية وقارن بين الأسعار بسهولة.
           </motion.p>
 
           {/* Search */}
@@ -66,11 +92,10 @@ export default function BrowseSchools() {
           >
             <div className="flex items-center gap-3 rounded-2xl border border-white/20 bg-white/95 p-3 shadow-2xl backdrop-blur-xl">
               <Search className="h-5 w-5 text-slate-400" />
-
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="ابحث باسم المدرسة أو المادة أو المدينة..."
+                placeholder="ابحث باسم المدرسة أو الولاية أو البلدية..."
                 className="w-full bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
               />
             </div>
@@ -83,25 +108,38 @@ export default function BrowseSchools() {
         {/* Top */}
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-slate-900">
-              المدارس المتوفرة
-            </h2>
-
+            <h2 className="text-2xl font-bold text-slate-900">المدارس المتوفرة</h2>
             <p className="mt-1 text-sm text-slate-500">
-              وجدنا {filtered.length} مدرسة
+              {loading ? "جارٍ التحميل..." : `وجدنا ${filtered.length} مدرسة`}
             </p>
           </div>
         </div>
 
-        {/* Empty */}
-        {filtered.length === 0 ? (
-          <div className="rounded-3xl border border-dashed border-slate-300 bg-white py-20 text-center shadow-sm">
-            <p className="text-lg font-medium text-slate-500">
-              لا توجد نتائج مطابقة
-            </p>
+        {/* Error */}
+        {error && (
+          <div className="mb-8 flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">
+            <AlertCircle className="h-5 w-5 shrink-0" />
+            <p className="text-sm">{error}</p>
+          </div>
+        )}
 
+        {/* Loading */}
+        {loading ? (
+          <div className="grid gap-7 sm:grid-cols-2 xl:grid-cols-3">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div
+                key={i}
+                className="h-80 animate-pulse rounded-3xl border border-slate-200 bg-slate-100"
+              />
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
+          /* Empty */
+          <div className="rounded-3xl border border-dashed border-slate-300 bg-white py-20 text-center shadow-sm">
+            <Building2 className="mx-auto mb-4 h-12 w-12 text-slate-300" />
+            <p className="text-lg font-medium text-slate-500">لا توجد نتائج مطابقة</p>
             <p className="mt-2 text-sm text-slate-400">
-              جرّب البحث باسم آخر أو مدينة مختلفة
+              جرّب البحث باسم آخر أو ولاية مختلفة
             </p>
           </div>
         ) : (
@@ -115,54 +153,53 @@ export default function BrowseSchools() {
                 whileHover={{ y: -5 }}
                 className="group overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-2xl"
               >
-                {/* Image */}
-                <div className="relative h-56 overflow-hidden">
-                  <img
-                    src={school.image}
-                    alt={school.name}
-                    className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                  />
-
-                  <div className="absolute right-4 top-4 flex items-center gap-1 rounded-full bg-white px-3 py-1 text-sm font-semibold text-slate-700 shadow-md">
-                    <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                    {school.rating}
+                {/* Image placeholder */}
+                <div
+                  className="relative flex h-44 items-center justify-center overflow-hidden"
+                  style={{
+                    background: "linear-gradient(135deg, #185FA5 0%, #0ea5e9 100%)",
+                  }}
+                >
+                  <Building2 className="h-16 w-16 text-white/30" />
+                  <div className="absolute right-4 top-4">
+                    <Badge status={school.subscriptionStatus} />
                   </div>
                 </div>
 
                 {/* Content */}
                 <div className="p-5">
-                  <h3 className="mb-2 text-xl font-bold text-slate-900">
-                    {school.name}
+                  <h3 className="mb-1 text-xl font-bold text-slate-900">
+                    {school.schoolName}
                   </h3>
+
+                  <p className="mb-1 text-xs text-slate-400">
+                    المالك: {school.ownerName}
+                  </p>
 
                   <div className="mb-4 flex items-center gap-2 text-sm text-slate-500">
                     <MapPin className="h-4 w-4 text-blue-500" />
-                    {school.location}
+                    {school.wilaya} - {school.commune}
                   </div>
 
-                  {/* Subjects */}
-                  <div className="mb-5 flex flex-wrap gap-2">
-                    {school.subjects.map((s) => (
-                      <Badge key={s}>{s}</Badge>
-                    ))}
+                  <div className="mb-2 flex items-center gap-2 text-xs text-slate-400">
+                    <span>📧 {school.email}</span>
+                  </div>
+
+                  <div className="mb-4 flex items-center gap-2 text-xs text-slate-400">
+                    <span>📞 {school.phone}</span>
                   </div>
 
                   {/* Footer */}
                   <div className="flex items-center justify-between border-t border-slate-100 pt-4">
                     <div>
-                      <p className="text-xs text-slate-400">
-                        السعر الشهري
-                      </p>
-
+                      <p className="text-xs text-slate-400">السعر السنوي</p>
                       <p className="text-lg font-extrabold text-blue-600">
-                        {school.price} دج
+                        {school.yearlyPrice?.toLocaleString()} دج
                       </p>
                     </div>
 
                     <button
-                      onClick={() =>
-                        navigate(`/schools/${school.id}`)
-                      }
+                      onClick={() => navigate(`/schools/${school.id}`)}
                       className="rounded-2xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700"
                     >
                       عرض التفاصيل

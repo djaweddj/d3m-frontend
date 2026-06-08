@@ -1,6 +1,6 @@
 // src/pages/Login.jsx
 
-import { useState } from "react";
+import { useState,useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
@@ -10,6 +10,7 @@ import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import ArrowForwardOutlinedIcon from "@mui/icons-material/ArrowForwardOutlined";
 
 import backImage from "../assets/back.jpg";
+import { useAuth } from "../context/authContext";
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
@@ -18,52 +19,33 @@ export default function Login() {
 
   const [password, setPassword] = useState("");
 
-  const [loading, setLoading] = useState(false);
+
 
   const [error, setError] = useState("");
 
   const navigate = useNavigate();
+  const {login,user,loading}=useAuth();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+useEffect(() => {
+  if (user?.role === "SCHOOL_ADMIN") {
+    navigate("/dashboard");
+  } else if (user?.role === "STUDNET") {
+    navigate("/studentdashboard");
+  }else if(user?.role === "TEACHER"){
+        navigate("/studentdashboard");
+  }
+}, [user, navigate]);
 
-    setLoading(true);
+    const handleSubmit = async (e) => {
+  e.preventDefault();
 
-    setError("");
-
-    if (!email || !password) {
-      setError("Please fill in all fields");
-
-      setLoading(false);
-
-      return;
-    }
-
-    setTimeout(() => {
-      if (
-        email === "admin@example.com" &&
-        password === "123456"
-      ) {
-        localStorage.setItem(
-          "user",
-          JSON.stringify({
-            email,
-            name: "Admin User",
-          })
-        );
-
-        setLoading(false);
-
-        navigate("/");
-      } else {
-        setError(
-          "Invalid email or password"
-        );
-
-        setLoading(false);
-      }
-    }, 1000);
-  };
+  try {
+    await login(email, password);
+  
+  } catch (err) {
+     setError("login failed email or password are incorrect");
+  }
+};
 
   return (
     <div style={styles.container}>

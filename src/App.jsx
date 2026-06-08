@@ -26,6 +26,7 @@ import Schedule from "./pages/Schedule";
 import Settings from "./pages/Settings";
 import StudentDashboard from "./pages/StudentDashboard";
 import Requests from "./pages/Requests";
+import ProtectedRoute from "./auth/ProtectedRoutes";
 
 // Load Google Fonts
 const link = document.createElement("link");
@@ -61,7 +62,16 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/schoolregister" element={<SchoolRegister />} />
-           <Route path="/studentdashboard" element={<StudentDashboard />} />
+
+          
+              <Route path="/studentdashboard" element={
+                <ProtectedRoute role={"STUDENT"}>
+                    <StudentDashboard />
+                </ProtectedRoute>
+              
+                } />
+         
+         
 
 
           {/* Dashboard Layout */}

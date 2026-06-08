@@ -1,46 +1,91 @@
-import { createContext, useContext, useState } from "react";
+// src/context/AuthContext.jsx
+import { createContext, useState, useEffect, useContext } from "react";
+import api from "../api";
 
-const AuthContext = createContext();
+export const AuthContext = createContext();
+
+export const useAuth = () => useContext(AuthContext);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(
-    JSON.parse(localStorage.getItem("user")) || null
-  );
-
-  function loginAsStudent() {
-    const fakeStudent = {
-      id: 1,
-      role: "student",
-      name: "أحمد بن علي",
-      email: "student@test.com",
+    const [user, setUser] = useState(null);
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [loading, setLoading] = useState(true);
+   const API_URL = import.meta.env.VITE_API_URL;
+    // ── fetch current user info ──────────────────────────────────────
+    const fetchMe = async () => {
+        try {
+            const res = await api.get(`${API_URL}/auth/me`);
+            setUser(res.data);
+            setIsAuthenticated(true);
+              return res.data;
+        } catch {
+            setUser(null);
+            setIsAuthenticated(false);
+        }
+      
     };
 
-    localStorage.setItem(
-      "user",
-      JSON.stringify(fakeStudent)
+    // ── login ────────────────────────────────────────────────────────
+    const login = async (email, password) => {
+        // throws on failure so the login page can catch and show error
+        const res = await api.post(`${API_URL}/auth/login`, { email, password });
+        localStorage.setItem("accessToken", res.data.accessToken);
+       return await fetchMe();
+    };
+
+    // ── logout ───────────────────────────────────────────────────────
+    const logout = async () => {
+        try {
+            await api.post(`${API_URL}/auth/logout`);
+        } catch {
+         console.error("logout error ")
+        } finally {
+            localStorage.removeItem("accessToken");
+            setUser(null);
+            setIsAuthenticated(false);
+        }
+    };
+
+    // ── on app startup, try to restore session via refresh cookie ────
+
+    useEffect(() => {
+        const restoreSession = async () => {
+            const token = localStorage.getItem("accessToken");
+
+            // ── No token = never logged in, stop immediately ──
+            if (!token) {
+                setLoading(false);
+                return;
+            }
+
+            // ── Has token → try to fetch user ─────────────────
+            try {
+                await fetchMe();
+            } catch {
+                // Access token expired → try one silent refresh
+                try {
+                    const res = await api.post("/auth/refresh");
+                    localStorage.setItem("accessToken", res.data.accessToken);
+                    await fetchMe();
+                } catch {
+                    // Refresh also failed → full logout
+                    localStorage.removeItem("accessToken");
+                    setUser(null);
+                    setIsAuthenticated(false);
+                }
+            }
+
+            setLoading(false);
+        };
+
+        restoreSession();
+    }, []);
+
+    return (
+        <AuthContext.Provider
+            value={{ user, isAuthenticated, login, logout, loading }}
+        >
+            {children}
+        </AuthContext.Provider>
     );
-
-    setUser(fakeStudent);
-  }
-
-  function logout() {
-    localStorage.removeItem("user");
-    setUser(null);
-  }
-
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loginAsStudent,
-        logout,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
-}
-
-export function useAuth() {
-  return useContext(AuthContext);
 }

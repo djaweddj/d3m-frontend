@@ -4,22 +4,36 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import {
   GraduationCap,
-  Plus,
   X,
   CheckCircle2,
   MapPin,
   Phone,
-  Clock,
-  BookOpen,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
   Info,
   Send,
   Home,
   Building2,
   ShieldCheck,
-  ChevronLeft,
+  User,
+  Loader2,
 } from "lucide-react";
 
-// ─── tiny helpers ────────────────────────────────────────────────────────────
+// ─── Algerian wilayas ─────────────────────────────────────────────────────────
+const WILAYAS = [
+  "أدرار","الشلف","الأغواط","أم البواقي","باتنة","بجاية","بسكرة","بشار",
+  "البليدة","البويرة","تمنراست","تبسة","تلمسان","تيارت","تيزي وزو","الجزائر",
+  "الجلفة","جيجل","سطيف","سعيدة","سكيكدة","سيدي بلعباس","عنابة","قالمة",
+  "قسنطينة","المدية","مستغانم","المسيلة","معسكر","ورقلة","وهران","البيض",
+  "إليزي","برج بوعريريج","بومرداس","الطارف","تندوف","تيسمسيلت","الوادي",
+  "خنشلة","سوق أهراس","تيبازة","ميلة","عين الدفلى","النعامة","عين تيموشنت",
+  "غرداية","غليزان","تيميمون","برج باجي مختار","أولاد جلال","بني عباس",
+  "عين صالح","عين قزام","توقرت","جانت","المغير","المنيعة",
+];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 const Field = ({ label, hint, req, error, children }) => (
   <div className="flex flex-col gap-1.5">
     <label className="text-[13px] font-semibold text-gray-800">
@@ -124,8 +138,9 @@ function SuccessScreen() {
 export default function SchoolRegister() {
   const navigate = useNavigate();
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [subjects, setSubjects] = useState([]);
-  const [currentSubject, setCurrentSubject] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [serverError, setServerError] = useState(null);
 
   const {
     register,
@@ -133,25 +148,51 @@ export default function SchoolRegister() {
     formState: { errors },
   } = useForm();
 
-  const onSubmit = (data) => {
-    if (subjects.length === 0) {
-      toast.error("يرجى إضافة مادة واحدة على الأقل");
-      return;
-    }
-    console.log({ ...data, subjects });
-    toast.success("تم تسجيل المدرسة بنجاح!");
-    setIsSubmitted(true);
-  };
+  const onSubmit = async (data) => {
+    setIsLoading(true);
+    setServerError(null);
 
-  const addSubject = () => {
-    const val = currentSubject.trim();
-    if (val && !subjects.includes(val)) {
-      setSubjects([...subjects, val]);
-      setCurrentSubject("");
+    // Map form fields → backend DTO
+    const payload = {
+      schoolName: data.schoolName,
+      ownerFullName: data.ownerFullName,
+      phone: data.phone,
+      email: data.email,
+      wilaya: data.wilaya,
+      commune: data.commune,
+      address: data.address,
+      password: data.password,
+    };
+
+    try {
+      const response = await fetch("http://localhost:8080/api/school-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        const message =
+          errorData?.message ||
+          errorData?.error ||
+          `خطأ في الخادم (${response.status})`;
+        throw new Error(message);
+      }
+
+      toast.success("تم إرسال طلب التسجيل بنجاح!");
+      setIsSubmitted(true);
+    } catch (err) {
+      const msg =
+        err.message === "Failed to fetch"
+          ? "تعذّر الاتصال بالخادم — تأكد من تشغيل الخادم المحلي"
+          : err.message;
+      setServerError(msg);
+      toast.error(msg);
+    } finally {
+      setIsLoading(false);
     }
   };
-
-  const removeSubject = (s) => setSubjects(subjects.filter((x) => x !== s));
 
   if (isSubmitted) return <SuccessScreen />;
 
@@ -159,7 +200,6 @@ export default function SchoolRegister() {
     <div className="min-h-screen bg-gray-50" dir="rtl"
       style={{ fontFamily: "'Cairo', sans-serif" }}>
 
-      {/* Google Fonts */}
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&family=Tajawal:wght@400;500;700&display=swap');`}</style>
 
       {/* ── Header ── */}
@@ -183,11 +223,8 @@ export default function SchoolRegister() {
       {/* ── Hero strip ── */}
       <div
         className="relative overflow-hidden text-center px-4 py-10"
-        style={{
-          background: "linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%)",
-        }}
+        style={{ background: "linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%)" }}
       >
-        {/* subtle diagonal texture */}
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
@@ -195,7 +232,6 @@ export default function SchoolRegister() {
               "repeating-linear-gradient(-45deg, transparent, transparent 20px, rgba(255,255,255,0.03) 20px, rgba(255,255,255,0.03) 40px)",
           }}
         />
-
         <h1 className="text-2xl font-bold text-white relative" style={{ fontFamily: "'Tajawal', sans-serif" }}>
           تسجيل مدرسة جديدة
         </h1>
@@ -237,152 +273,149 @@ export default function SchoolRegister() {
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
 
-            {/* ── Section 1: Basic info ── */}
-            <SectionHeader icon={Info} label="المعلومات الأساسية" sub="بيانات هوية مدرستك على المنصة" />
+            {/* Server error banner */}
+            {serverError && (
+              <div className="mx-6 mt-6 bg-red-50 border border-red-200 rounded-xl p-4 flex gap-3 items-start">
+                <X className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-red-800">حدث خطأ</p>
+                  <p className="text-xs text-red-600 mt-0.5">{serverError}</p>
+                </div>
+              </div>
+            )}
+
+            {/* ── Section 1: School info ── */}
+            <SectionHeader icon={Info} label="معلومات المدرسة" sub="البيانات الأساسية لمدرستك" />
 
             <div className="p-6 space-y-4">
-              <Field label="اسم المدرسة" req error={errors.name?.message}>
+              <Field label="اسم المدرسة" req error={errors.schoolName?.message}>
                 <input
                   className={inputCls}
                   placeholder="مثال: مدرسة الأمل للدعم التربوي"
-                  {...register("name", { required: "اسم المدرسة مطلوب" })}
+                  {...register("schoolName", { required: "اسم المدرسة مطلوب" })}
                 />
               </Field>
 
-              <Field label="وصف المدرسة" hint="اشرح ما يميزكم" req error={errors.description?.message}>
-                <textarea
-                  className={inputCls}
-                  rows={3}
-                  placeholder="اكتب نبذة عن المدرسة، المستويات المدعومة، وأسلوب التدريس..."
-                  {...register("description", { required: "وصف المدرسة مطلوب" })}
-                />
-              </Field>
-
+              {/* Wilaya + Commune */}
               <div className="grid grid-cols-2 gap-4">
-                <Field label="اسم المدير المسؤول" req error={errors.teacher?.message}>
+                <Field label="الولاية" req error={errors.wilaya?.message}>
+                  <InputIcon icon={MapPin}>
+                    <select
+                      className={`${inputCls} pr-9 appearance-none cursor-pointer`}
+                      defaultValue=""
+                      {...register("wilaya", { required: "الولاية مطلوبة" })}
+                    >
+                      <option value="" disabled>اختر الولاية...</option>
+                      {WILAYAS.map((w) => (
+                        <option key={w} value={w}>{w}</option>
+                      ))}
+                    </select>
+                  </InputIcon>
+                </Field>
+
+                <Field label="البلدية" req error={errors.commune?.message}>
                   <input
                     className={inputCls}
-                    placeholder="الاسم الكامل"
-                    {...register("teacher", { required: "اسم المسؤول مطلوب" })}
+                    placeholder="مثال: باب الوادي"
+                    {...register("commune", { required: "البلدية مطلوبة" })}
                   />
                 </Field>
-
-                <Field label="الموقع" req error={errors.location?.message}>
-                  <InputIcon icon={MapPin}>
-                    <input
-                      className={`${inputCls} pr-9`}
-                      placeholder="المدينة، الحي"
-                      {...register("location", { required: "الموقع مطلوب" })}
-                    />
-                  </InputIcon>
-                </Field>
               </div>
+
+              <Field label="العنوان التفصيلي" req error={errors.address?.message}>
+                <InputIcon icon={MapPin}>
+                  <input
+                    className={`${inputCls} pr-9`}
+                    placeholder="رقم، شارع، حي..."
+                    {...register("address", { required: "العنوان مطلوب" })}
+                  />
+                </InputIcon>
+              </Field>
             </div>
 
             <div className="border-t border-gray-100 mx-6" />
 
-            {/* ── Section 2: Subjects ── */}
-            <SectionHeader icon={BookOpen} label="المواد الدراسية" sub="أضف المواد التي تقدمها مدرستك" />
-
-            <div className="p-6">
-              <div className="flex gap-2">
-                <input
-                  className={`${inputCls} flex-1`}
-                  value={currentSubject}
-                  onChange={(e) => setCurrentSubject(e.target.value)}
-                  placeholder="مثال: الرياضيات، الفيزياء، اللغة العربية..."
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") { e.preventDefault(); addSubject(); }
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={addSubject}
-                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold flex items-center gap-1.5 transition flex-shrink-0"
-                >
-                  <Plus className="h-4 w-4" />
-                  إضافة
-                </button>
-              </div>
-
-              <div className="mt-3 min-h-[32px]">
-                {subjects.length === 0 ? (
-                  <p className="text-xs text-gray-400 italic">
-                    لم تُضف أي مادة بعد — أضف مادة واحدة على الأقل
-                  </p>
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {subjects.map((s) => (
-                      <span
-                        key={s}
-                        className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 border border-blue-200 text-[13px] font-medium px-3 py-1 rounded-full"
-                      >
-                        {s}
-                        <button
-                          type="button"
-                          onClick={() => removeSubject(s)}
-                          className="text-blue-400 hover:text-red-500 transition"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="border-t border-gray-100 mx-6" />
-
-            {/* ── Section 3: Schedule & contact ── */}
-            <SectionHeader icon={Clock} label="الجدول والتواصل" sub="أوقات الدراسة وطريقة التواصل" />
+            {/* ── Section 2: Owner info ── */}
+            <SectionHeader icon={User} label="معلومات المسؤول" sub="بيانات صاحب أو مدير المدرسة" />
 
             <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="أوقات الدراسة" req error={errors.schedule?.message}>
-                  <InputIcon icon={Clock}>
-                    <input
-                      className={`${inputCls} pr-9`}
-                      placeholder="السبت–الخميس، 4:00–7:00 م"
-                      {...register("schedule", { required: "أوقات الدراسة مطلوبة" })}
-                    />
-                  </InputIcon>
-                </Field>
+              <Field label="الاسم الكامل للمسؤول" req error={errors.ownerFullName?.message}>
+                <InputIcon icon={User}>
+                  <input
+                    className={`${inputCls} pr-9`}
+                    placeholder="الاسم واللقب"
+                    {...register("ownerFullName", { required: "اسم المسؤول مطلوب" })}
+                  />
+                </InputIcon>
+              </Field>
 
-                <Field label="رقم الهاتف" req error={errors.contact?.message}>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="رقم الهاتف" req error={errors.phone?.message}>
                   <InputIcon icon={Phone}>
                     <input
                       className={`${inputCls} pr-9`}
                       placeholder="0612345678"
                       dir="ltr"
                       style={{ textAlign: "right" }}
-                      {...register("contact", {
+                      {...register("phone", {
                         required: "رقم الهاتف مطلوب",
                         pattern: {
                           value: /^0[5-7][0-9]{8}$/,
-                          message: "رقم الهاتف غير صحيح",
+                          message: "رقم الهاتف غير صحيح (مثال: 0612345678)",
+                        },
+                      })}
+                    />
+                  </InputIcon>
+                </Field>
+
+                <Field label="البريد الإلكتروني" req error={errors.email?.message}>
+                  <InputIcon icon={Mail}>
+                    <input
+                      type="email"
+                      className={`${inputCls} pr-9`}
+                      placeholder="example@email.com"
+                      dir="ltr"
+                      style={{ textAlign: "right" }}
+                      {...register("email", {
+                        required: "البريد الإلكتروني مطلوب",
+                        pattern: {
+                          value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                          message: "بريد إلكتروني غير صحيح",
                         },
                       })}
                     />
                   </InputIcon>
                 </Field>
               </div>
+            </div>
 
-              <Field label="الرسوم الشهرية (بالدينار الجزائري)" req error={errors.price?.message}>
+            <div className="border-t border-gray-100 mx-6" />
+
+            {/* ── Section 3: Account security ── */}
+            <SectionHeader icon={Lock} label="الحساب والأمان" sub="أنشئ كلمة مرور لحساب مدرستك" />
+
+            <div className="p-6">
+              <Field label="كلمة المرور" req error={errors.password?.message}>
                 <div className="relative">
                   <input
-                    type="number"
-                    className={`${inputCls} pr-14`}
-                    placeholder="5000"
-                    min={0}
-                    {...register("price", {
-                      required: "الرسوم الشهرية مطلوبة",
-                      min: { value: 0, message: "السعر يجب أن يكون أكبر من 0" },
+                    type={showPassword ? "text" : "password"}
+                    className={`${inputCls} pr-9`}
+                    placeholder="8 أحرف على الأقل"
+                    {...register("password", {
+                      required: "كلمة المرور مطلوبة",
+                      minLength: { value: 8, message: "يجب أن تكون 8 أحرف على الأقل" },
                     })}
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-gray-400 pointer-events-none">
-                    DZD
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+                  >
+                    {showPassword
+                      ? <EyeOff className="h-4 w-4" />
+                      : <Eye className="h-4 w-4" />
+                    }
+                  </button>
                 </div>
               </Field>
             </div>
@@ -419,11 +452,20 @@ export default function SchoolRegister() {
               </Link>
               <button
                 type="submit"
-                disabled={subjects.length === 0}
-                className="flex-1 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed text-white text-sm font-bold transition flex items-center justify-center gap-2"
+                disabled={isLoading}
+                className="flex-1 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white text-sm font-bold transition flex items-center justify-center gap-2"
               >
-                <Send className="h-4 w-4" />
-                إرسال طلب التسجيل
+                {isLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    جاري الإرسال...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4" />
+                    إرسال طلب التسجيل
+                  </>
+                )}
               </button>
             </div>
           </div>

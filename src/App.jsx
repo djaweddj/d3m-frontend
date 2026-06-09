@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
 import "./App.css";
 
@@ -33,6 +33,8 @@ import Requests from "./pages/Requests";
 import TeacherDashboard from "./pages/teacherDashboard";
 import MyStudents from "./pages/MyStudent";
 import TeacherProfile from "./pages/teacherprofile";
+import ProtectedRoute from "./auth/ProtectedRoutes";
+
 // Load Google Fonts
 const link = document.createElement("link");
 link.rel = "stylesheet";
@@ -49,7 +51,7 @@ document.head.appendChild(script);
 export default function App() {
   return (
     <SchoolProvider>
-      <Router>
+   
         <Toaster position="top-center" richColors />
 
         <Routes>
@@ -75,6 +77,15 @@ export default function App() {
            <Route path="/mystudent" element={<MyStudents/>} />
            <Route path="/teacherprofile" element={<TeacherProfile/>} />
            </Route>
+          
+              <Route path="/studentdashboard" element={
+                <ProtectedRoute role={"STUDENT"}>
+                    <StudentDashboard />
+                </ProtectedRoute>
+              
+                } />
+         
+         
 
 
           {/* Dashboard Layout */}
@@ -87,7 +98,7 @@ export default function App() {
             <Route path="/requests" element={<Requests />} />
           </Route>
         </Routes>
-      </Router>
+  
     </SchoolProvider>
   );
 }

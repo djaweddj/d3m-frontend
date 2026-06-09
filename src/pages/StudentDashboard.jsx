@@ -6,6 +6,7 @@ import {
   ChevronLeft, Edit3, Check, X,
 } from "lucide-react";
 import { mockStudent, WEEK_DAYS } from "../data/mockStudentData";
+import { useAuth } from "../context/authContext";
 
 // ─────────────────────────────────────────────────────────
 // Color palette per enrollment
@@ -572,15 +573,7 @@ function PageProfile({ student }) {
 // ─────────────────────────────────────────────────────────
 export default function StudentDashboard() {
   const navigate = useNavigate();
-  const student  = mockStudent;
-  const [active, setActive] = useState("sessions");
-
-  const PAGE_TITLES = {
-    sessions: "حصصي",
-    schedule: "برنامجي الأسبوعي",
-    schools:  "مدارسي المسجلة",
-    profile:  "بروفايل شخصي",
-  };
+  const student = mockStudent;
 
   return (
     <div dir="rtl" style={{
@@ -615,15 +608,15 @@ export default function StudentDashboard() {
             </div>
           </div>
         </div>
-
-        {/* Page body */}
-        <div style={{ padding:"1.5rem" }}>
-          {active === "sessions"  && <PageSessions student={student} />}
-          {active === "schedule"  && <PageSchedule student={student} />}
-          {active === "schools"   && <PageSchools  student={student} />}
-          {active === "profile"   && <PageProfile  student={student} />}
-        </div>
       </main>
+
+      {/* Page title */}
+      <div style={{ background: "#185FA5", padding: "1.5rem 1.5rem" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+          <div style={{ fontSize: 13, color: "#B5D4F4", marginBottom: 4 }}>مرحباً بك،</div>
+          <h1 style={{ fontSize: 22, fontWeight: 500, color: "#fff", margin: 0 }}>{student.name}</h1>
+        </div>
+      </div>
     </div>
   );
 }

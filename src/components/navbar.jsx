@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { GraduationCap, LayoutDashboard, LogOut } from "lucide-react";
-import { useAuth } from "../context/mockAuth";
+import { useAuth } from "../context/authContext";
 
 export default function Navbar() {
   const { user } = useAuth();

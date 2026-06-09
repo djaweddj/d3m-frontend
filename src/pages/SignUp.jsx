@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import axios from "axios";
 
 import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
 import MailOutlinedIcon from "@mui/icons-material/MailOutlined";
@@ -9,211 +10,248 @@ import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import VisibilityOffOutlinedIcon from "@mui/icons-material/VisibilityOffOutlined";
 import ArrowForwardOutlinedIcon from "@mui/icons-material/ArrowForwardOutlined";
+import PhoneOutlinedIcon from "@mui/icons-material/PhoneOutlined";
+import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
+import CakeOutlinedIcon from "@mui/icons-material/CakeOutlined";
+import FamilyRestroomOutlinedIcon from "@mui/icons-material/FamilyRestroomOutlined";
 
 import backImage from "../assets/back.jpg";
 
+const LEVELS = [
+  "1ère année",
+  "2ème année",
+  "3ème année",
+  "4ème année",
+  "5ème année",
+];
+
 export default function Signup() {
   const [showPassword, setShowPassword] = useState(false);
+  const API_URL = import.meta.env.VITE_API_URL;
+  const navigate = useNavigate();
 
-  const [name, setName] = useState("");
-
-  const [email, setEmail] = useState("");
-
-  const [password, setPassword] = useState("");
+  const [form, setForm] = useState({
+    fullName: "",
+    email: "",
+    Password: "",
+    level: "",
+    parentName: "",
+    parentPhone: "",
+    birthDate: "",
+  });
 
   const [loading, setLoading] = useState(false);
-
   const [error, setError] = useState("");
 
-  const navigate = useNavigate();
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const validate = () => {
+    if (
+      !form.fullName ||
+      !form.email ||
+      !form.Password ||
+      !form.level ||
+      !form.parentName ||
+      !form.parentPhone ||
+      !form.birthDate
+    ) {
+      return "Please fill in all fields.";
+    }
+    if (form.Password.length < 6) {
+      return "Password must be at least 6 characters.";
+    }
+    const phoneRegex = /^[0-9+\s\-()]{7,15}$/;
+    if (!phoneRegex.test(form.parentPhone)) {
+      return "Enter a valid parent phone number.";
+    }
+    return null;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const validationError = validate();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
 
     setLoading(true);
-
     setError("");
 
-    if (!name || !email || !password) {
-      setError("Please fill in all fields");
-
-      setLoading(false);
-
-      return;
-    }
-
-    if (password.length < 6) {
-      setError(
-        "Password must be at least 6 characters"
-      );
-
-      setLoading(false);
-
-      return;
-    }
-
-    setTimeout(() => {
-      localStorage.setItem(
-        "user",
-        JSON.stringify({
-          name,
-          email,
-        })
-      );
-
-      setLoading(false);
-
+    try {
+      await axios.post(`${API_URL}/api/students/register`, {
+        fullName: form.fullName,
+        email: form.email,
+        Password: form.Password,
+        level: form.level,
+        parentName: form.parentName,
+        parentPhone: form.parentPhone,
+        birthDate: form.birthDate, // "YYYY-MM-DD" – matches LocalDate
+      });
       navigate("/login");
-    }, 1000);
+    } catch (err) {
+      const serverMessage =
+        err?.response?.data?.message ||
+        err?.response?.data ||
+        "Registration failed. Please try again.";
+      setError(
+        typeof serverMessage === "string"
+          ? serverMessage
+          : "Registration failed. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div style={styles.container}>
-      {/* Error */}
+      {/* Error toast */}
       {error && (
         <div style={styles.alert}>
           <span>{error}</span>
-
-          <button
-            onClick={() => setError("")}
-            style={styles.alertClose}
-          >
+          <button onClick={() => setError("")} style={styles.alertClose}>
             ×
           </button>
         </div>
       )}
 
-      {/* Left */}
+      {/* ── Left (form) ── */}
       <div style={styles.leftSide}>
         <div style={styles.formWrapper}>
           {/* Logo */}
           <div style={styles.logoSection}>
-            <div style={styles.logoCircle}>
-              📚
-            </div>
-
-            <p style={styles.logoSubtext}>
-              Create Account
-            </p>
+            <div style={styles.logoCircle}>📚</div>
+            <p style={styles.logoSubtext}>Student Registration</p>
           </div>
 
           {/* Welcome */}
           <div style={styles.welcomeSection}>
-            <h1 style={styles.welcomeTitle}>
-              Get Started
-            </h1>
-
+            <h1 style={styles.welcomeTitle}>Get Started</h1>
             <p style={styles.welcomeSubtitle}>
-              Create your account to access
-              the dashboard platform.
+              Fill in your details to create a student account.
             </p>
           </div>
 
           {/* Form */}
-          <form
-            onSubmit={handleSubmit}
-            style={styles.form}
-          >
-            {/* Name */}
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>
-                Full Name
-              </label>
-
-              <div style={styles.inputWrapper}>
-                <div style={styles.inputIcon}>
-                  <PersonOutlinedIcon
-                    style={styles.icon}
-                  />
-                </div>
-
+          <form onSubmit={handleSubmit} style={styles.form}>
+            {/* Full Name */}
+            <Field label="Full Name">
+              <InputRow icon={<PersonOutlinedIcon style={styles.icon} />}>
                 <input
+                  name="fullName"
                   type="text"
-                  value={name}
-                  onChange={(e) =>
-                    setName(e.target.value)
-                  }
+                  value={form.fullName}
+                  onChange={handleChange}
                   placeholder="John Doe"
                   style={styles.input}
                 />
-              </div>
-            </div>
+              </InputRow>
+            </Field>
 
             {/* Email */}
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>
-                Email Address
-              </label>
-
-              <div style={styles.inputWrapper}>
-                <div style={styles.inputIcon}>
-                  <MailOutlinedIcon
-                    style={styles.icon}
-                  />
-                </div>
-
+            <Field label="Email Address">
+              <InputRow icon={<MailOutlinedIcon style={styles.icon} />}>
                 <input
+                  name="email"
                   type="email"
-                  value={email}
-                  onChange={(e) =>
-                    setEmail(e.target.value)
-                  }
+                  value={form.email}
+                  onChange={handleChange}
                   placeholder="you@example.com"
                   style={styles.input}
                 />
-              </div>
-            </div>
+              </InputRow>
+            </Field>
 
             {/* Password */}
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>
-                Password
-              </label>
-
-              <div style={styles.inputWrapper}>
-                <div style={styles.inputIcon}>
-                  <LockOutlinedIcon
-                    style={styles.icon}
-                  />
-                </div>
-
+            <Field label="Password">
+              <InputRow icon={<LockOutlinedIcon style={styles.icon} />}>
                 <input
-                  type={
-                    showPassword
-                      ? "text"
-                      : "password"
-                  }
-                  value={password}
-                  onChange={(e) =>
-                    setPassword(
-                      e.target.value
-                    )
-                  }
+                  name="Password"
+                  type={showPassword ? "text" : "password"}
+                  value={form.Password}
+                  onChange={handleChange}
                   placeholder="At least 6 characters"
                   style={styles.input}
                 />
-
                 <button
                   type="button"
                   style={styles.passwordToggle}
-                  onClick={() =>
-                    setShowPassword(
-                      !showPassword
-                    )
-                  }
+                  onClick={() => setShowPassword((v) => !v)}
                 >
                   {showPassword ? (
-                    <VisibilityOffOutlinedIcon
-                      style={styles.icon}
-                    />
+                    <VisibilityOffOutlinedIcon style={styles.icon} />
                   ) : (
-                    <VisibilityOutlinedIcon
-                      style={styles.icon}
-                    />
+                    <VisibilityOutlinedIcon style={styles.icon} />
                   )}
                 </button>
-              </div>
-            </div>
+              </InputRow>
+            </Field>
+
+            {/* Level */}
+            <Field label="Level">
+              <InputRow icon={<SchoolOutlinedIcon style={styles.icon} />}>
+                <select
+                  name="level"
+                  value={form.level}
+                  onChange={handleChange}
+                  style={{ ...styles.input, paddingRight: "16px" }}
+                >
+                  <option value="" disabled>
+                    Select your level
+                  </option>
+                  {LEVELS.map((lvl) => (
+                    <option key={lvl} value={lvl}>
+                      {lvl}
+                    </option>
+                  ))}
+                </select>
+              </InputRow>
+            </Field>
+
+            {/* Birth Date */}
+            <Field label="Date of Birth">
+              <InputRow icon={<CakeOutlinedIcon style={styles.icon} />}>
+                <input
+                  name="birthDate"
+                  type="date"
+                  value={form.birthDate}
+                  onChange={handleChange}
+                  style={styles.input}
+                />
+              </InputRow>
+            </Field>
+
+            {/* Parent Name */}
+            <Field label="Parent / Guardian Name">
+              <InputRow icon={<FamilyRestroomOutlinedIcon style={styles.icon} />}>
+                <input
+                  name="parentName"
+                  type="text"
+                  value={form.parentName}
+                  onChange={handleChange}
+                  placeholder="Parent full name"
+                  style={styles.input}
+                />
+              </InputRow>
+            </Field>
+
+            {/* Parent Phone */}
+            <Field label="Parent / Guardian Phone">
+              <InputRow icon={<PhoneOutlinedIcon style={styles.icon} />}>
+                <input
+                  name="parentPhone"
+                  type="tel"
+                  value={form.parentPhone}
+                  onChange={handleChange}
+                  placeholder="+213 6XX XXX XXX"
+                  style={styles.input}
+                />
+              </InputRow>
+            </Field>
 
             {/* Submit */}
             <button
@@ -224,26 +262,21 @@ export default function Signup() {
               {loading ? (
                 <>
                   <span style={styles.spinner}></span>
-                  Creating account...
+                  Creating account…
                 </>
               ) : (
                 <>
                   Sign Up
-                  <ArrowForwardOutlinedIcon
-                    style={styles.buttonIcon}
-                  />
+                  <ArrowForwardOutlinedIcon style={styles.buttonIcon} />
                 </>
               )}
             </button>
 
-            {/* Login */}
+            {/* Login link */}
             <div style={styles.loginContainer}>
               <p style={styles.loginText}>
                 Already have an account?{" "}
-                <Link
-                  to="/login"
-                  style={styles.loginLink}
-                >
+                <Link to="/login" style={styles.loginLink}>
                   Sign In
                 </Link>
               </p>
@@ -252,103 +285,39 @@ export default function Signup() {
         </div>
       </div>
 
-      {/* Right */}
+      {/* ── Right (decorative) ── */}
       <div style={styles.rightSide}>
         <div style={styles.rightSideOverlay}></div>
-
         <div style={styles.rightSideContent}>
           <div style={styles.rightSideInner}>
-            <h2 style={styles.rightSideTitle}>
-              Join Our Platform
-            </h2>
-
-            <p
-              style={
-                styles.rightSideDescription
-              }
-            >
-              Create your account and start
-              managing your platform with a
+            <h2 style={styles.rightSideTitle}>Join Our Platform</h2>
+            <p style={styles.rightSideDescription}>
+              Create your account and start managing your school journey with a
               modern and secure dashboard.
             </p>
-
             <div style={styles.featuresList}>
-              <div style={styles.featureItem}>
-                <div style={styles.featureIcon}>
-                  ✓
+              {[
+                {
+                  title: "Fast Registration",
+                  desc: "Create your account in seconds with a simple signup process.",
+                },
+                {
+                  title: "Secure Platform",
+                  desc: "Your data is protected using modern security standards.",
+                },
+                {
+                  title: "Smart Dashboard",
+                  desc: "Access schedules, grades, and manage everything easily.",
+                },
+              ].map((f) => (
+                <div key={f.title} style={styles.featureItem}>
+                  <div style={styles.featureIcon}>✓</div>
+                  <div>
+                    <h3 style={styles.featureTitle}>{f.title}</h3>
+                    <p style={styles.featureDescription}>{f.desc}</p>
+                  </div>
                 </div>
-
-                <div>
-                  <h3
-                    style={
-                      styles.featureTitle
-                    }
-                  >
-                    Fast Registration
-                  </h3>
-
-                  <p
-                    style={
-                      styles.featureDescription
-                    }
-                  >
-                    Create your account in
-                    seconds with a simple
-                    signup process.
-                  </p>
-                </div>
-              </div>
-
-              <div style={styles.featureItem}>
-                <div style={styles.featureIcon}>
-                  ✓
-                </div>
-
-                <div>
-                  <h3
-                    style={
-                      styles.featureTitle
-                    }
-                  >
-                    Secure Platform
-                  </h3>
-
-                  <p
-                    style={
-                      styles.featureDescription
-                    }
-                  >
-                    Your data is protected
-                    using modern security
-                    standards.
-                  </p>
-                </div>
-              </div>
-
-              <div style={styles.featureItem}>
-                <div style={styles.featureIcon}>
-                  ✓
-                </div>
-
-                <div>
-                  <h3
-                    style={
-                      styles.featureTitle
-                    }
-                  >
-                    Smart Dashboard
-                  </h3>
-
-                  <p
-                    style={
-                      styles.featureDescription
-                    }
-                  >
-                    Access analytics and
-                    manage everything easily.
-                  </p>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         </div>
@@ -357,6 +326,26 @@ export default function Signup() {
   );
 }
 
+/* ── Small layout helpers ── */
+function Field({ label, children }) {
+  return (
+    <div style={styles.inputGroup}>
+      <label style={styles.label}>{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function InputRow({ icon, children }) {
+  return (
+    <div style={styles.inputWrapper}>
+      <div style={styles.inputIcon}>{icon}</div>
+      {children}
+    </div>
+  );
+}
+
+/* ── Styles (unchanged palette) ── */
 const styles = {
   container: {
     minHeight: "100vh",
@@ -376,8 +365,7 @@ const styles = {
     alignItems: "center",
     gap: "10px",
     zIndex: 1000,
-    boxShadow:
-      "0 10px 30px rgba(0,0,0,0.08)",
+    boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
   },
 
   alertClose: {
@@ -395,16 +383,17 @@ const styles = {
     justifyContent: "center",
     padding: "40px",
     backgroundColor: "#ffffff",
+    overflowY: "auto",
   },
 
   formWrapper: {
     width: "100%",
     maxWidth: "420px",
+    paddingTop: "40px",
+    paddingBottom: "40px",
   },
 
-  logoSection: {
-    marginBottom: "40px",
-  },
+  logoSection: { marginBottom: "32px" },
 
   logoCircle: {
     width: "56px",
@@ -419,17 +408,12 @@ const styles = {
     color: "white",
   },
 
-  logoSubtext: {
-    color: "#64748b",
-    fontSize: "15px",
-  },
+  logoSubtext: { color: "#64748b", fontSize: "15px" },
 
-  welcomeSection: {
-    marginBottom: "36px",
-  },
+  welcomeSection: { marginBottom: "32px" },
 
   welcomeTitle: {
-    fontSize: "40px",
+    fontSize: "36px",
     fontWeight: "800",
     color: "#0f172a",
     marginBottom: "10px",
@@ -441,39 +425,24 @@ const styles = {
     fontSize: "16px",
   },
 
-  form: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "24px",
-  },
+  form: { display: "flex", flexDirection: "column", gap: "20px" },
 
-  inputGroup: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "10px",
-  },
+  inputGroup: { display: "flex", flexDirection: "column", gap: "8px" },
 
-  label: {
-    fontSize: "14px",
-    fontWeight: "600",
-    color: "#334155",
-  },
+  label: { fontSize: "14px", fontWeight: "600", color: "#334155" },
 
-  inputWrapper: {
-    position: "relative",
-  },
+  inputWrapper: { position: "relative" },
 
   inputIcon: {
     position: "absolute",
     top: "50%",
     left: "14px",
     transform: "translateY(-50%)",
+    pointerEvents: "none",
+    zIndex: 1,
   },
 
-  icon: {
-    color: "#94a3b8",
-    fontSize: "20px",
-  },
+  icon: { color: "#94a3b8", fontSize: "20px" },
 
   input: {
     width: "100%",
@@ -486,6 +455,8 @@ const styles = {
     outline: "none",
     transition: "all 0.2s ease",
     boxSizing: "border-box",
+    appearance: "none",
+    WebkitAppearance: "none",
   },
 
   passwordToggle: {
@@ -521,28 +492,16 @@ const styles = {
     border: "2px solid white",
     borderTop: "2px solid transparent",
     borderRadius: "50%",
-    animation:
-      "spin 1s linear infinite",
+    animation: "spin 1s linear infinite",
   },
 
-  buttonIcon: {
-    fontSize: "18px",
-  },
+  buttonIcon: { fontSize: "18px" },
 
-  loginContainer: {
-    textAlign: "center",
-  },
+  loginContainer: { textAlign: "center" },
 
-  loginText: {
-    color: "#64748b",
-    fontSize: "14px",
-  },
+  loginText: { color: "#64748b", fontSize: "14px" },
 
-  loginLink: {
-    color: "#2563eb",
-    fontWeight: "700",
-    textDecoration: "none",
-  },
+  loginLink: { color: "#2563eb", fontWeight: "700", textDecoration: "none" },
 
   rightSide: {
     flex: 1,
@@ -555,15 +514,10 @@ const styles = {
   rightSideOverlay: {
     position: "absolute",
     inset: 0,
-
     backgroundImage: `
-      linear-gradient(
-        rgba(15,23,42,0.75),
-        rgba(15,23,42,0.75)
-      ),
+      linear-gradient(rgba(15,23,42,0.75), rgba(15,23,42,0.75)),
       url(${backImage})
     `,
-
     backgroundSize: "cover",
     backgroundPosition: "center",
     backgroundRepeat: "no-repeat",
@@ -577,10 +531,7 @@ const styles = {
     padding: "64px",
   },
 
-  rightSideInner: {
-    maxWidth: "520px",
-    color: "white",
-  },
+  rightSideInner: { maxWidth: "520px", color: "white" },
 
   rightSideTitle: {
     fontSize: "48px",
@@ -596,34 +547,22 @@ const styles = {
     marginBottom: "40px",
   },
 
-  featuresList: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "24px",
-  },
+  featuresList: { display: "flex", flexDirection: "column", gap: "24px" },
 
-  featureItem: {
-    display: "flex",
-    gap: "16px",
-  },
+  featureItem: { display: "flex", gap: "16px" },
 
   featureIcon: {
     width: "34px",
     height: "34px",
     borderRadius: "50%",
-    backgroundColor:
-      "rgba(255,255,255,0.15)",
+    backgroundColor: "rgba(255,255,255,0.15)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
   },
 
-  featureTitle: {
-    fontSize: "17px",
-    fontWeight: "700",
-    marginBottom: "4px",
-  },
+  featureTitle: { fontSize: "17px", fontWeight: "700", marginBottom: "4px" },
 
   featureDescription: {
     fontSize: "14px",
@@ -632,30 +571,17 @@ const styles = {
   },
 };
 
-const styleSheet =
-  document.createElement("style");
-
+/* ── Global keyframes + focus styles ── */
+const styleSheet = document.createElement("style");
 styleSheet.textContent = `
 @keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-
-  to {
-    transform: rotate(360deg);
-  }
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
-
-input:focus {
+input:focus, select:focus {
   border-color: #2563eb !important;
-
-  box-shadow:
-    0 0 0 4px rgba(37,99,235,0.1);
+  box-shadow: 0 0 0 4px rgba(37,99,235,0.1);
 }
-
-button:hover {
-  opacity: 0.95;
-}
+button:hover { opacity: 0.95; }
 `;
-
 document.head.appendChild(styleSheet);

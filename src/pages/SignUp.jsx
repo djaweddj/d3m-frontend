@@ -28,6 +28,7 @@ const LEVELS = [
 export default function Signup() {
   const [showPassword, setShowPassword] = useState(false);
   const API_URL = import.meta.env.VITE_API_URL;
+  
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
@@ -85,7 +86,7 @@ export default function Signup() {
       await axios.post(`${API_URL}/api/students/register`, {
         fullName: form.fullName,
         email: form.email,
-        Password: form.Password,
+        password: form.Password,
         level: form.level,
         parentName: form.parentName,
         parentPhone: form.parentPhone,

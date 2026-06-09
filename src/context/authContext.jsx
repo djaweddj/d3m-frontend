@@ -1,3 +1,4 @@
+
 // src/context/AuthContext.jsx
 import { createContext, useState, useEffect, useContext } from "react";
 import api from "../api";
@@ -14,7 +15,7 @@ export function AuthProvider({ children }) {
     // ── fetch current user info ──────────────────────────────────────
     const fetchMe = async () => {
         try {
-            const res = await api.get(`${API_URL}/auth/me`);
+            const res = await api.get(`http://localhost:8081/auth/me`);
             setUser(res.data);
             setIsAuthenticated(true);
               return res.data;
@@ -29,8 +30,8 @@ export function AuthProvider({ children }) {
     // ── login ────────────────────────────────────────────────────────
     const login = async (email, password) => {
         // throws on failure so the login page can catch and show error
-        const res = await api.post(`${API_URL}/auth/login`, { email, password });
-        localStorage.setItem("accessToken", res.data.accessToken);
+        const res = await api.post(`http://localhost:8081/auth/login`, { email, password });
+        localStorage.setItem("accessToken", res.data.AccessToken);
        return await fetchMe();
     };
 
@@ -89,4 +90,5 @@ export function AuthProvider({ children }) {
             {children}
         </AuthContext.Provider>
     );
+
 }

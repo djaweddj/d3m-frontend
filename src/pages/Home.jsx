@@ -120,6 +120,7 @@ function CommentsSection({ user }) {
 
   // user.name is normalized in fetchMe (= fullName from backend)
   const displayName =  user?.fullName ?? "";
+  
 
   const handleSubmit = () => {
     if (!school || !text.trim() || rating === 0) return;

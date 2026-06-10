@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { Upload, School, Sun, Moon, Monitor, Save } from "lucide-react";
-import { useSchool } from "../context/SchoolContext";
+import { useAuth } from "../context/AuthContext";
 import { toast } from "sonner";
 
 const PRESETS = [
@@ -8,11 +8,15 @@ const PRESETS = [
   "#D97706", "#0891B2", "#BE185D", "#1E293B",
 ];
 
+const LS_COLOR_KEY = "school_primary_color";
+const LS_LOGO_KEY  = "school_logo_url";
+
 export default function Settings() {
-  const { school, updateSchool } = useSchool();
-  const [name, setName] = useState(school.name);
-  const [color, setColor] = useState(school.primaryColor);
-  const [previewLogo, setPreviewLogo] = useState(school.logoUrl);
+  const { user } = useAuth();
+  const school = user?.school;
+
+  const [color, setColor]           = useState(() => localStorage.getItem(LS_COLOR_KEY) ?? "#2563EB");
+  const [previewLogo, setPreviewLogo] = useState(() => localStorage.getItem(LS_LOGO_KEY) ?? null);
   const fileRef = useRef(null);
 
   const handleFile = (e) => {
@@ -24,13 +28,13 @@ export default function Settings() {
     }
     const url = URL.createObjectURL(file);
     setPreviewLogo(url);
-    updateSchool({ logoUrl: url });
     toast.success("تم رفع الشعار");
   };
 
   const save = () => {
-    updateSchool({ name, primaryColor: color, logoUrl: previewLogo });
-    toast.success("تم حفظ الإعدادات");
+    localStorage.setItem(LS_COLOR_KEY, color);
+    if (previewLogo) localStorage.setItem(LS_LOGO_KEY, previewLogo);
+    toast.success("تم حفظ الإعدادات محلياً");
   };
 
   return (
@@ -39,7 +43,34 @@ export default function Settings() {
         className="grid gap-4"
         style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}
       >
-        {/* Color picker */}
+
+        {/* ── School info (from API) ── */}
+        <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <p className="text-sm font-bold text-slate-800 mb-1">معلومات المدرسة</p>
+          <p className="text-[12px] text-gray-400 mb-3">البيانات المسجلة على المنصة</p>
+
+          <div className="space-y-2.5">
+            {[
+              { label: "اسم المدرسة",   value: school?.schoolName },
+              { label: "البريد الإلكتروني", value: school?.email },
+              { label: "الولاية",        value: school?.wilaya },
+              { label: "حالة الاشتراك",  value: school?.subscriptionStatus },
+            ].map(({ label, value }) => (
+              <div key={label} className="flex items-center justify-between">
+                <span className="text-[12px] text-gray-400">{label}</span>
+                <span className="text-[13px] font-semibold text-slate-700">
+                  {value ?? "—"}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-[11px] text-gray-300 mt-4">
+            لتعديل هذه البيانات، تواصل مع الدعم
+          </p>
+        </div>
+
+        {/* ── Color picker (localStorage) ── */}
         <div className="bg-white rounded-xl border border-gray-100 p-4">
           <p className="text-sm font-bold text-slate-800 mb-1">لون المدرسة الرئيسي</p>
           <p className="text-[12px] text-gray-400 mb-3">
@@ -57,7 +88,7 @@ export default function Settings() {
                   outline: color === c ? "2px solid #fff" : "none",
                   outlineOffset: "1px",
                 }}
-                onClick={() => { setColor(c); updateSchool({ primaryColor: c }); }}
+                onClick={() => setColor(c)}
               />
             ))}
           </div>
@@ -67,7 +98,7 @@ export default function Settings() {
             <input
               type="color"
               value={color}
-              onChange={(e) => { setColor(e.target.value); updateSchool({ primaryColor: e.target.value }); }}
+              onChange={(e) => setColor(e.target.value)}
               className="w-9 h-8 rounded-lg border border-gray-200 cursor-pointer p-0.5"
             />
             <span className="text-[11px] font-mono text-gray-400">{color}</span>
@@ -79,11 +110,13 @@ export default function Settings() {
             style={{ background: color }}
           >
             <School className="w-5 h-5 text-white" />
-            <span className="text-white text-sm font-bold">{name || school.name}</span>
+            <span className="text-white text-sm font-bold">
+              {school?.schoolName ?? "اسم المدرسة"}
+            </span>
           </div>
         </div>
 
-        {/* Logo upload */}
+        {/* ── Logo upload (localStorage) ── */}
         <div className="bg-white rounded-xl border border-gray-100 p-4">
           <p className="text-sm font-bold text-slate-800 mb-1">شعار المدرسة</p>
           <p className="text-[12px] text-gray-400 mb-3">رفع صورة الشعار (PNG أو SVG)</p>
@@ -117,28 +150,15 @@ export default function Settings() {
               </div>
             )}
             <div>
-              <p className="text-[13px] font-bold text-slate-800">{name || school.name}</p>
+              <p className="text-[13px] font-bold text-slate-800">
+                {school?.schoolName ?? "اسم المدرسة"}
+              </p>
               <p className="text-[11px] text-gray-400">معاينة في الشريط الجانبي</p>
             </div>
           </div>
         </div>
 
-        {/* School name */}
-        <div className="bg-white rounded-xl border border-gray-100 p-4">
-          <p className="text-sm font-bold text-slate-800 mb-1">اسم المدرسة</p>
-          <p className="text-[12px] text-gray-400 mb-3">
-            يظهر في الشريط الجانبي ورسائل التسجيل
-          </p>
-          <input
-            className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-800 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50"
-            style={{ fontFamily: "'Cairo', sans-serif" }}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="اسم المدرسة"
-          />
-        </div>
-
-        {/* Theme mode */}
+        {/* ── Theme mode (UI only) ── */}
         <div className="bg-white rounded-xl border border-gray-100 p-4">
           <p className="text-sm font-bold text-slate-800 mb-1">نمط العرض</p>
           <p className="text-[12px] text-gray-400 mb-3">
@@ -146,8 +166,8 @@ export default function Settings() {
           </p>
           <div className="space-y-2">
             {[
-              { label: "فاتح", icon: Sun },
-              { label: "داكن", icon: Moon },
+              { label: "فاتح",               icon: Sun },
+              { label: "داكن",               icon: Moon },
               { label: "تلقائي (حسب الجهاز)", icon: Monitor },
             ].map(({ label, icon: Icon }) => (
               <button
@@ -162,7 +182,7 @@ export default function Settings() {
         </div>
       </div>
 
-      {/* Save button */}
+      {/* ── Save ── */}
       <div className="mt-5 flex justify-start">
         <button
           onClick={save}

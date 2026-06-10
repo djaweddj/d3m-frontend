@@ -85,7 +85,7 @@ export default function Signup() {
       await axios.post(`${API_URL}/api/students/register`, {
         fullName: form.fullName,
         email: form.email,
-        Password: form.Password,
+        password: form.Password,
         level: form.level,
         parentName: form.parentName,
         parentPhone: form.parentPhone,

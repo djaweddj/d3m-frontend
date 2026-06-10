@@ -141,7 +141,7 @@ export default function SchoolRegister() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState(null);
-
+   const API_URL = import.meta.env.VITE_API_URL;
   const {
     register,
     handleSubmit,
@@ -165,7 +165,7 @@ export default function SchoolRegister() {
     };
 
     try {
-      const response = await fetch("http://localhost:8080/api/school-requests", {
+      const response = await fetch(`${API_URL}/api/school-requests`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

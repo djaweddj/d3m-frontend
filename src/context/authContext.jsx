@@ -31,7 +31,7 @@ export function AuthProvider({ children }) {
     const login = async (email, password) => {
         // throws on failure so the login page can catch and show error
         const res = await api.post(`http://localhost:8081/auth/login`, { email, password });
-        localStorage.setItem("accessToken", res.data.AccessToken);
+        localStorage.setItem("accessToken", res.data.accessToken);
        return await fetchMe();
     };
 

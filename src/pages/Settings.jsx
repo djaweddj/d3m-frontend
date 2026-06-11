@@ -1,22 +1,32 @@
 import { useState, useRef } from "react";
 import { Upload, School, Sun, Moon, Monitor, Save } from "lucide-react";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/authContext";
 import { toast } from "sonner";
 
 const PRESETS = [
-  "#2563EB", "#7C3AED", "#059669", "#DC2626",
-  "#D97706", "#0891B2", "#BE185D", "#1E293B",
+  "#185FA5", "#2563EB", "#7C3AED", "#059669",
+  "#DC2626", "#D97706", "#0891B2", "#BE185D",
 ];
 
 const LS_COLOR_KEY = "school_primary_color";
 const LS_LOGO_KEY  = "school_logo_url";
 
 export default function Settings() {
-  const { user } = useAuth();
-  const school = user?.school;
+  // useAuth gives: { user, school, logout }
+  // school shape matches SchoolDto / SchoolResponseDto:
+  //   schoolName, ownerName, email, phone, wilaya, commune,
+  //   subscriptionStatus, subscriptionExpiresAt
+  const { user, school } = useAuth();
 
-  const [color, setColor]           = useState(() => localStorage.getItem(LS_COLOR_KEY) ?? "#2563EB");
-  const [previewLogo, setPreviewLogo] = useState(() => localStorage.getItem(LS_LOGO_KEY) ?? null);
+  // Color + logo are UI-only preferences stored in localStorage
+  // (backend has no endpoint for these yet)
+  const [color, setColor] = useState(
+    () => localStorage.getItem(LS_COLOR_KEY) ?? school?.primaryColor ?? "#185FA5"
+  );
+  const [previewLogo, setPreviewLogo] = useState(
+    () => localStorage.getItem(LS_LOGO_KEY) ?? school?.logoUrl ?? null
+  );
+  const [theme,    setTheme]    = useState("light"); // UI-only
   const fileRef = useRef(null);
 
   const handleFile = (e) => {
@@ -28,170 +38,210 @@ export default function Settings() {
     }
     const url = URL.createObjectURL(file);
     setPreviewLogo(url);
-    toast.success("تم رفع الشعار");
+    toast.success("تم رفع الشعار مؤقتاً — احفظ لتثبيته");
   };
 
   const save = () => {
     localStorage.setItem(LS_COLOR_KEY, color);
     if (previewLogo) localStorage.setItem(LS_LOGO_KEY, previewLogo);
-    toast.success("تم حفظ الإعدادات محلياً");
+    toast.success("تم حفظ إعدادات العرض");
   };
 
+  // Card shell
+  const Card = ({ title, sub, children }) => (
+    <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #E8EEF6", padding: "1.1rem" }}>
+      <p style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", margin: "0 0 3px" }}>{title}</p>
+      {sub && <p style={{ fontSize: 11, color: "#94A3B8", margin: "0 0 14px" }}>{sub}</p>}
+      {children}
+    </div>
+  );
+
+  const schoolName = school?.schoolName ?? user?.fullName ?? "المدرسة";
+
   return (
-    <div className="p-5" dir="rtl" style={{ fontFamily: "'Cairo', sans-serif" }}>
-      <div
-        className="grid gap-4"
-        style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}
-      >
+    <div dir="rtl" style={{ padding: "1.25rem", fontFamily: "'Cairo', sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
 
-        {/* ── School info (from API) ── */}
-        <div className="bg-white rounded-xl border border-gray-100 p-4">
-          <p className="text-sm font-bold text-slate-800 mb-1">معلومات المدرسة</p>
-          <p className="text-[12px] text-gray-400 mb-3">البيانات المسجلة على المنصة</p>
+      {/* Page title */}
+      <div style={{ marginBottom: "1.25rem" }}>
+        <h1 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0 }}>إعدادات المدرسة</h1>
+        <p style={{ fontSize: 12, color: "#94A3B8", marginTop: 3, margin: 0 }}>
+          معلومات المدرسة وتخصيص واجهة لوحة التحكم
+        </p>
+      </div>
 
-          <div className="space-y-2.5">
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14 }}>
+
+        {/* ── School info (read-only, from backend via useAuth) ── */}
+        <Card title="معلومات المدرسة" sub="البيانات المسجلة على المنصة">
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {[
-              { label: "اسم المدرسة",   value: school?.schoolName },
-              { label: "البريد الإلكتروني", value: school?.email },
-              { label: "الولاية",        value: school?.wilaya },
-              { label: "حالة الاشتراك",  value: school?.subscriptionStatus },
-            ].map(({ label, value }) => (
-              <div key={label} className="flex items-center justify-between">
-                <span className="text-[12px] text-gray-400">{label}</span>
-                <span className="text-[13px] font-semibold text-slate-700">
+              { label: "اسم المدرسة",        value: school?.schoolName },
+              { label: "المالك",             value: school?.ownerName ?? user?.fullName },
+              { label: "البريد الإلكتروني",  value: school?.email ?? user?.email },
+              { label: "الهاتف",             value: school?.phone },
+              { label: "الولاية",            value: school?.wilaya },
+              { label: "البلدية",            value: school?.commune },
+              { label: "حالة الاشتراك",      value: school?.subscriptionStatus, highlight: true },
+              { label: "انتهاء الاشتراك",    value: school?.subscriptionExpiresAt },
+            ].map(({ label, value, highlight }) => (
+              <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <span style={{ fontSize: 11, color: "#94A3B8" }}>{label}</span>
+                <span style={{
+                  fontSize: 12, fontWeight: 600,
+                  color: highlight ? "#085041" : "#0F172A",
+                  background: highlight ? "#E1F5EE" : "transparent",
+                  padding: highlight ? "2px 8px" : 0,
+                  borderRadius: highlight ? 20 : 0,
+                  border: highlight ? "1px solid #5DCAA5" : "none",
+                }}>
                   {value ?? "—"}
                 </span>
               </div>
             ))}
           </div>
-
-          <p className="text-[11px] text-gray-300 mt-4">
-            لتعديل هذه البيانات، تواصل مع الدعم
+          <p style={{ fontSize: 10, color: "#CBD5E1", marginTop: 14, marginBottom: 0 }}>
+            لتعديل هذه البيانات، تواصل مع إدارة المنصة
           </p>
-        </div>
+        </Card>
 
-        {/* ── Color picker (localStorage) ── */}
-        <div className="bg-white rounded-xl border border-gray-100 p-4">
-          <p className="text-sm font-bold text-slate-800 mb-1">لون المدرسة الرئيسي</p>
-          <p className="text-[12px] text-gray-400 mb-3">
-            يُطبَّق على الشريط الجانبي والأزرار وعناصر التمييز
-          </p>
-
-          <div className="flex flex-wrap gap-2 mb-3">
+        {/* ── Primary color ── */}
+        <Card title="لون المدرسة الرئيسي" sub="يُطبَّق على الشريط الجانبي والأزرار">
+          {/* Preset swatches */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
             {PRESETS.map((c) => (
               <button
                 key={c}
-                className="w-7 h-7 rounded-full border-2 transition"
-                style={{
-                  background: c,
-                  borderColor: color === c ? "#1E293B" : "transparent",
-                  outline: color === c ? "2px solid #fff" : "none",
-                  outlineOffset: "1px",
-                }}
                 onClick={() => setColor(c)}
+                style={{
+                  width: 28, height: 28, borderRadius: "50%",
+                  background: c, cursor: "pointer",
+                  border: `2px solid ${color === c ? "#1E293B" : "transparent"}`,
+                  outline: color === c ? "2px solid #fff" : "none",
+                  outlineOffset: 1,
+                  transition: "border-color .15s",
+                }}
               />
             ))}
           </div>
 
-          <div className="flex items-center gap-2">
-            <label className="text-[12px] text-gray-500">لون مخصص:</label>
+          {/* Custom color */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <label style={{ fontSize: 11, color: "#64748B" }}>مخصص:</label>
             <input
               type="color"
               value={color}
               onChange={(e) => setColor(e.target.value)}
-              className="w-9 h-8 rounded-lg border border-gray-200 cursor-pointer p-0.5"
+              style={{ width: 36, height: 30, borderRadius: 8, border: "1px solid #E2E8F0", cursor: "pointer", padding: 2 }}
             />
-            <span className="text-[11px] font-mono text-gray-400">{color}</span>
+            <span style={{ fontSize: 11, fontFamily: "monospace", color: "#94A3B8" }}>{color}</span>
           </div>
 
           {/* Live preview */}
-          <div
-            className="mt-4 rounded-lg p-3 flex items-center gap-2"
-            style={{ background: color }}
-          >
-            <School className="w-5 h-5 text-white" />
-            <span className="text-white text-sm font-bold">
-              {school?.schoolName ?? "اسم المدرسة"}
-            </span>
+          <div style={{ marginTop: 14, borderRadius: 10, padding: "10px 14px", background: color, display: "flex", alignItems: "center", gap: 8 }}>
+            <School size={16} color="#fff" />
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>{schoolName}</span>
           </div>
-        </div>
+        </Card>
 
-        {/* ── Logo upload (localStorage) ── */}
-        <div className="bg-white rounded-xl border border-gray-100 p-4">
-          <p className="text-sm font-bold text-slate-800 mb-1">شعار المدرسة</p>
-          <p className="text-[12px] text-gray-400 mb-3">رفع صورة الشعار (PNG أو SVG)</p>
-
+        {/* ── Logo upload ── */}
+        <Card title="شعار المدرسة" sub="رفع صورة الشعار (PNG أو SVG · max 2MB)">
           <button
             onClick={() => fileRef.current?.click()}
-            className="w-full border-2 border-dashed border-gray-200 rounded-xl py-5 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition group"
+            style={{
+              width: "100%", borderRadius: 12, padding: "1.25rem 0",
+              border: "2px dashed #E2E8F0", background: "transparent",
+              cursor: "pointer", textAlign: "center", transition: "border-color .15s, background .15s",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#185FA5"; e.currentTarget.style.background = "#EBF4FE"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.background = "transparent"; }}
           >
-            <Upload className="w-6 h-6 mx-auto text-gray-300 group-hover:text-blue-400 mb-1" />
-            <p className="text-[12px] text-gray-400 group-hover:text-blue-500">اضغط لرفع الشعار</p>
-            <p className="text-[10px] text-gray-300 mt-0.5">PNG · SVG · max 2MB</p>
+            <Upload size={22} color="#CBD5E1" style={{ margin: "0 auto 5px" }} />
+            <p style={{ fontSize: 11, color: "#94A3B8", margin: 0 }}>اضغط لرفع الشعار</p>
           </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/png,image/svg+xml"
-            className="hidden"
-            onChange={handleFile}
-          />
+          <input ref={fileRef} type="file" accept="image/png,image/svg+xml" style={{ display: "none" }} onChange={handleFile} />
 
-          <p className="text-[12px] text-gray-400 mt-3 mb-1.5">معاينة:</p>
-          <div className="flex items-center gap-3 bg-slate-50 rounded-lg p-3 border border-gray-100">
+          {/* Preview */}
+          <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10, background: "#F8FAFC", borderRadius: 10, padding: "10px 12px", border: "1px solid #E8EEF6" }}>
             {previewLogo ? (
-              <img src={previewLogo} alt="الشعار" className="w-10 h-10 rounded-xl object-cover" />
+              <img src={previewLogo} alt="الشعار" style={{ width: 40, height: 40, borderRadius: 10, objectFit: "cover" }} />
             ) : (
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center"
-                style={{ background: color }}
-              >
-                <School className="w-5 h-5 text-white" />
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: color, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <School size={18} color="#fff" />
               </div>
             )}
             <div>
-              <p className="text-[13px] font-bold text-slate-800">
-                {school?.schoolName ?? "اسم المدرسة"}
-              </p>
-              <p className="text-[11px] text-gray-400">معاينة في الشريط الجانبي</p>
+              <p style={{ fontSize: 12, fontWeight: 700, color: "#0F172A", margin: 0 }}>{schoolName}</p>
+              <p style={{ fontSize: 10, color: "#94A3B8", margin: 0 }}>معاينة في الشريط الجانبي</p>
             </div>
-          </div>
-        </div>
-
-        {/* ── Theme mode (UI only) ── */}
-        <div className="bg-white rounded-xl border border-gray-100 p-4">
-          <p className="text-sm font-bold text-slate-800 mb-1">نمط العرض</p>
-          <p className="text-[12px] text-gray-400 mb-3">
-            اختر نمط واجهة لوحة التحكم
-          </p>
-          <div className="space-y-2">
-            {[
-              { label: "فاتح",               icon: Sun },
-              { label: "داكن",               icon: Moon },
-              { label: "تلقائي (حسب الجهاز)", icon: Monitor },
-            ].map(({ label, icon: Icon }) => (
+            {previewLogo && (
               <button
-                key={label}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-gray-100 text-[13px] text-slate-700 hover:bg-gray-50 hover:border-gray-200 transition text-right"
+                onClick={() => { setPreviewLogo(null); localStorage.removeItem(LS_LOGO_KEY); }}
+                style={{ marginRight: "auto", fontSize: 10, color: "#DC2626", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 6, padding: "2px 8px", cursor: "pointer", fontFamily: "inherit" }}
               >
-                <Icon className="w-4 h-4 text-gray-400" />
+                حذف
+              </button>
+            )}
+          </div>
+        </Card>
+
+        {/* ── Theme mode ── */}
+        <Card title="نمط العرض" sub="اختر نمط واجهة لوحة التحكم">
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {[
+              { key: "light",  label: "فاتح",               icon: Sun },
+              { key: "dark",   label: "داكن",               icon: Moon },
+              { key: "auto",   label: "تلقائي (حسب الجهاز)", icon: Monitor },
+            ].map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                onClick={() => setTheme(key)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "9px 12px", borderRadius: 9, cursor: "pointer",
+                  fontFamily: "inherit", fontSize: 13, textAlign: "right",
+                  border: `1.5px solid ${theme === key ? color : "#E2E8F0"}`,
+                  background: theme === key ? color + "12" : "#fff",
+                  color: theme === key ? color : "#64748B",
+                  fontWeight: theme === key ? 600 : 400,
+                  transition: "all .15s",
+                }}
+              >
+                <Icon size={15} />
                 {label}
+                {theme === key && (
+                  <span style={{ marginRight: "auto", fontSize: 10, background: color, color: "#fff", borderRadius: 20, padding: "1px 8px" }}>
+                    محدد
+                  </span>
+                )}
               </button>
             ))}
           </div>
-        </div>
+          <p style={{ fontSize: 10, color: "#CBD5E1", marginTop: 10, marginBottom: 0 }}>
+            الوضع الداكن قيد التطوير
+          </p>
+        </Card>
       </div>
 
-      {/* ── Save ── */}
-      <div className="mt-5 flex justify-start">
+      {/* Save */}
+      <div style={{ marginTop: "1.25rem" }}>
         <button
           onClick={save}
-          className="flex items-center gap-2 text-white text-sm font-bold px-6 py-2.5 rounded-lg transition"
-          style={{ background: color }}
+          style={{
+            display: "flex", alignItems: "center", gap: 8,
+            padding: "10px 22px", borderRadius: 10, border: "none",
+            background: color, color: "#fff",
+            fontSize: 13, fontWeight: 700, cursor: "pointer",
+            fontFamily: "inherit", transition: "opacity .15s",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.opacity = ".88")}
+          onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
         >
-          <Save className="w-4 h-4" />
-          حفظ جميع التغييرات
+          <Save size={15} />
+          حفظ إعدادات العرض
         </button>
+        <p style={{ fontSize: 11, color: "#94A3B8", marginTop: 6 }}>
+          بيانات المدرسة لا يمكن تعديلها من هنا — تواصل مع الدعم
+        </p>
       </div>
     </div>
   );

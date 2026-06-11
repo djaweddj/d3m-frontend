@@ -176,6 +176,7 @@ export default function SchoolRegister() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
+        
         const message =
           errorData?.message ||
           errorData?.error ||

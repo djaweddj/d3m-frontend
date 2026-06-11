@@ -28,6 +28,7 @@ const LEVELS = [
 export default function Signup() {
   const [showPassword, setShowPassword] = useState(false);
   const API_URL = import.meta.env.VITE_API_URL;
+  
   const navigate = useNavigate();
 
   const [form, setForm] = useState({

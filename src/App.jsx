@@ -2,7 +2,8 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
 import "./App.css";
 
-import { SchoolProvider } from "./context/SchoolContext";
+
+import { AuthProvider } from "./context/authContext";
 
 // Layouts
 import GuestLayout from "./layouts/GuestLayout";
@@ -50,7 +51,7 @@ document.head.appendChild(script);
 
 export default function App() {
   return (
-    <SchoolProvider>
+    <AuthProvider>
    
         <Toaster position="top-center" richColors />
 
@@ -99,6 +100,6 @@ export default function App() {
           </Route>
         </Routes>
   
-    </SchoolProvider>
+    </AuthProvider>
   );
 }

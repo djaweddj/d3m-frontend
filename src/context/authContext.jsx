@@ -1,3 +1,4 @@
+
 // src/context/AuthContext.jsx
 import { createContext, useState, useEffect, useContext } from "react";
 import api from "../api";
@@ -89,4 +90,5 @@ export function AuthProvider({ children }) {
             {children}
         </AuthContext.Provider>
     );
+
 }

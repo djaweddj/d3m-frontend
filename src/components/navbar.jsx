@@ -3,9 +3,10 @@ import { GraduationCap, LayoutDashboard, LogOut } from "lucide-react";
 import { useAuth } from "../context/authContext";
 
 export default function Navbar() {
+  
   const { user } = useAuth();
   const navigate = useNavigate();
-
+console.log("AUTH USER:", user);
   return (
     <header
       dir="rtl"
@@ -91,7 +92,7 @@ export default function Navbar() {
           تصفح المدارس
         </Link>
 
-        {user?.role === "student" ? (
+        {user?.role === "STUDENT" ? (
           /* ───────── Logged-in Student ───────── */
           <div
             style={{
@@ -162,7 +163,7 @@ export default function Navbar() {
                 }}
               >
                 {user.avatar ||
-                  user.name
+                  user.fullName
                     .split(" ")
                     .map((w) => w[0])
                     .join("")
@@ -176,7 +177,7 @@ export default function Navbar() {
                   color: "#0C447C",
                 }}
               >
-                {user.name}
+                {user.fullName}
               </span>
             </div>
 
@@ -309,6 +310,7 @@ export default function Navbar() {
             >
               إنشاء حساب
             </Link>
+           
           </div>
         )}
       </nav>

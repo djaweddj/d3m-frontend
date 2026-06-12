@@ -8,7 +8,7 @@ const DAY_NAMES = ["الأحد", "الإثنين", "الثلاثاء", "الأر
 const fmtTime   = (t) => (t ? String(t).slice(0, 5) : "—");
 
 function todayYearMonth() {
-  console.log(res.data)
+  
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }

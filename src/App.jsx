@@ -36,6 +36,9 @@ import MyStudents from "./pages/MyStudent";
 import TeacherProfile from "./pages/teacherprofile";
 import ProtectedRoute from "./auth/ProtectedRoutes";
 
+//
+ import SuperAdminDashboard from "./pages/SuperAdminDashborad";
+
 // Load Google Fonts
 const link = document.createElement("link");
 link.rel = "stylesheet";
@@ -73,11 +76,11 @@ export default function App() {
 
            <Route path="/studentdashboard" element={<StudentDashboard />} />
            {/* Dashboard teacher layout */} 
-          <Route element={<TeacherLayout/>}>
+          
           <Route path="/teacherdashboard" element={<TeacherDashboard />} />
            <Route path="/mystudent" element={<MyStudents/>} />
            <Route path="/teacherprofile" element={<TeacherProfile/>} />
-           </Route>
+           
           
               <Route path="/studentdashboard" element={
                 <ProtectedRoute role={"STUDENT"}>
@@ -98,7 +101,11 @@ export default function App() {
             <Route path="/settings" element={<Settings />} />
             <Route path="/requests" element={<Requests />} />
           </Route>
+            {/* superadmin*/}
+         <Route path="/superadmindashboard" element={<SuperAdminDashboard/>} />
         </Routes>
+      
+        
   
     </AuthProvider>
   );

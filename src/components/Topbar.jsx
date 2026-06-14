@@ -1,5 +1,5 @@
 import { Bell, Settings } from "lucide-react";
-import { useSchool } from "../context/SchoolContext";
+import { useAuth } from "../context/authContext";
 import { useLocation } from "react-router";
 
 const PAGE_TITLES = {
@@ -11,9 +11,12 @@ const PAGE_TITLES = {
 };
 
 export default function Topbar() {
-  const { school } = useSchool();
+  const { user } = useAuth();
   const location = useLocation();
   const title = PAGE_TITLES[location.pathname] || "لوحة التحكم";
+
+  const school = user?.school;
+  const primaryColor = school?.primaryColor ?? "#2563EB";
 
   return (
     <header
@@ -29,16 +32,18 @@ export default function Topbar() {
       </h1>
 
       <div className="flex items-center gap-2">
-        <span
-          className="text-[11px] font-semibold px-3 py-1 rounded-full border"
-          style={{
-            background: "var(--school-primary-light, #EFF6FF)",
-            color: school.primaryColor,
-            borderColor: "var(--school-primary-light, #BFDBFE)",
-          }}
-        >
-          السنة الدراسية {school.academicYear}
-        </span>
+        {school && (
+          <span
+            className="text-[11px] font-semibold px-3 py-1 rounded-full border"
+            style={{
+              backgroundColor: primaryColor + "1A", // 10% opacity
+              color: primaryColor,
+              borderColor: primaryColor + "40",     // 25% opacity
+            }}
+          >
+            السنة الدراسية {school.academicYear}
+          </span>
+        )}
         <button className="w-8 h-8 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 transition">
           <Bell className="w-4 h-4" />
         </button>

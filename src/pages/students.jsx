@@ -1,368 +1,158 @@
-import { useState } from "react";
-import {
-  Search, Plus, ChevronDown, ChevronUp,
-  CheckCircle, XCircle, Users, X,
-  GraduationCap, Phone, Hash,
-} from "lucide-react";
-import { useSchool } from "../context/SchoolContext";
-import { toast } from "sonner";
+import { useState, useEffect, useCallback } from "react";
+import { Search, Users, CheckCircle, XCircle, RefreshCw, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { useAuth } from "../context/authContext";
+import api from "../api";
 
-// ─── Initial data ─────────────────────────────────────────────────────────────
-const INITIAL_DATA = {
-  "1ère AS": {
-    label: "أولى ثانوي",
-    color: "#3B82F6",
-    light: "#EFF6FF",
-    groups: {
-      A: [
-        { id: 1,  name: "أحمد بن علي",     phone: "0661234501", subjects: ["رياضيات", "فيزياء"],  fee: 3500, paid: true  },
-        { id: 2,  name: "فاطمة الزهراء",   phone: "0551234502", subjects: ["علوم طبيعية"],        fee: 2800, paid: true  },
-        { id: 3,  name: "كريم بلحوسين",    phone: "0771234503", subjects: ["رياضيات"],            fee: 1800, paid: false },
-      ],
-      B: [
-        { id: 4,  name: "سمية بوخالفة",    phone: "0661234504", subjects: ["لغة عربية"],          fee: 1800, paid: true  },
-        { id: 5,  name: "يوسف كريمي",      phone: "0771234505", subjects: ["فيزياء", "رياضيات"], fee: 3200, paid: false },
-      ],
-    },
-  },
-  "2ème AS": {
-    label: "ثانية ثانوي",
-    color: "#8B5CF6",
-    light: "#F5F3FF",
-    groups: {
-      A: [
-        { id: 6,  name: "هاجر عيسى",       phone: "0661234506", subjects: ["لغة فرنسية"],         fee: 1800, paid: true  },
-        { id: 7,  name: "رضا منصوري",      phone: "0551234507", subjects: ["رياضيات", "فيزياء"], fee: 3500, paid: true  },
-      ],
-      B: [
-        { id: 8,  name: "إيمان بلحسن",     phone: "0771234508", subjects: ["علوم طبيعية"],        fee: 2800, paid: false },
-        { id: 9,  name: "نورالدين حمزة",   phone: "0661234509", subjects: ["رياضيات"],            fee: 1800, paid: true  },
-      ],
-      C: [
-        { id: 10, name: "سارة قاسم",       phone: "0551234510", subjects: ["تاريخ", "لغة عربية"],fee: 3000, paid: true  },
-      ],
-    },
-  },
-  "BAC": {
-    label: "باكالوريا",
-    color: "#059669",
-    light: "#ECFDF5",
-    groups: {
-      A: [
-        { id: 11, name: "عمر زروق",        phone: "0661234511", subjects: ["رياضيات", "فيزياء"], fee: 4000, paid: true  },
-        { id: 12, name: "لينة بن يوسف",    phone: "0551234512", subjects: ["علوم طبيعية"],        fee: 2800, paid: true  },
-        { id: 13, name: "ياسين حمادي",     phone: "0771234513", subjects: ["رياضيات"],            fee: 1800, paid: false },
-      ],
-      B: [
-        { id: 14, name: "مريم خالدي",      phone: "0661234514", subjects: ["لغة فرنسية", "تاريخ"],fee:3200, paid: true  },
-        { id: 15, name: "إسلام بوزيد",     phone: "0551234515", subjects: ["فيزياء"],             fee: 1800, paid: false },
-      ],
-      C: [
-        { id: 16, name: "نادية صديقي",     phone: "0771234516", subjects: ["رياضيات", "علوم"],   fee: 3600, paid: true  },
-        { id: 17, name: "عبدالرحمن علي",   phone: "0661234517", subjects: ["لغة عربية"],          fee: 1800, paid: true  },
-      ],
-      D: [
-        { id: 18, name: "آمال بلقاسم",     phone: "0551234518", subjects: ["فيزياء", "رياضيات"], fee: 3500, paid: false },
-        { id: 19, name: "حمزة كرار",       phone: "0771234519", subjects: ["علوم طبيعية"],        fee: 2800, paid: true  },
-      ],
-    },
-  },
+// ── API ───────────────────────────────────────────────────
+// GET /api/modules  → List<CourseModuleResponseDto>  (admin's school modules)
+// GET /api/students/by-module/{moduleId}  → List<StudentResponseDto>
+// GET /api/invoices/school/revenue?period=yyyy-MM  → SchoolRevenueDto (has invoices[])
+
+const schoolApi = {
+  getModules:  ()         => api.get("/modules"),
+  getStudents: (moduleId) => api.get(`/students/by-module/${moduleId}`),
+  getRevenue:  (period)   => api.get("/invoices/school/revenue", { params: { period } }),
 };
 
-const ALL_SUBJECTS = ["رياضيات", "فيزياء", "علوم طبيعية", "لغة عربية", "لغة فرنسية", "تاريخ", "كيمياء"];
-let nextId = 20;
+function todayYearMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
 
-// ─── Add-student modal ────────────────────────────────────────────────────────
-function AddStudentModal({ groupKey, levelColor, onClose, onAdd }) {
-  const [form, setForm] = useState({ name: "", phone: "", fee: "", paid: true, subjects: [] });
-  const [error, setError] = useState("");
+// ── Palette ───────────────────────────────────────────────
+const LEVEL_COLORS = [
+  { color: "#3B82F6", light: "#EFF6FF" },
+  { color: "#8B5CF6", light: "#F5F3FF" },
+  { color: "#059669", light: "#ECFDF5" },
+  { color: "#D97706", light: "#FFFBEB" },
+  { color: "#DC2626", light: "#FEF2F2" },
+];
+const levelColor = (i) => LEVEL_COLORS[i % LEVEL_COLORS.length];
 
-  const toggleSubject = (sub) =>
-    setForm((f) => ({
-      ...f,
-      subjects: f.subjects.includes(sub)
-        ? f.subjects.filter((s) => s !== sub)
-        : [...f.subjects, sub],
-    }));
+function initials(name = "") {
+  return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
+}
 
-  const submit = () => {
-    if (!form.name.trim())                                  return setError("الاسم مطلوب");
-    if (!form.phone.trim())                                 return setError("رقم الهاتف مطلوب");
-    if (!form.fee || isNaN(form.fee) || Number(form.fee) <= 0) return setError("الرسوم يجب أن تكون رقماً موجباً");
-    if (form.subjects.length === 0)                         return setError("أضف مادة واحدة على الأقل");
-    onAdd({ ...form, fee: Number(form.fee), id: nextId++ });
-    onClose();
-  };
-
+// ── Sub-components ────────────────────────────────────────
+function LoadingBlock() {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" dir="rtl">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md rounded-2xl bg-white shadow-2xl border border-slate-100 overflow-hidden">
-
-        {/* Modal header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100"
-          style={{ background: levelColor + "15" }}>
-          <div>
-            <p className="font-bold text-slate-800 text-sm">إضافة تلميذ جديد</p>
-            <p className="text-xs text-slate-400 mt-0.5">
-              المجموعة <span className="font-bold" style={{ color: levelColor }}>{groupKey}</span>
-            </p>
-          </div>
-          <button onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-700 transition">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="p-5 space-y-4">
-          {/* Name */}
-          <div>
-            <label className="text-xs font-semibold text-slate-600 mb-1.5 block">
-              الاسم الكامل <span className="text-red-500">*</span>
-            </label>
-            <input
-              className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-800 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50"
-              style={{ fontFamily: "'Cairo', sans-serif" }}
-              placeholder="أدخل الاسم الكامل"
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            />
-          </div>
-
-          {/* Phone */}
-          <div>
-            <label className="text-xs font-semibold text-slate-600 mb-1.5 block">
-              رقم الهاتف <span className="text-red-500">*</span>
-            </label>
-            <input
-              className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-800 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50"
-              style={{ fontFamily: "'Cairo', sans-serif" }}
-              placeholder="0661234567"
-              dir="ltr"
-              value={form.phone}
-              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-            />
-          </div>
-
-          {/* Subjects */}
-          <div>
-            <label className="text-xs font-semibold text-slate-600 mb-2 block">
-              المواد الدراسية <span className="text-red-500">*</span>
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {ALL_SUBJECTS.map((sub) => (
-                <button key={sub} type="button" onClick={() => toggleSubject(sub)}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-full border transition"
-                  style={
-                    form.subjects.includes(sub)
-                      ? { background: levelColor, color: "white", borderColor: levelColor }
-                      : { background: "white", color: "#64748B", borderColor: "#E2E8F0" }
-                  }>
-                  {sub}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Fee + Paid status */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-slate-600 mb-1.5 block">
-                الرسوم الشهرية (دج) <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number" min="0"
-                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-800 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50"
-                style={{ fontFamily: "'Cairo', sans-serif" }}
-                placeholder="3500"
-                value={form.fee}
-                onChange={(e) => setForm((f) => ({ ...f, fee: e.target.value }))}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-slate-600 mb-1.5 block">حالة الدفع</label>
-              <div className="flex gap-2 mt-0.5">
-                {[{ val: true, label: "مدفوع" }, { val: false, label: "معلق" }].map(({ val, label }) => (
-                  <button key={label} type="button"
-                    onClick={() => setForm((f) => ({ ...f, paid: val }))}
-                    className="flex-1 py-2 rounded-lg text-xs font-semibold border transition"
-                    style={
-                      form.paid === val
-                        ? { background: val ? "#ECFDF5" : "#FEF9C3", color: val ? "#065F46" : "#854D0E", borderColor: val ? "#6EE7B7" : "#FDE047" }
-                        : { background: "white", color: "#94A3B8", borderColor: "#E2E8F0" }
-                    }>
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {error && (
-            <p className="text-xs text-red-500 flex items-center gap-1">
-              <XCircle className="w-3.5 h-3.5" /> {error}
-            </p>
-          )}
-        </div>
-
-        {/* Modal footer */}
-        <div className="flex gap-3 px-5 pb-5">
-          <button onClick={onClose}
-            className="flex-1 py-2.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-500 hover:bg-slate-50 transition">
-            إلغاء
-          </button>
-          <button onClick={submit}
-            className="flex-1 py-2.5 rounded-lg text-white text-sm font-bold transition hover:opacity-90"
-            style={{ background: levelColor }}>
-            إضافة التلميذ
-          </button>
-        </div>
-      </div>
+    <div style={{ display: "flex", justifyContent: "center", padding: "3rem" }}>
+      <div style={{ width: 24, height: 24, borderRadius: "50%", border: "2.5px solid #185FA5", borderTopColor: "transparent", animation: "spin 1s linear infinite" }} />
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 }
 
-// ─── Group accordion ──────────────────────────────────────────────────────────
-function GroupSection({ groupKey, students, levelColor, levelLight, onAddClick }) {
+function ErrorBlock({ message, onRetry }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "2rem" }}>
+      <AlertCircle size={32} color="#E2A84B" />
+      <p style={{ color: "#64748B", fontSize: 13 }}>{message}</p>
+      {onRetry && (
+        <button onClick={onRetry} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 8, border: "1.5px solid #185FA5", background: "#EBF4FE", color: "#185FA5", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+          <RefreshCw size={13} /> إعادة المحاولة
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ── Module accordion ──────────────────────────────────────
+function ModuleSection({ module, students, invoiceMap, color, light }) {
   const [open, setOpen] = useState(true);
-  const paid   = students.filter((s) => s.paid).length;
+
+  const paid   = students.filter((s) => {
+    const inv = invoiceMap[s.id];
+    return inv && inv.status === "PAID";
+  }).length;
   const unpaid = students.length - paid;
-  const income = students.filter((s) => s.paid).reduce((a, s) => a + s.fee, 0);
 
   return (
-    <div className="rounded-xl overflow-hidden shadow-sm"
-      style={{ border: `1px solid ${levelColor}28`, borderRight: `3px solid ${levelColor}` }}>
-
+    <div style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${color}28`, borderRight: `3px solid ${color}`, marginBottom: 10 }}>
       {/* Header */}
       <button
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-white hover:bg-slate-50/60 transition text-right">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center font-extrabold text-base"
-            style={{ background: levelLight, color: levelColor }}>
-            {groupKey}
+        style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "#fff", border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "right" }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: light, color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700 }}>
+            {module.level?.slice(0, 3) ?? "—"}
           </div>
           <div>
-            <p className="text-sm font-bold text-slate-800">المجموعة {groupKey}</p>
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-[11px] text-slate-400 flex items-center gap-0.5">
-                <Users className="w-3 h-3" /> {students.length} تلميذ
+            <p style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", margin: 0 }}>
+              {module.subjectName ?? module.name}
+            </p>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 3 }}>
+              <span style={{ fontSize: 11, color: "#64748B" }}>👨‍🏫 {module.teacherName ?? "—"}</span>
+              <span style={{ fontSize: 10, color: "#94A3B8" }}>·</span>
+              <span style={{ fontSize: 11, color: "#64748B" }}>
+                <Users size={10} style={{ verticalAlign: "middle" }} /> {students.length} تلميذ
               </span>
               {unpaid > 0 && (
-                <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
+                <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 7px", borderRadius: 20, background: "#FEF3C7", color: "#92400E", border: "1px solid #FDE68A" }}>
                   {unpaid} معلق
-                </span>
-              )}
-              {unpaid === 0 && students.length > 0 && (
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
-                  الكل مدفوع ✓
                 </span>
               )}
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={(e) => { e.stopPropagation(); onAddClick(groupKey); }}
-            className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition hover:opacity-80"
-            style={{ color: levelColor, borderColor: levelColor + "50", background: levelLight }}>
-            <Plus className="w-3.5 h-3.5" /> إضافة تلميذ
-          </button>
-          {open
-            ? <ChevronUp className="w-4 h-4 text-slate-300" />
-            : <ChevronDown className="w-4 h-4 text-slate-300" />}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 20, background: light, color }}>
+            {module.level}
+          </span>
+          {open ? <ChevronUp size={16} color="#94A3B8" /> : <ChevronDown size={16} color="#94A3B8" />}
         </div>
       </button>
 
       {/* Students list */}
       {open && (
-        <div className="bg-white">
+        <div style={{ background: "#fff", borderTop: "1px solid #F8FAFC" }}>
           {students.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 gap-2">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center"
-                style={{ background: levelLight }}>
-                <Users className="w-5 h-5" style={{ color: levelColor }} />
-              </div>
-              <p className="text-sm text-slate-400">لا يوجد تلاميذ في هذه المجموعة بعد</p>
-              <button
-                onClick={() => onAddClick(groupKey)}
-                className="text-xs font-bold px-4 py-1.5 rounded-lg text-white transition hover:opacity-90 mt-1"
-                style={{ background: levelColor }}>
-                إضافة أول تلميذ
-              </button>
+            <div style={{ padding: "1.5rem", textAlign: "center", color: "#94A3B8", fontSize: 13 }}>
+              لا يوجد تلاميذ في هذه الوحدة
             </div>
           ) : (
             <>
               {/* Column headers */}
-              <div className="grid items-center gap-3 px-4 py-2 border-t border-b border-slate-50 bg-slate-50/50"
-                style={{ gridTemplateColumns: "24px 32px 1fr 120px 90px 80px" }}>
-                <span />
-                <span />
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">الاسم والمواد</span>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">الهاتف</span>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">الرسوم</span>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">الحالة</span>
+              <div style={{ display: "grid", gridTemplateColumns: "28px 36px 1fr 140px 100px 80px", gap: 8, padding: "8px 16px", background: "#F8FAFC", borderBottom: "1px solid #F1F5F9" }}>
+                {["", "", "الاسم", "البريد الإلكتروني", "ولي الأمر", "الدفع"].map((h, i) => (
+                  <span key={i} style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: ".05em" }}>{h}</span>
+                ))}
               </div>
 
-              {students.map((s, i) => (
-                <div key={s.id}
-                  className="grid items-center gap-3 px-4 py-3 hover:bg-slate-50/70 transition border-b border-slate-50 last:border-0"
-                  style={{ gridTemplateColumns: "24px 32px 1fr 120px 90px 80px" }}>
-
-                  {/* Row number */}
-                  <span className="text-[11px] text-slate-300 font-mono text-center">{i + 1}</span>
-
-                  {/* Avatar */}
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0"
-                    style={{ background: levelColor }}>
-                    {s.name.split(" ").map((w) => w[0]).join("").slice(0, 2)}
-                  </div>
-
-                  {/* Name + subjects */}
-                  <div className="min-w-0">
-                    <p className="text-[13px] font-semibold text-slate-800 truncate">{s.name}</p>
-                    <div className="flex flex-wrap gap-1 mt-0.5">
-                      {s.subjects.map((sub) => (
-                        <span key={sub}
-                          className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
-                          style={{ background: levelLight, color: levelColor }}>
-                          {sub}
-                        </span>
-                      ))}
+              {students.map((s, i) => {
+                const inv    = invoiceMap[s.id];
+                const isPaid = inv?.status === "PAID";
+                return (
+                  <div
+                    key={s.id}
+                    style={{ display: "grid", gridTemplateColumns: "28px 36px 1fr 140px 100px 80px", gap: 8, padding: "10px 16px", alignItems: "center", borderBottom: i < students.length - 1 ? "1px solid #F8FAFC" : "none" }}
+                  >
+                    <span style={{ fontSize: 11, color: "#CBD5E1", fontFamily: "monospace", textAlign: "center" }}>{i + 1}</span>
+                    <div style={{ width: 30, height: 30, borderRadius: "50%", background: color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff" }}>
+                      {initials(s.fullName)}
                     </div>
+                    <div>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", margin: 0 }}>{s.fullName}</p>
+                      {s.level && <p style={{ fontSize: 10, color: "#94A3B8", margin: 0, marginTop: 1 }}>{s.level}</p>}
+                    </div>
+                    <span style={{ fontSize: 11, color: "#64748B", direction: "ltr", textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {s.email || "—"}
+                    </span>
+                    <span style={{ fontSize: 11, color: "#64748B" }}>{s.parentPhone || "—"}</span>
+                    <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 20, display: "inline-flex", alignItems: "center", gap: 4, background: isPaid ? "#ECFDF5" : "#FEF9C3", color: isPaid ? "#065F46" : "#854D0E" }}>
+                      {isPaid
+                        ? <><CheckCircle size={10} /> مدفوع</>
+                        : <><XCircle size={10} /> معلق</>}
+                    </span>
                   </div>
+                );
+              })}
 
-                  {/* Phone */}
-                  <div className="flex items-center gap-1 text-[11px] text-slate-400">
-                    <Phone className="w-3 h-3 flex-shrink-0" />
-                    <span dir="ltr" className="truncate">{s.phone}</span>
-                  </div>
-
-                  {/* Fee */}
-                  <p className="text-[12px] font-bold text-slate-700">
-                    {s.fee.toLocaleString("ar-DZ")} دج
-                  </p>
-
-                  {/* Paid badge */}
-                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap"
-                    style={{
-                      background: s.paid ? "#ECFDF5" : "#FEF9C3",
-                      color:      s.paid ? "#065F46" : "#854D0E",
-                    }}>
-                    {s.paid
-                      ? <><CheckCircle className="w-3 h-3" /> مدفوع</>
-                      : <><XCircle    className="w-3 h-3" /> معلق</>}
-                  </span>
-                </div>
-              ))}
-
-              {/* Group summary footer */}
-              <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50/80 border-t border-slate-100 text-[11px] text-slate-400">
-                <span>
-                  الدخل المحصّل:{" "}
-                  <strong className="text-slate-700">{income.toLocaleString("ar-DZ")} دج</strong>
-                </span>
-                <span>{paid} مدفوع · {unpaid} معلق</span>
+              {/* Footer */}
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 16px", background: "#F8FAFC", borderTop: "1px solid #F1F5F9", fontSize: 11, color: "#94A3B8" }}>
+                <span>مدفوع: <strong style={{ color: "#0F172A" }}>{paid}</strong></span>
+                <span>معلق: <strong style={{ color: "#BA7517" }}>{unpaid}</strong></span>
               </div>
             </>
           )}
@@ -372,151 +162,208 @@ function GroupSection({ groupKey, students, levelColor, levelLight, onAddClick }
   );
 }
 
-// ─── Level tab button ─────────────────────────────────────────────────────────
-function LevelTab({ levelKey, meta, active, onClick }) {
-  const total = Object.values(meta.groups).flat().length;
-  const groups = Object.keys(meta.groups).length;
+// ── Level tab ─────────────────────────────────────────────
+function LevelTab({ levelKey, count, color, light, active, onClick }) {
   return (
-    <button onClick={onClick}
-      className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-sm font-bold transition-all border"
-      style={
-        active
-          ? { background: meta.color, color: "white", borderColor: meta.color, boxShadow: `0 4px 14px ${meta.color}40` }
-          : { background: "white", color: "#64748B", borderColor: "#E2E8F0" }
-      }>
-      <GraduationCap className="w-4 h-4" />
-      {meta.label}
-      <div className="flex items-center gap-1">
-        <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-full"
-          style={
-            active
-              ? { background: "rgba(255,255,255,0.25)", color: "white" }
-              : { background: meta.light, color: meta.color }
-          }>
-          {total} تلميذ
-        </span>
-        <span className="text-[10px] px-1.5 py-0.5 rounded-full opacity-70"
-          style={
-            active
-              ? { background: "rgba(255,255,255,0.15)", color: "white" }
-              : { background: "#F1F5F9", color: "#94A3B8" }
-          }>
-          {groups} مجموعات
-        </span>
-      </div>
+    <button
+      onClick={onClick}
+      style={{
+        display: "flex", alignItems: "center", gap: 8, padding: "8px 16px",
+        borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer",
+        border: active ? `1.5px solid ${color}` : "1.5px solid #E2E8F0",
+        background: active ? color : "#fff",
+        color: active ? "#fff" : "#64748B",
+        boxShadow: active ? `0 4px 14px ${color}40` : "none",
+        transition: "all .15s", fontFamily: "inherit",
+      }}
+    >
+      {levelKey}
+      <span style={{ fontSize: 11, fontWeight: 700, padding: "1px 8px", borderRadius: 20, background: active ? "rgba(255,255,255,.25)" : light, color: active ? "#fff" : color }}>
+        {count}
+      </span>
     </button>
   );
 }
 
-// ─── Main Students page ───────────────────────────────────────────────────────
+// ── Main ──────────────────────────────────────────────────
 export default function Students() {
-  const { school } = useSchool();
-  const [data,        setData]        = useState(INITIAL_DATA);
-  const [activeLevel, setActiveLevel] = useState("1ère AS");
-  const [search,      setSearch]      = useState("");
-  const [modal,       setModal]       = useState(null); // { groupKey }
+  const { school } = useAuth();
+  const schoolId = school?.id;
 
-  const level = data[activeLevel];
+  const [modules,      setModules]     = useState([]);
+  const [studentMap,   setStudentMap]  = useState({}); // moduleId → StudentResponseDto[]
+  const [invoiceMap,   setInvoiceMap]  = useState({}); // studentId → StudentInvoiceResponseDto
+  const [loading,      setLoading]     = useState(true);
+  const [error,        setError]       = useState(null);
+  const [activeLevel,  setActiveLevel] = useState(null);
+  const [search,       setSearch]      = useState("");
 
-  const filtered = Object.fromEntries(
-    Object.entries(level.groups).map(([gk, students]) => [
-      gk,
-      search.trim()
-        ? students.filter(
-            (s) =>
-              s.name.includes(search) ||
-              s.subjects.some((sub) => sub.includes(search))
-          )
-        : students,
-    ])
-  );
+  const load = useCallback(async () => {
+    if (!schoolId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      // 1. Get all modules for this school
+      const modRes = await schoolApi.getModules();
+      const mods   = modRes.data?.content ?? modRes.data ?? [];
+      setModules(mods);
 
-  const allStudents = Object.values(level.groups).flat();
-  const totalStudents = allStudents.length;
-  const totalPaid     = allStudents.filter((s) => s.paid).length;
-  const totalIncome   = allStudents.filter((s) => s.paid).reduce((a, s) => a + s.fee, 0);
+      if (mods.length === 0) { setLoading(false); return; }
 
-  const handleAdd = (groupKey, student) => {
-    setData((prev) => ({
-      ...prev,
-      [activeLevel]: {
-        ...prev[activeLevel],
-        groups: {
-          ...prev[activeLevel].groups,
-          [groupKey]: [...prev[activeLevel].groups[groupKey], student],
-        },
-      },
-    }));
-    toast.success(`تمت إضافة ${student.name} إلى المجموعة ${groupKey}`);
-  };
+      // 2. Fetch students for every module in parallel
+      const studentResults = await Promise.all(
+        mods.map((m) => schoolApi.getStudents(m.id).then((r) => ({ moduleId: m.id, students: r.data?.content ?? r.data ?? [] })))
+      );
+      const sMap = {};
+      studentResults.forEach(({ moduleId, students }) => { sMap[moduleId] = students; });
+      setStudentMap(sMap);
+
+      // 3. Fetch current month revenue (has invoices[] with student payment status)
+      const revRes   = await schoolApi.getRevenue(todayYearMonth());
+      const invoices = revRes.data?.invoices ?? [];
+      const iMap     = {};
+      // key by studentName since StudentInvoiceResponseDto has studentName not studentId
+      // We'll match by name later; store by name as key
+      invoices.forEach((inv) => {
+        if (inv.studentName) iMap[inv.studentName] = inv;
+      });
+      setInvoiceMap(iMap);
+
+      // Set default active level
+      const levels = [...new Set(mods.map((m) => m.level).filter(Boolean))];
+      if (levels.length > 0) setActiveLevel(levels[0]);
+    } catch (err) {
+      setError(err?.response?.data?.message || "خطأ في تحميل البيانات");
+    } finally {
+      setLoading(false);
+    }
+  }, [schoolId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (loading) return <div style={{ padding: "1.5rem", fontFamily: "'Cairo',sans-serif" }} dir="rtl"><LoadingBlock /></div>;
+  if (error)   return <div style={{ padding: "1.5rem", fontFamily: "'Cairo',sans-serif" }} dir="rtl"><ErrorBlock message={error} onRetry={load} /></div>;
+
+  // Group modules by level
+  const byLevel = {};
+  modules.forEach((m, i) => {
+    const lvl = m.level || "غير محدد";
+    if (!byLevel[lvl]) byLevel[lvl] = { modules: [], colorIdx: Object.keys(byLevel).length };
+    byLevel[lvl].modules.push({ ...m, _idx: i });
+  });
+
+  const levels = Object.keys(byLevel);
+  const active = activeLevel ?? levels[0];
+  const { colorIdx } = byLevel[active] ?? { colorIdx: 0 };
+  const { color, light } = levelColor(colorIdx);
+
+  // All students in active level for stats
+  const activeMods     = (byLevel[active]?.modules ?? []);
+  const allStudents    = activeMods.flatMap((m) => studentMap[m.id] ?? []);
+  const uniqueStudents = [...new Map(allStudents.map((s) => [s.id, s])).values()];
+
+  // Search filter
+  const filtered = search.trim()
+    ? uniqueStudents.filter((s) => s.fullName?.includes(search) || s.email?.includes(search))
+    : null; // null = show per-module breakdown
 
   return (
-    <div className="p-5" dir="rtl" style={{ fontFamily: "'Cairo', sans-serif" }}>
+    <div dir="rtl" style={{ padding: "1.25rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
 
-      {/* ── Level tabs ── */}
-      <div className="flex flex-wrap gap-2 mb-5">
-        {Object.entries(data).map(([key, meta]) => (
-          <LevelTab
-            key={key}
-            levelKey={key}
-            meta={meta}
-            active={activeLevel === key}
-            onClick={() => { setActiveLevel(key); setSearch(""); }}
-          />
-        ))}
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.25rem" }}>
+        <div>
+          <h1 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0 }}>التلاميذ</h1>
+          <p style={{ fontSize: 12, color: "#94A3B8", marginTop: 2, margin: 0 }}>
+            {uniqueStudents.length} تلميذ في المستوى الحالي
+          </p>
+        </div>
+        <button onClick={load} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+          <RefreshCw size={13} /> تحديث
+        </button>
       </div>
 
-      {/* ── Stats + search bar ── */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-5">
-        <div className="flex items-center gap-2 flex-wrap">
+      {/* Level tabs */}
+      {levels.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: "1.25rem" }}>
+          {levels.map((lvl, i) => {
+            const c = levelColor(byLevel[lvl].colorIdx);
+            const count = (byLevel[lvl].modules ?? []).flatMap((m) => studentMap[m.id] ?? []).length;
+            return (
+              <LevelTab key={lvl} levelKey={lvl} count={count} color={c.color} light={c.light}
+                active={active === lvl} onClick={() => { setActiveLevel(lvl); setSearch(""); }} />
+            );
+          })}
+        </div>
+      )}
+
+      {/* Stats + Search */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: "1.25rem", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {[
-            { icon: Users,        val: totalStudents,                         label: "تلميذ" },
-            { icon: CheckCircle,  val: totalPaid,                             label: "مدفوع" },
-            { icon: Hash,         val: totalIncome.toLocaleString("ar-DZ") + " دج", label: "دخل" },
-          ].map(({ icon: Icon, val, label }) => (
-            <div key={label}
-              className="flex items-center gap-1.5 bg-white rounded-lg border border-slate-100 px-3 py-2 shadow-sm">
-              <Icon className="w-3.5 h-3.5" style={{ color: level.color }} />
-              <span className="text-[13px] font-bold text-slate-800">{val}</span>
-              <span className="text-[11px] text-slate-400">{label}</span>
+            { label: "تلميذ",   value: uniqueStudents.length },
+            { label: "مدفوع",   value: uniqueStudents.filter((s) => invoiceMap[s.fullName]?.status === "PAID").length },
+            { label: "وحدات",   value: activeMods.length },
+          ].map(({ label, value }) => (
+            <div key={label} style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", borderRadius: 9, border: "1px solid #E2E8F0", padding: "6px 12px" }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>{value}</span>
+              <span style={{ fontSize: 11, color: "#64748B" }}>{label}</span>
             </div>
           ))}
         </div>
 
-        <div className="relative w-full sm:w-60">
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+        {/* Search */}
+        <div style={{ position: "relative", width: 240 }}>
+          <Search size={14} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "#94A3B8", pointerEvents: "none" }} />
           <input
-            className="w-full pr-9 pl-3 py-2 rounded-lg border bg-white text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-50 transition"
-            style={{ fontFamily: "'Cairo', sans-serif", borderColor: search ? level.color : "#E2E8F0" }}
-            placeholder="بحث عن تلميذ أو مادة..."
+            style={{ width: "100%", paddingRight: 32, paddingLeft: 10, paddingTop: 8, paddingBottom: 8, borderRadius: 9, border: `1.5px solid ${search ? color : "#E2E8F0"}`, fontSize: 13, fontFamily: "inherit", color: "#0F172A", background: "#fff", outline: "none", boxSizing: "border-box" }}
+            placeholder="بحث عن تلميذ..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
       </div>
 
-      {/* ── Group accordions ── */}
-      <div className="space-y-3">
-        {Object.entries(filtered).map(([groupKey, students]) => (
-          <GroupSection
-            key={groupKey}
-            groupKey={groupKey}
-            students={students}
-            levelColor={level.color}
-            levelLight={level.light}
-            onAddClick={(gk) => setModal({ groupKey: gk })}
-          />
-        ))}
-      </div>
-
-      {/* ── Modal ── */}
-      {modal && (
-        <AddStudentModal
-          groupKey={modal.groupKey}
-          levelColor={level.color}
-          onClose={() => setModal(null)}
-          onAdd={(student) => handleAdd(modal.groupKey, student)}
-        />
+      {/* Content */}
+      {levels.length === 0 ? (
+        <div style={{ textAlign: "center", color: "#94A3B8", padding: "3rem", fontSize: 13 }}>لا توجد وحدات دراسية مسجلة</div>
+      ) : filtered !== null ? (
+        // Flat search results
+        <div style={{ background: "#fff", borderRadius: 12, border: "1.5px solid #E8EEF6", overflow: "hidden" }}>
+          {filtered.length === 0
+            ? <div style={{ textAlign: "center", color: "#94A3B8", padding: "2rem", fontSize: 13 }}>لا توجد نتائج</div>
+            : filtered.map((s, i) => (
+              <div key={s.id} style={{ display: "grid", gridTemplateColumns: "28px 36px 1fr 140px 100px", gap: 8, padding: "10px 16px", alignItems: "center", borderBottom: i < filtered.length - 1 ? "1px solid #F8FAFC" : "none" }}>
+                <span style={{ fontSize: 11, color: "#CBD5E1", textAlign: "center" }}>{i + 1}</span>
+                <div style={{ width: 30, height: 30, borderRadius: "50%", background: color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff" }}>
+                  {initials(s.fullName)}
+                </div>
+                <div>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", margin: 0 }}>{s.fullName}</p>
+                  <p style={{ fontSize: 10, color: "#94A3B8", margin: 0 }}>{s.level}</p>
+                </div>
+                <span style={{ fontSize: 11, color: "#64748B", direction: "ltr", textAlign: "right" }}>{s.email || "—"}</span>
+                <span style={{ fontSize: 11, color: "#64748B" }}>{s.parentPhone || "—"}</span>
+              </div>
+            ))
+          }
+        </div>
+      ) : (
+        // Per-module breakdown
+        activeMods.map((m) => {
+          const c = levelColor(m._idx);
+          return (
+            <ModuleSection
+              key={m.id}
+              module={m}
+              students={studentMap[m.id] ?? []}
+              invoiceMap={invoiceMap}
+              color={c.color}
+              light={c.light}
+            />
+          );
+        })
       )}
     </div>
   );

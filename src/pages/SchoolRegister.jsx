@@ -136,12 +136,15 @@ function SuccessScreen() {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function SchoolRegister() {
+  
   const navigate = useNavigate();
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState(null);
    const API_URL = import.meta.env.VITE_API_URL;
+  
+
   const {
     register,
     handleSubmit,
@@ -151,6 +154,7 @@ export default function SchoolRegister() {
   const onSubmit = async (data) => {
     setIsLoading(true);
     setServerError(null);
+    
 
     // Map form fields → backend DTO
     const payload = {
@@ -174,6 +178,7 @@ export default function SchoolRegister() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
+        
         const message =
           errorData?.message ||
           errorData?.error ||
@@ -196,6 +201,8 @@ export default function SchoolRegister() {
   };
 
   if (isSubmitted) return <SuccessScreen />;
+  
+
 
   return (
     <div className="min-h-screen bg-gray-50" dir="rtl"

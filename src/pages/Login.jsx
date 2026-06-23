@@ -33,7 +33,9 @@ useEffect(() => {
   } else if (user?.role === "STUDENT") {
     navigate("/studentdashboard");
   }else if(user?.role === "TEACHER"){
-        navigate("/teachers");
+        navigate("/teacherDashboard");
+  }else if(user?.role === "SUPER_ADMIN"){
+        navigate("/superadmindashboard");
   }
 }, [user, navigate]);
 

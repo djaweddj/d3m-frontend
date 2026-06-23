@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { useAuth } from "../context/authContext";
 
 const API = "http://localhost:8081/api";
 
 function getToken() {
-  return localStorage.getItem("token");
+  return localStorage.getItem("accessToken");
 }
 
 function authHeaders() {
@@ -54,6 +55,45 @@ function StatCard({ emoji, number, label }) {
         <span className="text-3xl font-extrabold text-blue-600">{number}</span>
       </div>
       <p className="text-sm font-semibold text-slate-500">{label}</p>
+    </motion.div>
+  );
+}
+
+// ─── Logout confirmation modal ─────────────────────────────────────────────────
+
+function LogoutModal({ onConfirm, onCancel }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="w-full max-w-sm rounded-[28px] border border-slate-200 bg-white p-8 text-center shadow-2xl"
+      >
+        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-red-50 text-3xl">
+          🚪
+        </div>
+        <h2 className="mb-2 text-xl font-extrabold text-slate-900">تسجيل الخروج</h2>
+        <p className="mb-6 text-sm text-slate-500">هل أنت متأكد أنك تريد تسجيل الخروج من حسابك؟</p>
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            className="flex-1 rounded-2xl bg-slate-100 px-5 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-200"
+          >
+            إلغاء
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 rounded-2xl bg-gradient-to-br from-red-500 to-rose-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-red-200"
+          >
+            تسجيل الخروج
+          </button>
+        </div>
+      </motion.div>
     </motion.div>
   );
 }
@@ -417,7 +457,7 @@ const NAV = [
   { id: "students", label: "تلاميذي", emoji: "👨‍🎓" },
 ];
 
-function Sidebar({ active, onNav }) {
+function Sidebar({ active, onNav, onLogoutClick }) {
   return (
     <aside className="relative z-20 flex w-64 shrink-0 flex-col border-l border-slate-100 bg-white/90 p-6 shadow-sm backdrop-blur-xl">
       {/* Logo */}
@@ -445,6 +485,15 @@ function Sidebar({ active, onNav }) {
           </button>
         ))}
       </nav>
+
+      {/* Logout button */}
+      <button
+        onClick={onLogoutClick}
+        className="mb-3 flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold text-red-500 transition-all hover:bg-red-50"
+      >
+        <span className="text-lg">🚪</span>
+        تسجيل الخروج
+      </button>
 
       {/* Footer */}
       <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 text-center text-xs text-slate-400">
@@ -519,6 +568,8 @@ export default function TeacherDashboard() {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const { logout } = useAuth();
 
   useEffect(() => {
     fetchProfile()
@@ -527,9 +578,14 @@ export default function TeacherDashboard() {
       .finally(() => setLoading(false));
   }, []);
 
+  const handleLogout = async () => {
+    await logout();
+    setShowLogoutModal(false);
+  };
+
   return (
     <div dir="rtl" className="flex min-h-screen overflow-hidden bg-[#fafafa] text-slate-900">
-      <Sidebar active={page} onNav={setPage} />
+      <Sidebar active={page} onNav={setPage} onLogoutClick={() => setShowLogoutModal(true)} />
 
       {loading ? (
         <div className="flex flex-1 items-center justify-center">
@@ -553,6 +609,13 @@ export default function TeacherDashboard() {
           {page === "profile" && <ProfilePage profile={profile} onSaved={setProfile} />}
           {page === "students" && <StudentsPage />}
         </>
+      )}
+
+      {showLogoutModal && (
+        <LogoutModal
+          onConfirm={handleLogout}
+          onCancel={() => setShowLogoutModal(false)}
+        />
       )}
     </div>
   );

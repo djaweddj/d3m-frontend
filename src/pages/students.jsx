@@ -4,14 +4,10 @@ import { useAuth } from "../context/authContext";
 import api from "../api";
 
 // ── API ───────────────────────────────────────────────────
-// GET /api/modules  → List<CourseModuleResponseDto>  (admin's school modules)
-// GET /api/students/by-module/{moduleId}  → List<StudentResponseDto>
-// GET /api/invoices/school/revenue?period=yyyy-MM  → SchoolRevenueDto (has invoices[])
-
 const schoolApi = {
-  getModules:  ()         => api.get("/modules"),
-  getStudents: (moduleId) => api.get(`/students/by-module/${moduleId}`),
-  getRevenue:  (period)   => api.get("/invoices/school/revenue", { params: { period } }),
+  getModules:  ()         => api.get("api/modules"),
+  getStudents: (moduleId) => api.get(`api/students/by-module/${moduleId}`),
+  getRevenue:  (period)   => api.get("api/invoices/school/revenue", { params: { period } }),
 };
 
 function todayYearMonth() {
@@ -62,14 +58,13 @@ function ModuleSection({ module, students, invoiceMap, color, light }) {
   const [open, setOpen] = useState(true);
 
   const paid   = students.filter((s) => {
-    const inv = invoiceMap[s.id];
+    const inv = invoiceMap[s.fullName];
     return inv && inv.status === "PAID";
   }).length;
   const unpaid = students.length - paid;
 
   return (
     <div style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${color}28`, borderRight: `3px solid ${color}`, marginBottom: 10 }}>
-      {/* Header */}
       <button
         onClick={() => setOpen((o) => !o)}
         style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "#fff", border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "right" }}
@@ -104,7 +99,6 @@ function ModuleSection({ module, students, invoiceMap, color, light }) {
         </div>
       </button>
 
-      {/* Students list */}
       {open && (
         <div style={{ background: "#fff", borderTop: "1px solid #F8FAFC" }}>
           {students.length === 0 ? (
@@ -113,7 +107,6 @@ function ModuleSection({ module, students, invoiceMap, color, light }) {
             </div>
           ) : (
             <>
-              {/* Column headers */}
               <div style={{ display: "grid", gridTemplateColumns: "28px 36px 1fr 140px 100px 80px", gap: 8, padding: "8px 16px", background: "#F8FAFC", borderBottom: "1px solid #F1F5F9" }}>
                 {["", "", "الاسم", "البريد الإلكتروني", "ولي الأمر", "الدفع"].map((h, i) => (
                   <span key={i} style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: ".05em" }}>{h}</span>
@@ -121,7 +114,7 @@ function ModuleSection({ module, students, invoiceMap, color, light }) {
               </div>
 
               {students.map((s, i) => {
-                const inv    = invoiceMap[s.id];
+                const inv    = invoiceMap[s.fullName];
                 const isPaid = inv?.status === "PAID";
                 return (
                   <div
@@ -149,7 +142,6 @@ function ModuleSection({ module, students, invoiceMap, color, light }) {
                 );
               })}
 
-              {/* Footer */}
               <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 16px", background: "#F8FAFC", borderTop: "1px solid #F1F5F9", fontSize: 11, color: "#94A3B8" }}>
                 <span>مدفوع: <strong style={{ color: "#0F172A" }}>{paid}</strong></span>
                 <span>معلق: <strong style={{ color: "#BA7517" }}>{unpaid}</strong></span>
@@ -187,12 +179,12 @@ function LevelTab({ levelKey, count, color, light, active, onClick }) {
 
 // ── Main ──────────────────────────────────────────────────
 export default function Students() {
-  const { school } = useAuth();
-  const schoolId = school?.id;
+  const { user } = useAuth();
+  const schoolId = user?.schoolId ?? user?.id;
 
   const [modules,      setModules]     = useState([]);
-  const [studentMap,   setStudentMap]  = useState({}); // moduleId → StudentResponseDto[]
-  const [invoiceMap,   setInvoiceMap]  = useState({}); // studentId → StudentInvoiceResponseDto
+  const [studentMap,   setStudentMap]  = useState({});
+  const [invoiceMap,   setInvoiceMap]  = useState({});
   const [loading,      setLoading]     = useState(true);
   const [error,        setError]       = useState(null);
   const [activeLevel,  setActiveLevel] = useState(null);
@@ -203,14 +195,12 @@ export default function Students() {
     setLoading(true);
     setError(null);
     try {
-      // 1. Get all modules for this school
       const modRes = await schoolApi.getModules();
       const mods   = modRes.data?.content ?? modRes.data ?? [];
       setModules(mods);
 
       if (mods.length === 0) { setLoading(false); return; }
 
-      // 2. Fetch students for every module in parallel
       const studentResults = await Promise.all(
         mods.map((m) => schoolApi.getStudents(m.id).then((r) => ({ moduleId: m.id, students: r.data?.content ?? r.data ?? [] })))
       );
@@ -218,18 +208,14 @@ export default function Students() {
       studentResults.forEach(({ moduleId, students }) => { sMap[moduleId] = students; });
       setStudentMap(sMap);
 
-      // 3. Fetch current month revenue (has invoices[] with student payment status)
       const revRes   = await schoolApi.getRevenue(todayYearMonth());
       const invoices = revRes.data?.invoices ?? [];
       const iMap     = {};
-      // key by studentName since StudentInvoiceResponseDto has studentName not studentId
-      // We'll match by name later; store by name as key
       invoices.forEach((inv) => {
         if (inv.studentName) iMap[inv.studentName] = inv;
       });
       setInvoiceMap(iMap);
 
-      // Set default active level
       const levels = [...new Set(mods.map((m) => m.level).filter(Boolean))];
       if (levels.length > 0) setActiveLevel(levels[0]);
     } catch (err) {
@@ -244,7 +230,6 @@ export default function Students() {
   if (loading) return <div style={{ padding: "1.5rem", fontFamily: "'Cairo',sans-serif" }} dir="rtl"><LoadingBlock /></div>;
   if (error)   return <div style={{ padding: "1.5rem", fontFamily: "'Cairo',sans-serif" }} dir="rtl"><ErrorBlock message={error} onRetry={load} /></div>;
 
-  // Group modules by level
   const byLevel = {};
   modules.forEach((m, i) => {
     const lvl = m.level || "غير محدد";
@@ -257,15 +242,13 @@ export default function Students() {
   const { colorIdx } = byLevel[active] ?? { colorIdx: 0 };
   const { color, light } = levelColor(colorIdx);
 
-  // All students in active level for stats
   const activeMods     = (byLevel[active]?.modules ?? []);
   const allStudents    = activeMods.flatMap((m) => studentMap[m.id] ?? []);
   const uniqueStudents = [...new Map(allStudents.map((s) => [s.id, s])).values()];
 
-  // Search filter
   const filtered = search.trim()
     ? uniqueStudents.filter((s) => s.fullName?.includes(search) || s.email?.includes(search))
-    : null; // null = show per-module breakdown
+    : null;
 
   return (
     <div dir="rtl" style={{ padding: "1.25rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
@@ -287,7 +270,7 @@ export default function Students() {
       {/* Level tabs */}
       {levels.length > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: "1.25rem" }}>
-          {levels.map((lvl, i) => {
+          {levels.map((lvl) => {
             const c = levelColor(byLevel[lvl].colorIdx);
             const count = (byLevel[lvl].modules ?? []).flatMap((m) => studentMap[m.id] ?? []).length;
             return (
@@ -313,7 +296,6 @@ export default function Students() {
           ))}
         </div>
 
-        {/* Search */}
         <div style={{ position: "relative", width: 240 }}>
           <Search size={14} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "#94A3B8", pointerEvents: "none" }} />
           <input
@@ -329,7 +311,6 @@ export default function Students() {
       {levels.length === 0 ? (
         <div style={{ textAlign: "center", color: "#94A3B8", padding: "3rem", fontSize: 13 }}>لا توجد وحدات دراسية مسجلة</div>
       ) : filtered !== null ? (
-        // Flat search results
         <div style={{ background: "#fff", borderRadius: 12, border: "1.5px solid #E8EEF6", overflow: "hidden" }}>
           {filtered.length === 0
             ? <div style={{ textAlign: "center", color: "#94A3B8", padding: "2rem", fontSize: 13 }}>لا توجد نتائج</div>
@@ -350,7 +331,6 @@ export default function Students() {
           }
         </div>
       ) : (
-        // Per-module breakdown
         activeMods.map((m) => {
           const c = levelColor(m._idx);
           return (

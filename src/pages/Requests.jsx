@@ -26,9 +26,9 @@ import api from "../api";
 
 const requestsApi = {
   // Try the most likely endpoint — add it to backend if missing
-  getPending: ()     => api.get("/enrollments/pending"),
-  approve:    (id)   => api.post(`/enrollments/requests/${id}/approve`),
-  reject:     (id, comment) => api.post(`/enrollments/requests/${id}/reject`, null, { params: { comment } }),
+  getPending: () => api.get("api/enrollments/requests", { params: { status: "PENDING" } }),
+  approve:    (id) => api.post(`api/enrollments/requests/${id}/approve`),
+   reject:     (id, comment) => api.post(`api/enrollments/requests/${id}/reject`, null, { params: { comment } }),
 };
 
 // ── Status badge ──────────────────────────────────────────

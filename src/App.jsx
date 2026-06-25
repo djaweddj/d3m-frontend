@@ -38,6 +38,7 @@ import ProtectedRoute from "./auth/ProtectedRoutes";
 
 //
  import SuperAdminDashboard from "./pages/SuperAdminDashborad";
+import PasswordResetFlow from "./pages/PasswordReset";
 
 // Load Google Fonts
 const link = document.createElement("link");
@@ -72,6 +73,7 @@ export default function App() {
           {/* Auth Pages (without layout) */}
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/forgot-password" element={<PasswordResetFlow />} />
           <Route path="/schoolregister" element={<SchoolRegister />} />
 
            <Route path="/studentdashboard" element={<StudentDashboard />} />

@@ -8,7 +8,6 @@ const DAY_NAMES = ["الأحد", "الإثنين", "الثلاثاء", "الأر
 const fmtTime   = (t) => (t ? String(t).slice(0, 5) : "—");
 
 function todayYearMonth() {
-  
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
@@ -146,8 +145,8 @@ function SessionRow({ session, isLast }) {
 
 // ── Dashboard ─────────────────────────────────────────────
 export default function Dashboard() {
-  const { user, school } = useAuth();
-  const p = school?.primaryColor || "#185FA5";
+  const { user } = useAuth();
+  const p = "#185FA5";
 
   const [revenue,       setRevenue]       = useState(null);
   const [monthlyList,   setMonthlyList]   = useState([]);
@@ -155,7 +154,7 @@ export default function Dashboard() {
   const [loading,       setLoading]       = useState(true);
   const [error,         setError]         = useState(null);
 
-  const schoolId = school?.id;
+  const schoolId = user?.schoolId ?? user?.id;
 
   const load = async () => {
     if (!schoolId) return;
@@ -166,20 +165,13 @@ export default function Dashboard() {
       const todayDate = new Date().toISOString().slice(0, 10);
 
       const [revenueRes, sessionsRes] = await Promise.all([
-        // GET /api/invoices/school/revenue?period=yyyy-MM  → SchoolRevenueDto
-        api.get("/invoices/school/revenue", { params: { period } }),
-        // GET /api/sessions/school/{schoolId}  → List<SessionResponseDto>
-        api.get(`/sessions/school/${schoolId}`),
+        api.get("api/invoices/school/revenue", { params: { period } }),
+        api.get(`api/sessions/school/${schoolId}`),
       ]);
 
       setRevenue(revenueRes.data);
-
-      // Build a simple monthly list from current revenue for the chart
-      // (single month for now; you can expand to a range later)
       setMonthlyList([revenueRes.data]);
 
-      // Today's sessions: filter by date
-      const all = revenueRes.data?.content ?? sessionsRes.data?.content ?? sessionsRes.data ?? [];
       const sessions = Array.isArray(sessionsRes.data)
         ? sessionsRes.data
         : sessionsRes.data?.content ?? [];
@@ -219,9 +211,9 @@ export default function Dashboard() {
     );
   }
 
-  const schoolName  = school?.schoolName ?? "المدرسة";
-  const wilaya      = school?.wilaya ?? "";
-  const commune     = school?.commune ?? "";
+  const schoolName = user?.schoolName ?? user?.fullName ?? "المدرسة";
+  const wilaya     = user?.wilaya ?? "";
+  const commune    = user?.commune ?? "";
 
   return (
     <div dir="rtl" style={{ padding: "1.5rem", display: "flex", flexDirection: "column", gap: "1.25rem", fontFamily: "'Cairo', sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
@@ -242,7 +234,7 @@ export default function Dashboard() {
         </button>
       </div>
 
-      {/* Stat cards — from SchoolRevenueDto + school */}
+      {/* Stat cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}>
         <StatCard
           emoji="💰" label="إجمالي المحصّل هذا الشهر"
@@ -280,13 +272,13 @@ export default function Dashboard() {
 
         <Card title="معلومات المدرسة">
           <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 8 }}>
-            <InfoItem label="اسم المدرسة"     value={school?.schoolName} />
-            <InfoItem label="المالك"          value={school?.ownerName ?? user?.fullName} />
-            <InfoItem label="الولاية"         value={school?.wilaya} />
-            <InfoItem label="البريد"          value={school?.email ?? user?.email} />
-            <InfoItem label="الهاتف"          value={school?.phone} />
-            <InfoItem label="حالة الاشتراك"   value={school?.subscriptionStatus} highlight />
-            <InfoItem label="انتهاء الاشتراك" value={school?.subscriptionExpiresAt ?? "—"} />
+            <InfoItem label="اسم المدرسة"     value={user?.schoolName} />
+            <InfoItem label="المالك"          value={user?.fullName} />
+            <InfoItem label="الولاية"         value={user?.wilaya} />
+            <InfoItem label="البريد"          value={user?.email} />
+            <InfoItem label="الهاتف"          value={user?.phone} />
+            <InfoItem label="حالة الاشتراك"   value={user?.subscriptionStatus} highlight />
+            <InfoItem label="انتهاء الاشتراك" value={user?.subscriptionExpiresAt ?? "—"} />
           </div>
         </Card>
       </div>

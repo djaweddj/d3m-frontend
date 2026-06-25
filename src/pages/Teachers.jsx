@@ -1,26 +1,30 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Phone, Mail, BookOpen, RefreshCw, AlertCircle, X, Check, Archive } from "lucide-react";
+import { Plus, Phone, Mail, BookOpen, RefreshCw, AlertCircle, X, Check, Archive, Eye } from "lucide-react";
 import { useAuth } from "../context/authContext";
 import api from "../api";
 
 // ── API ───────────────────────────────────────────────────
-// GET  /api/teachers           → List<TeacherResponseDto>
-// POST /api/teachers           → TeacherResponseDto  (body: TeacherRequestDto)
+// GET  /api/teachers                → List<TeacherResponseDto>  (active only)
+// GET  /api/teachers/archived       → List<TeacherResponseDto>  (archived only)
+// POST /api/teachers                → TeacherResponseDto
 // PATCH /api/teachers/{id}/archive
-// GET  /api/subjects           → List<SubjectResponseDto>
+// PATCH /api/teachers/{id}/unarchive
+// GET  /api/subjects                → List<SubjectResponseDto>
 
 const teacherApi = {
-  getAll:    ()        => api.get("/teachers"),
-  create:    (data)    => api.post("/teachers", data),
-  archive:   (id)      => api.patch(`/teachers/${id}/archive`),
-  getSubjects: ()      => api.get("/subjects"),
+  getAll:       ()     => api.get("api/teachers"),
+  getArchived:  ()     => api.get("api/teachers/archived"),
+  create:       (data) => api.post("api/teachers", data),
+  archive:      (id)   => api.patch(`api/teachers/${id}/archive`),
+  unarchive:    (id)   => api.patch(`api/teachers/${id}/unarchive`),
+  getSubjects:  ()     => api.get("api/subjects"),
 };
 
 function initials(name = "") {
   return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
 }
 
-// ── Spinner / Error ───────────────────────────────────────
+// ── Spinner ───────────────────────────────────────────────
 function Spinner({ size = 20 }) {
   return (
     <>
@@ -30,6 +34,7 @@ function Spinner({ size = 20 }) {
   );
 }
 
+// ── Error Block ───────────────────────────────────────────
 function ErrorBlock({ message, onRetry }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "2rem" }}>
@@ -64,15 +69,13 @@ function AddTeacherModal({ subjects, onClose, onSaved, primaryColor }) {
     setSaving(true);
     setError("");
     try {
-      // TeacherRequestDto: fullName, email, specialization, bio, subjectId, password
       const payload = {
         fullName:       form.fullName,
         email:          form.email,
         specialization: form.specialization,
         bio:            form.bio,
         subjectId:      form.subjectId ? Number(form.subjectId) : null,
-        // password is required — backend creates a user account for the teacher
-        password:       "Teacher@123", // default; admin should inform teacher to reset
+        password:       "Teacher@123",
       };
       const res = await teacherApi.create(payload);
       onSaved(res.data);
@@ -107,10 +110,10 @@ function AddTeacherModal({ subjects, onClose, onSaved, primaryColor }) {
         {/* Body */}
         <div style={{ padding: "1.1rem 1.25rem", display: "flex", flexDirection: "column", gap: 11 }}>
           {[
-            { key: "fullName",       label: "الاسم الكامل *",          type: "text",  placeholder: "اسم الأستاذ" },
-            { key: "email",          label: "البريد الإلكتروني *",      type: "email", placeholder: "example@mail.com", dir: "ltr" },
-            { key: "specialization", label: "التخصص",                   type: "text",  placeholder: "مثال: رياضيات تطبيقية" },
-            { key: "bio",            label: "نبذة مختصرة",              type: "text",  placeholder: "وصف قصير عن الأستاذ" },
+            { key: "fullName",       label: "الاسم الكامل *",      type: "text",  placeholder: "اسم الأستاذ" },
+            { key: "email",          label: "البريد الإلكتروني *",  type: "email", placeholder: "example@mail.com", dir: "ltr" },
+            { key: "specialization", label: "التخصص",               type: "text",  placeholder: "مثال: رياضيات تطبيقية" },
+            { key: "bio",            label: "نبذة مختصرة",          type: "text",  placeholder: "وصف قصير عن الأستاذ" },
           ].map(({ key, label, type, placeholder, dir: d }) => (
             <div key={key}>
               <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 4 }}>{label}</label>
@@ -124,7 +127,6 @@ function AddTeacherModal({ subjects, onClose, onSaved, primaryColor }) {
             </div>
           ))}
 
-          {/* Subject select */}
           <div>
             <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 4 }}>المادة الدراسية</label>
             <select
@@ -165,18 +167,111 @@ function AddTeacherModal({ subjects, onClose, onSaved, primaryColor }) {
   );
 }
 
+// ── Teacher Card ──────────────────────────────────────────
+function TeacherCard({ t, subjectMap, primaryColor, isArchived, onArchive, onUnarchive, actionId }) {
+  return (
+    <div
+      style={{
+        background: isArchived ? "#FAFAFA" : "#fff",
+        borderRadius: 14,
+        border: `1.5px solid ${isArchived ? "#E2E8F0" : "#E8EEF6"}`,
+        padding: "1.25rem 1rem",
+        display: "flex", flexDirection: "column", alignItems: "center",
+        textAlign: "center", gap: 8,
+        transition: "border-color .15s, box-shadow .15s",
+        position: "relative",
+        opacity: isArchived ? 0.75 : 1,
+      }}
+      onMouseEnter={(e) => { if (!isArchived) { e.currentTarget.style.borderColor = "#CBD5E1"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,.06)"; }}}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = isArchived ? "#E2E8F0" : "#E8EEF6"; e.currentTarget.style.boxShadow = "none"; }}
+    >
+      {/* Action button top-left */}
+      {isArchived ? (
+        // Unarchive button
+        <button
+          onClick={() => onUnarchive(t.id)}
+          disabled={actionId === t.id}
+          title="استعادة الأستاذ"
+          style={{ position: "absolute", top: 10, left: 10, display: "flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 7, border: "1px solid #D1FAE5", background: "#ECFDF5", cursor: "pointer", fontSize: 10, fontWeight: 600, color: "#059669", transition: "opacity .15s" }}
+          onMouseEnter={(e) => (e.currentTarget.style.opacity = ".8")}
+          onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+        >
+          {actionId === t.id ? <Spinner size={10} /> : <RefreshCw size={10} />}
+          استعادة
+        </button>
+      ) : (
+        // Archive button
+        <button
+          onClick={() => onArchive(t.id)}
+          disabled={actionId === t.id}
+          title="أرشفة الأستاذ"
+          style={{ position: "absolute", top: 10, left: 10, width: 26, height: 26, borderRadius: 7, border: "1px solid #E2E8F0", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: .6, transition: "opacity .15s" }}
+          onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+          onMouseLeave={(e) => (e.currentTarget.style.opacity = ".6")}
+        >
+          {actionId === t.id ? <Spinner size={10} /> : <Archive size={11} color="#DC2626" />}
+        </button>
+      )}
+
+      {/* Archived badge */}
+      {isArchived && (
+        <span style={{ position: "absolute", top: 10, right: 10, fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 20, background: "#FEF2F2", color: "#DC2626", border: "1px solid #FECACA" }}>
+          مؤرشف
+        </span>
+      )}
+
+      {/* Avatar */}
+      <div style={{ width: 52, height: 52, borderRadius: "50%", background: isArchived ? "#94A3B8" : primaryColor, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 700, border: "3px solid #EBF4FE", marginTop: isArchived ? 8 : 0 }}>
+        {initials(t.fullName)}
+      </div>
+
+      <p style={{ fontSize: 13, fontWeight: 700, color: isArchived ? "#94A3B8" : "#0F172A", margin: 0 }}>{t.fullName}</p>
+
+      <p style={{ fontSize: 11, color: "#64748B", margin: 0, display: "flex", alignItems: "center", gap: 4 }}>
+        <BookOpen size={11} />
+        {subjectMap[t.subjectId] || t.specialization || "—"}
+      </p>
+
+      {t.specialization && (
+        <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 12px", borderRadius: 20, background: isArchived ? "#F1F5F9" : "#EBF4FE", color: isArchived ? "#94A3B8" : primaryColor, border: `1px solid ${isArchived ? "#E2E8F0" : "#B5D4F4"}` }}>
+          {t.specialization}
+        </span>
+      )}
+
+      {t.bio && (
+        <p style={{ fontSize: 11, color: "#94A3B8", margin: 0, lineHeight: 1.4, textAlign: "center", maxWidth: 160 }}>
+          {t.bio}
+        </p>
+      )}
+
+      <div style={{ width: "100%", paddingTop: 10, borderTop: "1.5px solid #F1F5F9", display: "flex", flexDirection: "column", gap: 5 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#64748B" }}>
+          <Mail size={11} style={{ flexShrink: 0 }} />
+          <span dir="ltr" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {t.email || "—"}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────
 export default function Teachers() {
   const { school } = useAuth();
   const p = school?.primaryColor || "#185FA5";
 
-  const [teachers,    setTeachers]    = useState([]);
-  const [subjects,    setSubjects]    = useState([]);
-  const [loading,     setLoading]     = useState(true);
-  const [error,       setError]       = useState(null);
-  const [showModal,   setShowModal]   = useState(false);
-  const [archiving,   setArchiving]   = useState(null); // id being archived
+  const [teachers,         setTeachers]         = useState([]);
+  const [archivedTeachers, setArchivedTeachers] = useState([]);
+  const [subjects,         setSubjects]         = useState([]);
+  const [loading,          setLoading]          = useState(true);
+  const [archivedLoading,  setArchivedLoading]  = useState(false);
+  const [error,            setError]            = useState(null);
+  const [showModal,        setShowModal]        = useState(false);
+  const [showArchived,     setShowArchived]     = useState(false);
+  const [actionId,         setActionId]         = useState(null); // id being archived/unarchived
 
+  // Load active teachers + subjects
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -194,23 +289,64 @@ export default function Teachers() {
     }
   }, []);
 
+  // Load archived teachers (only when panel is opened)
+  const loadArchived = useCallback(async () => {
+    setArchivedLoading(true);
+    try {
+      const res = await teacherApi.getArchived();
+      setArchivedTeachers(res.data?.content ?? res.data ?? []);
+    } catch {
+      setArchivedTeachers([]);
+    } finally {
+      setArchivedLoading(false);
+    }
+  }, []);
+
   useEffect(() => { load(); }, [load]);
 
+  // When archived panel opens, fetch archived list
+  useEffect(() => {
+    if (showArchived) loadArchived();
+  }, [showArchived, loadArchived]);
+
   const handleArchive = async (id) => {
-    setArchiving(id);
+    setActionId(id);
     try {
       await teacherApi.archive(id);
+      // Remove from active list
+      const archived = teachers.find((t) => t.id === id);
       setTeachers((prev) => prev.filter((t) => t.id !== id));
-    } catch {
-      // silently fail — could add toast here
+      // If archived panel is open, add to it
+      if (showArchived && archived) {
+        setArchivedTeachers((prev) => [{ ...archived, archived: true }, ...prev]);
+      }
+    } catch (err) {
+      alert(err?.response?.data?.message || "فشلت الأرشفة");
     } finally {
-      setArchiving(null);
+      setActionId(null);
     }
   };
 
-  // Enrich teacher with subject name
+  const handleUnarchive = async (id) => {
+    setActionId(id);
+    try {
+      await teacherApi.unarchive(id);
+      // Remove from archived list
+      const restored = archivedTeachers.find((t) => t.id === id);
+      setArchivedTeachers((prev) => prev.filter((t) => t.id !== id));
+      // Add back to active list
+      if (restored) {
+        setTeachers((prev) => [{ ...restored, archived: false }, ...prev]);
+      }
+    } catch (err) {
+      alert(err?.response?.data?.message || "فشلت الاستعادة");
+    } finally {
+      setActionId(null);
+    }
+  };
+
   const subjectMap = Object.fromEntries(subjects.map((s) => [s.id, s.name]));
-  const activeTeachers = teachers.filter((t) => !t.archived);
+  const displayList = showArchived ? archivedTeachers : teachers;
 
   return (
     <div dir="rtl" style={{ padding: "1.25rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
@@ -220,91 +356,81 @@ export default function Teachers() {
         <div>
           <h1 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0 }}>الأساتذة</h1>
           <p style={{ fontSize: 12, color: "#94A3B8", marginTop: 2, margin: 0 }}>
-            {loading ? "..." : `${activeTeachers.length} أستاذ نشط`}
+            {loading ? "..." : `${teachers.length} أستاذ نشط`}
           </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={load} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+          {/* Refresh */}
+          <button
+            onClick={showArchived ? loadArchived : load}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}
+          >
             <RefreshCw size={13} />
           </button>
+
+          {/* Toggle archived */}
           <button
-            onClick={() => setShowModal(true)}
-            style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 9, border: "none", background: p, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "opacity .15s" }}
-            onMouseEnter={(e) => (e.currentTarget.style.opacity = ".88")}
-            onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+            onClick={() => setShowArchived((v) => !v)}
+            style={{
+              display: "flex", alignItems: "center", gap: 7,
+              padding: "8px 14px", borderRadius: 9,
+              border: `1.5px solid ${showArchived ? "#FECACA" : "#E2E8F0"}`,
+              background: showArchived ? "#FEF2F2" : "#fff",
+              color: showArchived ? "#DC2626" : "#64748B",
+              fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+              transition: "all .15s",
+            }}
           >
-            <Plus size={15} /> إضافة أستاذ
+            <Archive size={13} />
+            {showArchived ? "إخفاء المؤرشفين" : "الأساتذة المؤرشفون"}
           </button>
+
+          {/* Add teacher — only shown in active view */}
+          {!showArchived && (
+            <button
+              onClick={() => setShowModal(true)}
+              style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 9, border: "none", background: p, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "opacity .15s" }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = ".88")}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+            >
+              <Plus size={15} /> إضافة أستاذ
+            </button>
+          )}
         </div>
       </div>
 
+      {/* Archived section label */}
+      {showArchived && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, padding: "8px 14px", borderRadius: 10, background: "#FEF2F2", border: "1.5px solid #FECACA" }}>
+          <Archive size={14} color="#DC2626" />
+          <span style={{ fontSize: 12, fontWeight: 600, color: "#DC2626" }}>
+            الأساتذة المؤرشفون — يمكنك استعادة أي أستاذ بالضغط على "استعادة"
+          </span>
+        </div>
+      )}
+
       {/* Body */}
-      {loading ? (
+      {(loading && !showArchived) || (archivedLoading && showArchived) ? (
         <div style={{ display: "flex", justifyContent: "center", padding: "3rem" }}><Spinner size={28} /></div>
-      ) : error ? (
+      ) : error && !showArchived ? (
         <ErrorBlock message={error} onRetry={load} />
-      ) : activeTeachers.length === 0 ? (
+      ) : displayList.length === 0 ? (
         <div style={{ textAlign: "center", color: "#94A3B8", padding: "3rem", fontSize: 13 }}>
-          لا يوجد أساتذة مسجلون بعد — أضف أستاذاً جديداً
+          {showArchived ? "لا يوجد أساتذة مؤرشفون" : "لا يوجد أساتذة مسجلون بعد — أضف أستاذاً جديداً"}
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 12 }}>
-          {activeTeachers.map((t) => (
-            <div
+          {displayList.map((t) => (
+            <TeacherCard
               key={t.id}
-              style={{ background: "#fff", borderRadius: 14, border: "1.5px solid #E8EEF6", padding: "1.25rem 1rem", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 8, transition: "border-color .15s, box-shadow .15s", position: "relative" }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#CBD5E1"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,.06)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#E8EEF6"; e.currentTarget.style.boxShadow = "none"; }}
-            >
-              {/* Archive button */}
-              <button
-                onClick={() => handleArchive(t.id)}
-                disabled={archiving === t.id}
-                title="أرشفة الأستاذ"
-                style={{ position: "absolute", top: 10, left: 10, width: 26, height: 26, borderRadius: 7, border: "1px solid #E2E8F0", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: .6, transition: "opacity .15s" }}
-                onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
-                onMouseLeave={(e) => (e.currentTarget.style.opacity = ".6")}
-              >
-                {archiving === t.id ? <Spinner size={10} /> : <Archive size={11} color="#DC2626" />}
-              </button>
-
-              {/* Avatar */}
-              <div style={{ width: 52, height: 52, borderRadius: "50%", background: p, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 700, border: "3px solid #EBF4FE" }}>
-                {initials(t.fullName)}
-              </div>
-
-              <p style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t.fullName}</p>
-
-              {/* Subject */}
-              <p style={{ fontSize: 11, color: "#64748B", margin: 0, display: "flex", alignItems: "center", gap: 4 }}>
-                <BookOpen size={11} />
-                {subjectMap[t.subjectId] || t.specialization || "—"}
-              </p>
-
-              {/* Specialization badge */}
-              {t.specialization && (
-                <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 12px", borderRadius: 20, background: "#EBF4FE", color: p, border: "1px solid #B5D4F4" }}>
-                  {t.specialization}
-                </span>
-              )}
-
-              {/* Bio */}
-              {t.bio && (
-                <p style={{ fontSize: 11, color: "#94A3B8", margin: 0, lineHeight: 1.4, textAlign: "center", maxWidth: 160 }}>
-                  {t.bio}
-                </p>
-              )}
-
-              {/* Contact */}
-              <div style={{ width: "100%", paddingTop: 10, borderTop: "1.5px solid #F1F5F9", display: "flex", flexDirection: "column", gap: 5 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#64748B" }}>
-                  <Mail size={11} style={{ flexShrink: 0 }} />
-                  <span dir="ltr" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {t.email || "—"}
-                  </span>
-                </div>
-              </div>
-            </div>
+              t={t}
+              subjectMap={subjectMap}
+              primaryColor={p}
+              isArchived={showArchived}
+              onArchive={handleArchive}
+              onUnarchive={handleUnarchive}
+              actionId={actionId}
+            />
           ))}
         </div>
       )}

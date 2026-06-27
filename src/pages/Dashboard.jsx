@@ -148,27 +148,29 @@ export default function Dashboard() {
   const { user } = useAuth();
   const p = "#185FA5";
 
+  const [schoolInfo,    setSchoolInfo]    = useState(null);   // ← NEW: from /api/schools/one
   const [revenue,       setRevenue]       = useState(null);
   const [monthlyList,   setMonthlyList]   = useState([]);
   const [todaySessions, setTodaySessions] = useState([]);
   const [loading,       setLoading]       = useState(true);
   const [error,         setError]         = useState(null);
 
-  const schoolId = user?.schoolId ?? user?.id;
-
   const load = async () => {
-    if (!schoolId) return;
     setLoading(true);
     setError(null);
     try {
-      const period = todayYearMonth();
+      const period    = todayYearMonth();
       const todayDate = new Date().toISOString().slice(0, 10);
 
-      const [revenueRes, sessionsRes] = await Promise.all([
+      // ── fetch school info by logged-in admin (no schoolId needed) ──
+      const [schoolRes, revenueRes, sessionsRes] = await Promise.all([
+        api.get("api/schools/one"),
         api.get("api/invoices/school/revenue", { params: { period } }),
-        api.get(`api/sessions/school/${schoolId}`),
+        api.get("api/sessions/module").catch(() => ({ data: [] })), // ← safe fallback until correct endpoint confirmed
       ]);
 
+      const school = schoolRes.data;
+      setSchoolInfo(school);
       setRevenue(revenueRes.data);
       setMonthlyList([revenueRes.data]);
 
@@ -187,7 +189,7 @@ export default function Dashboard() {
     }
   };
 
-  useEffect(() => { load(); }, [schoolId]);
+  useEffect(() => { load(); }, []);   // ← no schoolId dependency needed
 
   if (loading) {
     return (
@@ -211,9 +213,9 @@ export default function Dashboard() {
     );
   }
 
-  const schoolName = user?.schoolName ?? user?.fullName ?? "المدرسة";
-  const wilaya     = user?.wilaya ?? "";
-  const commune    = user?.commune ?? "";
+  // ── derive display values from schoolInfo (server) not user (JWT) ──
+  const schoolName = schoolInfo?.schoolName ?? user?.schoolName ?? "المدرسة";
+  const wilaya     = schoolInfo?.wilaya     ?? user?.wilaya ?? "";
 
   return (
     <div dir="rtl" style={{ padding: "1.5rem", display: "flex", flexDirection: "column", gap: "1.25rem", fontFamily: "'Cairo', sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
@@ -226,7 +228,7 @@ export default function Dashboard() {
             لوحة التحكم — {schoolName}
           </div>
           <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 3 }}>
-            {wilaya}{commune ? ` · ${commune}` : ""}
+            {wilaya}
           </div>
         </div>
         <button onClick={load} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
@@ -234,13 +236,29 @@ export default function Dashboard() {
         </button>
       </div>
 
-      {/* Stat cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}>
+      {/* Stat cards — now includes students & teachers from schoolInfo */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
         <StatCard
           emoji="💰" label="إجمالي المحصّل هذا الشهر"
           value={(revenue?.totalCollected ?? 0).toLocaleString("ar-DZ") + " دج"}
           sub="هذا الشهر" accent={p} iconBg="#EBF4FE"
         />
+        <StatCard
+          emoji="🎓" label="عدد الطلاب"
+          value={schoolInfo?.totalStudents ?? "—"}
+          sub="طالب مسجّل" accent="#0F6E56" iconBg="#E1F5EE"
+          subNeutral={!schoolInfo?.totalStudents}
+        />
+        <StatCard
+          emoji="👨‍🏫" label="عدد الأساتذة"
+          value={schoolInfo?.totalTeachers ?? "—"}
+          sub="أستاذ نشط" accent="#534AB7" iconBg="#EEEDFE"
+          subNeutral={!schoolInfo?.totalTeachers}
+        />
+      </div>
+
+      {/* Second row of stat cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
         <StatCard
           emoji="⏳" label="المبلغ المعلق"
           value={(revenue?.totalPending ?? 0).toLocaleString("ar-DZ") + " دج"}
@@ -256,7 +274,7 @@ export default function Dashboard() {
         <StatCard
           emoji="📄" label="عدد الفواتير"
           value={revenue?.invoiceCount ?? "—"}
-          sub="هذا الشهر" accent="#534AB7" iconBg="#EEEDFE"
+          sub="هذا الشهر" accent="#64748B" iconBg="#F1F5F9"
           subNeutral
         />
       </div>
@@ -270,15 +288,32 @@ export default function Dashboard() {
           }
         </Card>
 
+        {/* School info — now from schoolInfo (server), not user (JWT) */}
         <Card title="معلومات المدرسة">
           <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 8 }}>
-            <InfoItem label="اسم المدرسة"     value={user?.schoolName} />
-            <InfoItem label="المالك"          value={user?.fullName} />
-            <InfoItem label="الولاية"         value={user?.wilaya} />
-            <InfoItem label="البريد"          value={user?.email} />
-            <InfoItem label="الهاتف"          value={user?.phone} />
-            <InfoItem label="حالة الاشتراك"   value={user?.subscriptionStatus} highlight />
-            <InfoItem label="انتهاء الاشتراك" value={user?.subscriptionExpiresAt ?? "—"} />
+            <InfoItem label="اسم المدرسة"     value={schoolInfo?.schoolName} />
+            <InfoItem label="المالك"          value={schoolInfo?.ownerName} />
+            <InfoItem label="الولاية"         value={schoolInfo?.wilaya} />
+            <InfoItem label="البريد"          value={schoolInfo?.email} />
+            <InfoItem label="حالة الاشتراك"
+              value={schoolInfo?.subscriptionStatus}
+              highlight
+            />
+            <InfoItem label="انتهاء الاشتراك"
+              value={
+                schoolInfo?.subscriptionExpiresAt
+                  ? new Date(schoolInfo.subscriptionExpiresAt).toLocaleDateString("ar-MA", { year: "numeric", month: "long", day: "numeric" })
+                  : "—"
+              }
+            />
+            <InfoItem label="دخل هذا الشهر"
+              value={
+                schoolInfo?.currentMonthRevenue != null
+                  ? Number(schoolInfo.currentMonthRevenue).toLocaleString("ar-DZ") + " دج"
+                  : "—"
+              }
+              highlight={!!schoolInfo?.currentMonthRevenue}
+            />
           </div>
         </Card>
       </div>

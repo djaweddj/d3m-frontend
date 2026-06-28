@@ -8,9 +8,13 @@ import api from "../api";
 
 // ── API ───────────────────────────────────────────────────────────────────────
 const scheduleApi = {
-  getModules:    ()           => api.get("api/modules"),
-  getStudents:   (moduleId)   => api.get(`api/students/by-module/${moduleId}`),
-  createSession: (data)       => api.post("api/sessions", data),
+  getModules:     ()                        => api.get("api/modules"),
+  getStudents:    (moduleId)                => api.get(`api/students/by-module/${moduleId}`),
+  createSession:  (data)                    => api.post("api/sessions", data),
+  // PUT /api/modules/{moduleId}/schedules/{day}  → update time of a schedule slot
+  updateSchedule: (moduleId, day, data)     => api.put(`api/modules/${moduleId}/schedules/${day}`, data),
+  // PATCH /api/modules/{id}/archive             → archive the whole module (removes from schedule)
+  archiveModule:  (moduleId)                => api.patch(`api/modules/${moduleId}/archive`),
 };
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -47,11 +51,7 @@ const inp_css = {
 function Spinner({ size = 18, color = P }) {
   return (
     <>
-      <div style={{
-        width: size, height: size, borderRadius: "50%",
-        border: `2px solid ${color}`, borderTopColor: "transparent",
-        animation: "spin 0.8s linear infinite", flexShrink: 0,
-      }} />
+      <div style={{ width: size, height: size, borderRadius: "50%", border: `2px solid ${color}`, borderTopColor: "transparent", animation: "spin 0.8s linear infinite", flexShrink: 0 }} />
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </>
   );
@@ -60,21 +60,9 @@ function Spinner({ size = 18, color = P }) {
 // ── Modal Wrapper ─────────────────────────────────────────────────────────────
 function ModalWrap({ onClose, children, maxWidth = 420 }) {
   return (
-    <div
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-      style={{
-        position: "fixed", inset: 0, background: "rgba(15,23,42,.6)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        zIndex: 300, padding: "1rem", backdropFilter: "blur(2px)",
-      }}
-    >
-      <div dir="rtl" style={{
-        background: "#fff", borderRadius: 16, width: "100%", maxWidth,
-        border: "1.5px solid #E2E8F0", overflow: "hidden",
-        fontFamily: "'Cairo',sans-serif", maxHeight: "90vh",
-        display: "flex", flexDirection: "column",
-        boxShadow: "0 20px 60px rgba(0,0,0,.18)",
-      }}>
+    <div onClick={(e) => e.target === e.currentTarget && onClose()}
+      style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 300, padding: "1rem", backdropFilter: "blur(2px)" }}>
+      <div dir="rtl" style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth, border: "1.5px solid #E2E8F0", overflow: "hidden", fontFamily: "'Cairo',sans-serif", maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,.18)" }}>
         {children}
       </div>
     </div>
@@ -83,17 +71,9 @@ function ModalWrap({ onClose, children, maxWidth = 420 }) {
 
 function ModalHeader({ title, onClose }) {
   return (
-    <div style={{
-      display: "flex", alignItems: "center", justifyContent: "space-between",
-      padding: "1rem 1.25rem", borderBottom: "1.5px solid #F1F5F9",
-      background: "#FAFCFF", flexShrink: 0,
-    }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.25rem", borderBottom: "1.5px solid #F1F5F9", background: "#FAFCFF", flexShrink: 0 }}>
       <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>{title}</div>
-      <button onClick={onClose} style={{
-        width: 30, height: 30, borderRadius: 8, border: "1px solid #E2E8F0",
-        background: "#fff", cursor: "pointer",
-        display: "flex", alignItems: "center", justifyContent: "center",
-      }}>
+      <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <X size={14} color="#64748B" />
       </button>
     </div>
@@ -102,10 +82,7 @@ function ModalHeader({ title, onClose }) {
 
 function ModalFooter({ children }) {
   return (
-    <div style={{
-      display: "flex", gap: 8, padding: "1rem 1.25rem",
-      borderTop: "1.5px solid #F1F5F9", background: "#FAFCFF", flexShrink: 0,
-    }}>
+    <div style={{ display: "flex", gap: 8, padding: "1rem 1.25rem", borderTop: "1.5px solid #F1F5F9", background: "#FAFCFF", flexShrink: 0 }}>
       {children}
     </div>
   );
@@ -113,18 +90,8 @@ function ModalFooter({ children }) {
 
 function BtnPrimary({ onClick, disabled, loading, icon: Icon, label, danger }) {
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled || loading}
-      style={{
-        flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
-        padding: "9px", borderRadius: 10, border: "none",
-        background: disabled || loading ? "#CBD5E1" : danger ? "#E24B4A" : P,
-        color: "#fff", fontSize: 13, fontWeight: 600,
-        cursor: disabled || loading ? "not-allowed" : "pointer",
-        fontFamily: "'Cairo',sans-serif", transition: "background .15s",
-      }}
-    >
+    <button onClick={onClick} disabled={disabled || loading}
+      style={{ flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "9px", borderRadius: 10, border: "none", background: disabled || loading ? "#CBD5E1" : danger ? "#E24B4A" : P, color: "#fff", fontSize: 13, fontWeight: 600, cursor: disabled || loading ? "not-allowed" : "pointer", fontFamily: "'Cairo',sans-serif", transition: "background .15s" }}>
       {loading ? <Spinner size={14} color="#fff" /> : Icon ? <Icon size={14} /> : null}
       {label}
     </button>
@@ -133,11 +100,7 @@ function BtnPrimary({ onClick, disabled, loading, icon: Icon, label, danger }) {
 
 function BtnGhost({ onClick, label }) {
   return (
-    <button onClick={onClick} style={{
-      flex: 1, padding: "9px", borderRadius: 10, border: "1.5px solid #E2E8F0",
-      background: "#fff", color: "#64748B", fontSize: 13,
-      cursor: "pointer", fontFamily: "'Cairo',sans-serif",
-    }}>
+    <button onClick={onClick} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 13, cursor: "pointer", fontFamily: "'Cairo',sans-serif" }}>
       {label}
     </button>
   );
@@ -145,10 +108,7 @@ function BtnGhost({ onClick, label }) {
 
 function ErrorBox({ msg }) {
   return msg ? (
-    <div style={{
-      fontSize: 12, color: "#DC2626", background: "#FEF2F2",
-      border: "1px solid #FECACA", borderRadius: 9, padding: "8px 13px",
-    }}>
+    <div style={{ fontSize: 12, color: "#DC2626", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 9, padding: "8px 13px" }}>
       ⚠️ {msg}
     </div>
   ) : null;
@@ -157,90 +117,60 @@ function ErrorBox({ msg }) {
 // ── Add Session Modal ─────────────────────────────────────────────────────────
 function AddModal({ modules, defaultDayIdx, onClose, onCreated }) {
   const [modName, setModName] = useState("");
-  const [date,    setDate]    = useState(() => {
-    const today = new Date().toISOString().split("T")[0];
-    return today;
-  });
+  const [date,    setDate]    = useState(() => new Date().toISOString().split("T")[0]);
   const [start,   setStart]   = useState("08:00");
   const [end,     setEnd]     = useState("09:30");
   const [saving,  setSaving]  = useState(false);
   const [error,   setError]   = useState("");
   const [open,    setOpen]    = useState(false);
 
-  // pre-fill time from the module's schedule for the defaultDayIdx
   const chosenMod = modules.find((m) => m.name === modName);
 
   const handleModSelect = (m) => {
     setModName(m.name);
     setOpen(false);
-    // auto-fill time from module schedule if available
     if (defaultDayIdx != null) {
       const dayStr = IDX_TO_DAY[defaultDayIdx];
       const sched  = (m.schedules ?? []).find((s) => s.day === dayStr);
-      if (sched) {
-        setStart(fmtTime(sched.startTime));
-        setEnd(fmtTime(sched.endTime));
-      }
+      if (sched) { setStart(fmtTime(sched.startTime)); setEnd(fmtTime(sched.endTime)); }
     }
   };
 
   const handleSave = async () => {
-    if (!modName)        return setError("اختر وحدة دراسية");
-    if (!date)           return setError("أدخل التاريخ");
-    if (!start || !end)  return setError("أدخل وقت البداية والنهاية");
-    if (start >= end)    return setError("وقت البداية يجب أن يكون قبل النهاية");
-    setSaving(true);
-    setError("");
+    if (!modName)       return setError("اختر وحدة دراسية");
+    if (!date)          return setError("أدخل التاريخ");
+    if (!start || !end) return setError("أدخل وقت البداية والنهاية");
+    if (start >= end)   return setError("وقت البداية يجب أن يكون قبل النهاية");
+    setSaving(true); setError("");
     try {
-      const res = await scheduleApi.createSession({
-        courseModuleName: modName,
-        date,
-        startTime: start,
-        endTime:   end,
-      });
+      const res = await scheduleApi.createSession({ courseModuleName: modName, date, startTime: start, endTime: end });
       onCreated(res.data);
       onClose();
     } catch (err) {
       setError(err?.response?.data?.message || "فشل إنشاء الحصة");
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
   return (
     <ModalWrap onClose={onClose} maxWidth={380}>
       <ModalHeader title="إضافة حصة" onClose={onClose} />
       <div style={{ padding: "1.1rem 1.25rem", display: "flex", flexDirection: "column", gap: 13, overflowY: "auto" }}>
-
-        {/* Module dropdown */}
         <div>
           <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 5 }}>الوحدة الدراسية *</label>
           <div style={{ position: "relative" }}>
-            <button
-              onClick={() => setOpen((p) => !p)}
-              style={{ ...inp_css, textAlign: "right", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", border: open ? `1.5px solid ${P}` : "1.5px solid #E2E8F0" }}
-            >
+            <button onClick={() => setOpen((p) => !p)}
+              style={{ ...inp_css, textAlign: "right", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", border: open ? `1.5px solid ${P}` : "1.5px solid #E2E8F0" }}>
               <span style={{ color: modName ? "#0F172A" : "#94A3B8" }}>{modName || "اختر وحدة…"}</span>
               <ChevronDown size={14} color="#94A3B8" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
             </button>
             {open && (
-              <div style={{
-                position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
-                background: "#fff", border: "1.5px solid #E2E8F0", borderRadius: 10,
-                boxShadow: "0 8px 24px rgba(0,0,0,.12)", zIndex: 50, maxHeight: 200, overflowY: "auto",
-              }}>
-                {modules.length === 0 && (
-                  <div style={{ padding: "12px 14px", fontSize: 12, color: "#94A3B8" }}>لا توجد وحدات دراسية</div>
-                )}
+              <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "#fff", border: "1.5px solid #E2E8F0", borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,.12)", zIndex: 50, maxHeight: 200, overflowY: "auto" }}>
+                {modules.length === 0 && <div style={{ padding: "12px 14px", fontSize: 12, color: "#94A3B8" }}>لا توجد وحدات دراسية</div>}
                 {modules.map((m) => {
-                  const c = colFor(m.id);
-                  const selected = m.name === modName;
+                  const c = colFor(m.id); const selected = m.name === modName;
                   return (
-                    <div
-                      key={m.id}
-                      onClick={() => handleModSelect(m)}
-                      style={{ padding: "10px 14px", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", gap: 9, background: selected ? c.bg : "transparent", color: selected ? c.text : "#0F172A", borderBottom: "1px solid #F8FAFC" }}
-                    >
+                    <div key={m.id} onClick={() => handleModSelect(m)}
+                      style={{ padding: "10px 14px", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", gap: 9, background: selected ? c.bg : "transparent", color: selected ? c.text : "#0F172A", borderBottom: "1px solid #F8FAFC" }}>
                       <div style={{ width: 8, height: 8, borderRadius: "50%", background: c.accent, flexShrink: 0 }} />
                       <div>
                         <div style={{ fontWeight: 600 }}>{m.name}</div>
@@ -254,14 +184,10 @@ function AddModal({ modules, defaultDayIdx, onClose, onCreated }) {
             )}
           </div>
         </div>
-
-        {/* Date */}
         <div>
           <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 5 }}>التاريخ *</label>
           <input style={inp_css} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </div>
-
-        {/* Time */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <div>
             <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 5 }}>وقت البداية *</label>
@@ -272,8 +198,6 @@ function AddModal({ modules, defaultDayIdx, onClose, onCreated }) {
             <input style={inp_css} type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
           </div>
         </div>
-
-        {/* Preview */}
         {modName && chosenMod && (
           <div style={{ background: colFor(chosenMod.id).bg, border: `1px solid ${colFor(chosenMod.id).border}`, borderRadius: 10, padding: "10px 14px" }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: colFor(chosenMod.id).text }}>{modName}</div>
@@ -283,7 +207,6 @@ function AddModal({ modules, defaultDayIdx, onClose, onCreated }) {
             </div>
           </div>
         )}
-
         <ErrorBox msg={error} />
       </div>
       <ModalFooter>
@@ -294,19 +217,30 @@ function AddModal({ modules, defaultDayIdx, onClose, onCreated }) {
   );
 }
 
-// ── Edit Timing Modal ─────────────────────────────────────────────────────────
-// Edits the slot timing locally (frontend only — wire to backend when ready)
+// ── Edit Timing Modal — NOW WIRED TO BACKEND ──────────────────────────────────
 function EditModal({ slot, onClose, onSaved }) {
   const c = colFor(slot.moduleId);
-  const [start,  setStart]  = useState(fmtTime(slot.startTime));
-  const [end,    setEnd]    = useState(fmtTime(slot.endTime));
-  const [error,  setError]  = useState("");
+  const [start,   setStart]   = useState(fmtTime(slot.startTime));
+  const [end,     setEnd]     = useState(fmtTime(slot.endTime));
+  const [saving,  setSaving]  = useState(false);
+  const [error,   setError]   = useState("");
 
-  const handleSave = () => {
-    if (!start || !end)  return setError("أكمل جميع الحقول");
-    if (start >= end)    return setError("وقت البداية يجب أن يكون قبل النهاية");
-    onSaved({ ...slot, startTime: start + ":00", endTime: end + ":00" });
-    onClose();
+  const handleSave = async () => {
+    if (!start || !end) return setError("أكمل جميع الحقول");
+    if (start >= end)   return setError("وقت البداية يجب أن يكون قبل النهاية");
+    setSaving(true); setError("");
+    try {
+      // PUT /api/modules/{moduleId}/schedules/{day}
+      await scheduleApi.updateSchedule(slot.moduleId, slot.day, {
+        startTime: start + ":00",
+        endTime:   end   + ":00",
+      });
+      // update local state so UI reflects immediately
+      onSaved({ ...slot, startTime: start + ":00", endTime: end + ":00" });
+      onClose();
+    } catch (err) {
+      setError(err?.response?.data?.message || "فشل تعديل التوقيت");
+    } finally { setSaving(false); }
   };
 
   return (
@@ -331,37 +265,56 @@ function EditModal({ slot, onClose, onSaved }) {
             <input style={inp_css} type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
           </div>
         </div>
+        <div style={{ fontSize: 11, color: "#94A3B8", background: "#F8FAFC", borderRadius: 8, padding: "8px 12px" }}>
+          ℹ️ سيتم تحديث التوقيت لكل حصص هذا اليوم في قاعدة البيانات
+        </div>
         <ErrorBox msg={error} />
       </div>
       <ModalFooter>
         <BtnGhost onClick={onClose} label="إلغاء" />
-        <BtnPrimary onClick={handleSave} icon={Check} label="حفظ" />
+        <BtnPrimary onClick={handleSave} loading={saving} icon={Check} label={saving ? "جارٍ الحفظ..." : "حفظ"} />
       </ModalFooter>
     </ModalWrap>
   );
 }
 
-// ── Archive Modal ─────────────────────────────────────────────────────────────
+// ── Archive Modal — NOW WIRED TO BACKEND ──────────────────────────────────────
 function ArchiveModal({ slot, onClose, onConfirm }) {
+  const [saving, setSaving] = useState(false);
+  const [error,  setError]  = useState("");
+
+  const handleConfirm = async () => {
+    setSaving(true); setError("");
+    try {
+      // PATCH /api/modules/{id}/archive
+      await scheduleApi.archiveModule(slot.moduleId);
+      onConfirm(slot); // removes from local state + closes modal
+    } catch (err) {
+      setError(err?.response?.data?.message || "فشل حذف الوحدة");
+      setSaving(false);
+    }
+  };
+
   return (
     <ModalWrap onClose={onClose} maxWidth={340}>
-      <ModalHeader title="أرشفة الحصة" onClose={onClose} />
+      <ModalHeader title="أرشفة الوحدة الدراسية" onClose={onClose} />
       <div style={{ padding: "1.5rem 1.25rem", display: "flex", flexDirection: "column", alignItems: "center", gap: 14, textAlign: "center" }}>
         <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#FEF2F2", border: "2px solid #FECACA", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Trash2 size={22} color="#DC2626" />
         </div>
         <p style={{ fontSize: 13, color: "#475569", lineHeight: 1.7, margin: 0 }}>
-          هل أنت متأكد من إزالة حصة{" "}
-          <strong style={{ color: "#0F172A" }}>{slot.subjectName ?? slot.moduleName}</strong>
+          هل أنت متأكد من أرشفة وحدة{" "}
+          <strong style={{ color: "#0F172A" }}>{slot.subjectName ?? slot.moduleName}</strong>؟
           <br />
-          من يوم <strong style={{ color: "#0F172A" }}>{DAYS_AR[DAY_TO_IDX[slot.day]]}</strong>؟
-          <br />
-          <span style={{ fontSize: 11, color: "#94A3B8" }}>لن تظهر في الجدول بعد الحذف.</span>
+          <span style={{ fontSize: 11, color: "#94A3B8" }}>
+            سيتم أرشفة الوحدة وجميع حصصها المستقبلية.
+          </span>
         </p>
+        <ErrorBox msg={error} />
       </div>
       <ModalFooter>
         <BtnGhost onClick={onClose} label="إلغاء" />
-        <BtnPrimary onClick={() => onConfirm(slot)} icon={Trash2} label="حذف" danger />
+        <BtnPrimary onClick={handleConfirm} loading={saving} icon={Trash2} label={saving ? "جارٍ الأرشفة..." : "أرشفة"} danger />
       </ModalFooter>
     </ModalWrap>
   );
@@ -377,8 +330,7 @@ function AttendanceModal({ slot, onClose }) {
   const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
-    scheduleApi
-      .getStudents(slot.moduleId)
+    scheduleApi.getStudents(slot.moduleId)
       .then((r) => setStudents(r.data?.content ?? r.data ?? []))
       .catch(() => setStudents([]))
       .finally(() => setLoading(false));
@@ -395,15 +347,9 @@ function AttendanceModal({ slot, onClose }) {
     setSaving(true);
     try {
       const today = new Date().toISOString().split("T")[0];
-      await scheduleApi.createSession({
-        courseModuleName: slot.moduleName,
-        date:      today,
-        startTime: slot.startTime,
-        endTime:   slot.endTime,
-      });
-    } catch { /* session may already exist — ignore */ } finally {
-      setSaving(false);
-      setSubmitted(true);
+      await scheduleApi.createSession({ courseModuleName: slot.moduleName, date: today, startTime: slot.startTime, endTime: slot.endTime });
+    } catch { /* session may already exist */ } finally {
+      setSaving(false); setSubmitted(true);
       setTimeout(onClose, 900);
     }
   };
@@ -440,7 +386,6 @@ function AttendanceModal({ slot, onClose }) {
           )}
         </div>
       </div>
-
       <div style={{ overflowY: "auto", flex: 1 }}>
         {loading ? (
           <div style={{ display: "flex", justifyContent: "center", padding: "2.5rem" }}><Spinner size={26} /></div>
@@ -472,14 +417,10 @@ function AttendanceModal({ slot, onClose }) {
           );
         })}
       </div>
-
       <div style={{ padding: ".85rem 1.25rem", borderTop: "1.5px solid #F1F5F9", background: "#FAFCFF", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
         <span style={{ fontSize: 11, color: "#94A3B8" }}>{markedCount} / {students.length} تم تسجيلهم</span>
-        <button
-          onClick={handleSave}
-          disabled={submitted || saving}
-          style={{ padding: "8px 20px", borderRadius: 9, border: "none", background: submitted ? "#10B981" : P, color: "#fff", fontSize: 13, fontWeight: 600, cursor: submitted ? "default" : "pointer", fontFamily: "'Cairo',sans-serif", display: "flex", alignItems: "center", gap: 6, transition: "background .3s" }}
-        >
+        <button onClick={handleSave} disabled={submitted || saving}
+          style={{ padding: "8px 20px", borderRadius: 9, border: "none", background: submitted ? "#10B981" : P, color: "#fff", fontSize: 13, fontWeight: 600, cursor: submitted ? "default" : "pointer", fontFamily: "'Cairo',sans-serif", display: "flex", alignItems: "center", gap: 6, transition: "background .3s" }}>
           {saving ? <Spinner size={14} color="#fff" /> : submitted ? <><Check size={14} /> تم الحفظ</> : "حفظ الحضور"}
         </button>
       </div>
@@ -487,28 +428,15 @@ function AttendanceModal({ slot, onClose }) {
   );
 }
 
-// ── Module Chip (draggable) ───────────────────────────────────────────────────
+// ── Module Chip ───────────────────────────────────────────────────────────────
 function ModuleChip({ slot, onEdit, onArchive, onAttendance, onDragStart, onDragEnd }) {
   const c = colFor(slot.moduleId);
   const [hov, setHov] = useState(false);
 
   return (
-    <div
-      draggable
-      onDragStart={(e) => onDragStart(e, slot)}
-      onDragEnd={onDragEnd}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      style={{
-        borderRadius: 9, padding: "6px 8px",
-        background: c.bg, border: `1.5px solid ${c.border}`,
-        position: "relative", marginBottom: 4, cursor: "grab",
-        boxShadow: hov ? `0 4px 12px ${c.border}` : "none",
-        transform: hov ? "translateY(-1px)" : "none",
-        transition: "transform .15s, box-shadow .15s",
-        userSelect: "none",
-      }}
-    >
+    <div draggable onDragStart={(e) => onDragStart(e, slot)} onDragEnd={onDragEnd}
+      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      style={{ borderRadius: 9, padding: "6px 8px", background: c.bg, border: `1.5px solid ${c.border}`, position: "relative", marginBottom: 4, cursor: "grab", boxShadow: hov ? `0 4px 12px ${c.border}` : "none", transform: hov ? "translateY(-1px)" : "none", transition: "transform .15s, box-shadow .15s", userSelect: "none" }}>
       <div style={{ position: "absolute", top: 4, right: 4, opacity: hov ? .4 : .15 }}>
         <GripVertical size={10} color={c.text} />
       </div>
@@ -521,20 +449,15 @@ function ModuleChip({ slot, onEdit, onArchive, onAttendance, onDragStart, onDrag
       {slot.teacherName && (
         <div style={{ fontSize: 9, color: c.text, opacity: .55, marginTop: 1 }}>{slot.teacherName}</div>
       )}
-
       {hov && (
         <div style={{ position: "absolute", bottom: 3, left: 3, display: "flex", gap: 3 }}>
           {[
             { Icon: Edit2,  color: "#475569", fn: () => onEdit(slot),       title: "تعديل" },
-            { Icon: Trash2, color: "#DC2626", fn: () => onArchive(slot),    title: "حذف" },
+            { Icon: Trash2, color: "#DC2626", fn: () => onArchive(slot),    title: "أرشفة" },
             { Icon: Users,  color: P,         fn: () => onAttendance(slot), title: "الحضور" },
           ].map(({ Icon, color, fn, title }) => (
-            <button
-              key={title}
-              title={title}
-              onClick={(e) => { e.stopPropagation(); fn(); }}
-              style={{ width: 22, height: 22, borderRadius: 6, border: "none", background: "rgba(255,255,255,.85)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 4px rgba(0,0,0,.1)" }}
-            >
+            <button key={title} title={title} onClick={(e) => { e.stopPropagation(); fn(); }}
+              style={{ width: 22, height: 22, borderRadius: 6, border: "none", background: "rgba(255,255,255,.85)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 4px rgba(0,0,0,.1)" }}>
               <Icon size={11} color={color} />
             </button>
           ))}
@@ -548,12 +471,9 @@ function ModuleChip({ slot, onEdit, onArchive, onAttendance, onDragStart, onDrag
 function DropCell({ dayIdx, timeSlot, children, onDrop }) {
   const [over, setOver] = useState(false);
   return (
-    <td
-      onDragOver={(e)  => { e.preventDefault(); setOver(true); }}
-      onDragLeave={()  => setOver(false)}
-      onDrop={(e)      => { e.preventDefault(); setOver(false); onDrop(dayIdx, timeSlot); }}
-      style={{ padding: "5px 4px", verticalAlign: "top", background: over ? "rgba(24,95,165,.06)" : "transparent", border: over ? `1.5px dashed ${P}` : "1.5px solid transparent", borderRadius: over ? 8 : 0, transition: "background .15s, border .15s" }}
-    >
+    <td onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
+      onDrop={(e) => { e.preventDefault(); setOver(false); onDrop(dayIdx, timeSlot); }}
+      style={{ padding: "5px 4px", verticalAlign: "top", background: over ? "rgba(24,95,165,.06)" : "transparent", border: over ? `1.5px dashed ${P}` : "1.5px solid transparent", borderRadius: over ? 8 : 0, transition: "background .15s, border .15s" }}>
       <div style={{ minHeight: 48, borderRadius: 8, padding: 2 }}>{children}</div>
     </td>
   );
@@ -561,38 +481,33 @@ function DropCell({ dayIdx, timeSlot, children, onDrop }) {
 
 // ── Main Schedule Page ────────────────────────────────────────────────────────
 export default function Schedule() {
-  const { user }  = useAuth();
-  const schoolId  = user?.schoolId;
+  const { user } = useAuth();
+  const schoolId = user?.schoolId;
 
-  // slots = flat list of { moduleId, moduleName, subjectName, teacherName, startTime, endTime, day }
-  const [slots,    setSlots]    = useState([]);
-  const [modules,  setModules]  = useState([]); // raw modules for add dropdown
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState(null);
-
-  const [addModal,        setAddModal]        = useState(null); // null | { defaultDayIdx }
+  const [slots,           setSlots]           = useState([]);
+  const [modules,         setModules]         = useState([]);
+  const [loading,         setLoading]         = useState(true);
+  const [error,           setError]           = useState(null);
+  const [addModal,        setAddModal]        = useState(null);
   const [editSlot,        setEditSlot]        = useState(null);
   const [archiveSlot,     setArchiveSlot]     = useState(null);
   const [attendanceSlot,  setAttendanceSlot]  = useState(null);
 
   const dragging = useRef(null);
 
-  // ── Load ──────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     if (!schoolId) { setLoading(false); setError("لم يتم تحديد المدرسة، يرجى تسجيل الدخول مجدداً"); return; }
     setLoading(true); setError(null);
     try {
-      const res  = await scheduleApi.getModules();
-      const mods = res.data?.content ?? res.data ?? [];
+      const res    = await scheduleApi.getModules();
+      const mods   = res.data?.content ?? res.data ?? [];
       const active = mods.filter((m) => !m.archived);
       setModules(active);
 
-      // flatten schedules into slots
       const flat = [];
       active.forEach((m) => {
         (m.schedules ?? []).forEach((sched) => {
           flat.push({
-            // unique key per slot
             slotKey:     `${m.id}_${sched.day}_${sched.startTime}`,
             moduleId:    m.id,
             moduleName:  m.name,
@@ -607,37 +522,35 @@ export default function Schedule() {
       setSlots(flat);
     } catch (err) {
       setError(err?.response?.data?.message || "خطأ في تحميل البيانات");
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }, [schoolId]);
 
   useEffect(() => { load(); }, [load]);
 
-  // ── Handlers ──────────────────────────────────────────────────────────────
+  // Edit saved — update local state immediately (backend already updated)
   const handleEditSaved = (updatedSlot) => {
-    setSlots((prev) => prev.map((s) => s.slotKey === updatedSlot.slotKey ? updatedSlot : s));
+    setSlots((prev) => prev.map((s) =>
+      s.moduleId === updatedSlot.moduleId && s.day === updatedSlot.day
+        ? { ...updatedSlot, slotKey: `${updatedSlot.moduleId}_${updatedSlot.day}_${updatedSlot.startTime}` }
+        : s
+    ));
   };
 
+  // Archive confirmed — remove ALL slots of this module from local state
   const handleArchiveConfirm = (slot) => {
-    setSlots((prev) => prev.filter((s) => s.slotKey !== slot.slotKey));
+    setSlots((prev) => prev.filter((s) => s.moduleId !== slot.moduleId));
     setArchiveSlot(null);
   };
 
-  // Drag & drop → move slot to new day/time
-  const handleDragStart = (e, slot) => {
-    dragging.current = slot;
-    e.dataTransfer.effectAllowed = "move";
-  };
-  const handleDragEnd = () => { dragging.current = null; };
+  // Drag & drop (local UI only — moving a slot across days would require
+  // a more complex schedule reassignment; for now it stays visual)
+  const handleDragStart = (e, slot) => { dragging.current = slot; e.dataTransfer.effectAllowed = "move"; };
+  const handleDragEnd   = () => { dragging.current = null; };
 
   const handleDrop = (targetDayIdx, targetTime) => {
     const slot = dragging.current;
     if (!slot) return;
-
     const newDay = IDX_TO_DAY[targetDayIdx];
-
-    // preserve duration
     const [sh, sm] = fmtTime(slot.startTime).split(":").map(Number);
     const [eh, em] = fmtTime(slot.endTime).split(":").map(Number);
     const durMin   = (eh * 60 + em) - (sh * 60 + sm);
@@ -645,22 +558,15 @@ export default function Schedule() {
     const newEndMin = nh * 60 + nm + durMin;
     const newEnd    = `${String(Math.floor(newEndMin / 60)).padStart(2, "0")}:${String(newEndMin % 60).padStart(2, "0")}:00`;
     const newStart  = `${targetTime}:00`;
-
-    const updated = {
-      ...slot,
-      day:       newDay,
-      startTime: newStart,
-      endTime:   newEnd,
-      slotKey:   `${slot.moduleId}_${newDay}_${newStart}`,
-    };
-
-    setSlots((prev) => prev.map((s) => s.slotKey === slot.slotKey ? updated : s));
+    setSlots((prev) => prev.map((s) => s.slotKey === slot.slotKey
+      ? { ...s, day: newDay, startTime: newStart, endTime: newEnd, slotKey: `${s.moduleId}_${newDay}_${newStart}` }
+      : s
+    ));
   };
 
-  // ── Build timetable grid ───────────────────────────────────────────────────
+  // Build timetable grid
   const byDayTime = {};
   const timeSet   = new Set();
-
   slots.forEach((slot) => {
     const idx = DAY_TO_IDX[slot.day];
     if (idx === undefined) return;
@@ -670,11 +576,9 @@ export default function Schedule() {
     if (!byDayTime[key]) byDayTime[key] = [];
     byDayTime[key].push(slot);
   });
-
   const allTimes   = [...timeSet].sort();
   const totalSlots = slots.length;
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div dir="rtl" style={{ padding: "1.25rem 1.5rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
 
@@ -708,7 +612,6 @@ export default function Schedule() {
         </div>
       ) : (
         <>
-          {/* Timetable */}
           <div style={{ background: "#fff", borderRadius: 14, border: "1.5px solid #E2E8F0", overflowX: "auto", boxShadow: "0 1px 4px rgba(0,0,0,.04)" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 640, tableLayout: "fixed" }}>
               <thead>
@@ -719,10 +622,8 @@ export default function Schedule() {
                   {DAYS_AR.map((d, i) => (
                     <th key={d} style={{ padding: "11px 8px", fontSize: 11, fontWeight: 700, color: "#475569", textAlign: "center" }}>
                       <div>{d}</div>
-                      <button
-                        onClick={() => setAddModal({ defaultDayIdx: i })}
-                        style={{ marginTop: 4, fontSize: 9, padding: "2px 8px", borderRadius: 20, border: "1px dashed #CBD5E1", background: "transparent", color: "#94A3B8", cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 3 }}
-                      >
+                      <button onClick={() => setAddModal({ defaultDayIdx: i })}
+                        style={{ marginTop: 4, fontSize: 9, padding: "2px 8px", borderRadius: 20, border: "1px dashed #CBD5E1", background: "transparent", color: "#94A3B8", cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 3 }}>
                         <Plus size={8} /> حصة
                       </button>
                     </th>
@@ -749,15 +650,9 @@ export default function Schedule() {
                       return (
                         <DropCell key={dayIdx} dayIdx={dayIdx} timeSlot={time} onDrop={handleDrop}>
                           {inCell.map((slot) => (
-                            <ModuleChip
-                              key={slot.slotKey}
-                              slot={slot}
-                              onEdit={setEditSlot}
-                              onArchive={setArchiveSlot}
-                              onAttendance={setAttendanceSlot}
-                              onDragStart={handleDragStart}
-                              onDragEnd={handleDragEnd}
-                            />
+                            <ModuleChip key={slot.slotKey} slot={slot}
+                              onEdit={setEditSlot} onArchive={setArchiveSlot} onAttendance={setAttendanceSlot}
+                              onDragStart={handleDragStart} onDragEnd={handleDragEnd} />
                           ))}
                         </DropCell>
                       );
@@ -767,7 +662,6 @@ export default function Schedule() {
               </tbody>
             </table>
           </div>
-
           {totalSlots > 0 && (
             <div style={{ fontSize: 11, color: "#94A3B8", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
               <GripVertical size={11} />
@@ -777,35 +671,10 @@ export default function Schedule() {
         </>
       )}
 
-      {/* Modals */}
-      {addModal && (
-        <AddModal
-          modules={modules}
-          defaultDayIdx={addModal.defaultDayIdx}
-          onClose={() => setAddModal(null)}
-          onCreated={() => setAddModal(null)}
-        />
-      )}
-      {editSlot && (
-        <EditModal
-          slot={editSlot}
-          onClose={() => setEditSlot(null)}
-          onSaved={handleEditSaved}
-        />
-      )}
-      {archiveSlot && (
-        <ArchiveModal
-          slot={archiveSlot}
-          onClose={() => setArchiveSlot(null)}
-          onConfirm={handleArchiveConfirm}
-        />
-      )}
-      {attendanceSlot && (
-        <AttendanceModal
-          slot={attendanceSlot}
-          onClose={() => setAttendanceSlot(null)}
-        />
-      )}
+      {addModal && <AddModal modules={modules} defaultDayIdx={addModal.defaultDayIdx} onClose={() => setAddModal(null)} onCreated={() => { setAddModal(null); load(); }} />}
+      {editSlot && <EditModal slot={editSlot} onClose={() => setEditSlot(null)} onSaved={handleEditSaved} />}
+      {archiveSlot && <ArchiveModal slot={archiveSlot} onClose={() => setArchiveSlot(null)} onConfirm={handleArchiveConfirm} />}
+      {attendanceSlot && <AttendanceModal slot={attendanceSlot} onClose={() => setAttendanceSlot(null)} />}
     </div>
   );
 }

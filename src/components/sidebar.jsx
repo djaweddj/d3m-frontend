@@ -1,17 +1,19 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Users, GraduationCap,
-  CalendarDays, Settings, LogOut, School, UserPlus,
+  CalendarDays, Settings, LogOut, School, UserPlus, BookOpen,
 } from "lucide-react";
 import { useAuth } from "../context/authContext";
 
 const NAV = [
-  { to: "/dashboard", icon: LayoutDashboard, label: "لوحة التحكم",    section: null },
-  { to: "/students",  icon: Users,           label: "التلاميذ",       section: "الإدارة" },
-  { to: "/requests",  icon: UserPlus,        label: "طلبات الانضمام", section: null },
-  { to: "/teachers",  icon: GraduationCap,   label: "الأساتذة",       section: null },
-  { to: "/schedule",  icon: CalendarDays,    label: "الجدول الأسبوعي",section: null },
-  { to: "/settings",  icon: Settings,        label: "إعدادات المدرسة",section: "الإعدادات" },
+  { to: "/dashboard",           icon: LayoutDashboard, label: "لوحة التحكم",     section: null },
+  { to: "/students",            icon: Users,           label: "التلاميذ",        section: "الإدارة" },
+  { to: "/requests",            icon: UserPlus,        label: "طلبات الانضمام",  section: null },
+  { to: "/teachers",            icon: GraduationCap,   label: "الأساتذة",        section: null },
+  { to: "/schedule",            icon: CalendarDays,    label: "الجدول الأسبوعي", section: null },
+  { to: "/subjectandclassroom", icon: BookOpen,        label: "المواد والفصول",  section: null },
+  { to: "/createmodule", icon: BookOpen,        label: "حصص",  section: null },
+  { to: "/settings",            icon: Settings,        label: "إعدادات المدرسة", section: "الإعدادات" },
 ];
 
 function hexToRgb(hex = "#185FA5") {
@@ -24,8 +26,8 @@ export default function Sidebar() {
   const { user, school, logout } = useAuth();
   const navigate = useNavigate();
 
-  // Primary color: from school profile or fallback
   const p = school?.primaryColor || "#185FA5";
+  const rgb = hexToRgb(p);
 
   const schoolName = school?.schoolName || user?.fullName || "المدرسة";
   const initials = schoolName
@@ -63,11 +65,8 @@ export default function Sidebar() {
         padding: "16px", borderBottom: "1px solid rgba(255,255,255,0.07)",
       }}>
         {school?.logoUrl ? (
-          <img
-            src={school.logoUrl}
-            alt="شعار"
-            style={{ width: 38, height: 38, borderRadius: 10, objectFit: "cover", flexShrink: 0 }}
-          />
+          <img src={school.logoUrl} alt="شعار"
+            style={{ width: 38, height: 38, borderRadius: 10, objectFit: "cover", flexShrink: 0 }} />
         ) : (
           <div style={{
             width: 38, height: 38, borderRadius: 10, background: p,
@@ -123,27 +122,46 @@ export default function Sidebar() {
               )}
               <NavLink
                 to={item.to}
+                className="sidebar-link"
                 style={({ isActive }) => ({
                   display: "flex", alignItems: "center", gap: 10,
                   padding: "10px 16px", fontSize: 13, fontWeight: 500,
-                  color: isActive ? "#fff" : "#64748B",
-                  background: isActive ? `rgba(${hexToRgb(p)},0.18)` : "transparent",
+                  color: isActive ? "#fff" : "#94A3B8",
+                  background: isActive ? `rgba(${rgb},0.35)` : "transparent",
                   borderRight: `3px solid ${isActive ? p : "transparent"}`,
-                  textDecoration: "none", transition: "all .15s",
+                  textDecoration: "none",
+                  transition: "background 0.15s, color 0.15s, border-color 0.15s",
+                  borderRadius: "0 8px 8px 0",
+                  marginLeft: 8,
                 })}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.color = "#CBD5E1";
-                  e.currentTarget.style.background = "rgba(255,255,255,0.04)";
+                  const isActive = e.currentTarget.style.borderRightColor !== "transparent" &&
+                                   e.currentTarget.style.borderRightColor !== "";
+                  if (!isActive) {
+                    e.currentTarget.style.color = "#E2E8F0";
+                    e.currentTarget.style.background = "rgba(255,255,255,0.07)";
+                    e.currentTarget.style.borderRightColor = `rgba(${rgb},0.4)`;
+                  }
                 }}
                 onMouseLeave={(e) => {
-                  // NavLink handles active state, just reset hover
-                  e.currentTarget.style.background = "";
-                  e.currentTarget.style.color = "";
+                  const isActive = e.currentTarget.style.background.includes("0.18");
+                  if (!isActive) {
+                    e.currentTarget.style.color = "#94A3B8";
+                    e.currentTarget.style.background = "transparent";
+                    e.currentTarget.style.borderRightColor = "transparent";
+                  }
                 }}
               >
                 {({ isActive }) => (
                   <>
-                    <Icon size={16} style={{ flexShrink: 0, color: isActive ? p : "inherit" }} />
+                    <Icon
+                      size={16}
+                      style={{
+                        flexShrink: 0,
+                        color: isActive ? p : "inherit",
+                        transition: "color 0.15s",
+                      }}
+                    />
                     {item.label}
                   </>
                 )}
@@ -159,13 +177,20 @@ export default function Sidebar() {
           onClick={handleLogout}
           style={{
             display: "flex", alignItems: "center", gap: 8,
-            fontSize: 12, fontWeight: 500, color: "#475569",
+            fontSize: 12, fontWeight: 500, color: "#64748B",
             background: "none", border: "none", cursor: "pointer",
-            fontFamily: "inherit", padding: "6px 0", width: "100%",
-            transition: "color .15s",
+            fontFamily: "inherit", padding: "8px 10px", width: "100%",
+            transition: "color 0.15s, background 0.15s",
+            borderRadius: 8,
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = "#94A3B8")}
-          onMouseLeave={(e) => (e.currentTarget.style.color = "#475569")}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = "#F87171";
+            e.currentTarget.style.background = "rgba(248,113,113,0.08)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = "#64748B";
+            e.currentTarget.style.background = "none";
+          }}
         >
           <LogOut size={15} />
           تسجيل الخروج

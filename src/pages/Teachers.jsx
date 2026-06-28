@@ -14,7 +14,7 @@ import api from "../api";
 const teacherApi = {
   getAll:       ()     => api.get("api/teachers"),
   getArchived:  ()     => api.get("api/teachers/archived"),
-  create:       (data) => api.post("api/teachers", data),
+  create:       (data) => api.post("api/teachers/create", data),
   archive:      (id)   => api.patch(`api/teachers/${id}/archive`),
   unarchive:    (id)   => api.patch(`api/teachers/${id}/unarchive`),
   getSubjects:  ()     => api.get("api/subjects"),

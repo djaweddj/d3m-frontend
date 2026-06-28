@@ -59,54 +59,55 @@ export default function App() {
    
         <Toaster position="top-center" richColors />
 
-        <Routes>
-          {/* Redirect */}
-          <Route path="/" element={<Navigate to="/home" replace />} />
+       <Routes>
 
-          {/* Guest Layout (Navbar pages) */}
-          <Route element={<GuestLayout />}>
-            <Route path="/home" element={<Home />} />
-            <Route path="/schools" element={<BrowseSchools />} />
-            <Route path="/schools/:id" element={<SchoolDetails />} />
-          </Route>
+  <Route path="/" element={<Navigate to="/home" replace />} />
 
-          {/* Auth Pages (without layout) */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/forgot-password" element={<PasswordResetFlow />} />
-          <Route path="/schoolregister" element={<SchoolRegister />} />
+  {/* Guest */}
+  <Route element={<GuestLayout />}>
+    <Route path="/home" element={<Home />} />
+    <Route path="/schools" element={<BrowseSchools />} />
+    <Route path="/schools/:id" element={<SchoolDetails />} />
+  </Route>
 
-           <Route path="/studentdashboard" element={<StudentDashboard />} />
-           {/* Dashboard teacher layout */} 
-          
-          <Route path="/teacherdashboard" element={<TeacherDashboard />} />
-           <Route path="/mystudent" element={<MyStudents/>} />
-           <Route path="/teacherprofile" element={<TeacherProfile/>} />
-           
-          
-              <Route path="/studentdashboard" element={
-                <ProtectedRoute role={"STUDENT"}>
-                    <StudentDashboard />
-                </ProtectedRoute>
-              
-                } />
-         
-         
+  {/* Public */}
+  <Route path="/login" element={<Login />} />
+  <Route path="/signup" element={<Signup />} />
+  <Route path="/forgot-password" element={<PasswordResetFlow />} />
+  <Route path="/schoolregister" element={<SchoolRegister />} />
 
+  {/* SCHOOL ADMIN */}
+  <Route element={<ProtectedRoute role="SCHOOL_ADMIN" />}>
+    <Route element={<DashboardLayout />}>
+      <Route path="/dashboard" element={<Dashboard />} />
+      <Route path="/students" element={<Students />} />
+      <Route path="/teachers" element={<Teachers />} />
+      <Route path="/schedule" element={<Schedule />} />
+      <Route path="/settings" element={<Settings />} />
+      <Route path="/requests" element={<Requests />} />
+    </Route>
+  </Route>
 
-          {/* Dashboard Layout */}
-          <Route element={<DashboardLayout />}>
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/students" element={<Students />} />
-            <Route path="/teachers" element={<Teachers />} />
-            <Route path="/schedule" element={<Schedule />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/requests" element={<Requests />} />
-          </Route>
-            {/* superadmin*/}
-         <Route path="/superadmindashboard" element={<SuperAdminDashboard/>} />
-        </Routes>
-      
+  {/* STUDENT */}
+  <Route element={<ProtectedRoute role="STUDENT" />}>
+    <Route path="/studentdashboard" element={<StudentDashboard />} />
+  </Route>
+
+  {/* TEACHER */}
+  <Route element={<ProtectedRoute role="TEACHER" />}>
+    <Route element={<TeacherLayout />}>
+      <Route path="/teacherdashboard" element={<TeacherDashboard />} />
+      <Route path="/teacherprofile" element={<TeacherProfile />} />
+      <Route path="/mystudent" element={<MyStudents />} />
+    </Route>
+  </Route>
+
+  {/* SUPER ADMIN */}
+  <Route element={<ProtectedRoute role="SUPER_ADMIN" />}>
+    <Route path="/superadmindashboard" element={<SuperAdminDashboard />} />
+  </Route>
+
+</Routes>
         
   
     </AuthProvider>

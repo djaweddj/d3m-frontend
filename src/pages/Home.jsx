@@ -436,34 +436,9 @@ export default function Home() {
               قارن بين المدارس، اقرأ تقييمات الطلاب الحقيقية، وابحث بسهولة.
             </motion.p>
 
-            {/* Search */}
-            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.3 }}
-              className="mb-8 flex flex-col gap-3 sm:flex-row rounded-2xl border border-slate-200 bg-white/80 backdrop-blur-sm p-3 shadow-lg shadow-slate-100">
-              <div className="relative flex-1">
-                <Search className="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input type="text" placeholder="ابحث عن مدرسة..."
-                  className="h-12 w-full rounded-xl border border-slate-100 bg-slate-50 pr-10 pl-3 text-sm outline-none transition focus:border-blue-400 focus:bg-white placeholder-slate-400" />
-              </div>
-              <div className="relative flex-1">
-                <MapPin className="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input type="text" placeholder="المدينة أو الولاية"
-                  className="h-12 w-full rounded-xl border border-slate-100 bg-slate-50 pr-10 pl-3 text-sm outline-none transition focus:border-blue-400 focus:bg-white placeholder-slate-400" />
-              </div>
-              <Button className="h-12 rounded-xl bg-blue-600 px-6 text-sm font-bold hover:bg-blue-700 gap-2 shrink-0">
-                <Search className="h-4 w-4" /> بحث
-              </Button>
-            </motion.div>
+          
+           
 
-            {/* Quick filters */}
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, delay: 0.4 }}
-              className="mb-10 flex flex-wrap gap-2 justify-center lg:justify-start">
-              {["رياضيات", "فيزياء", "لغة عربية", "علوم", "لغة فرنسية"].map(tag => (
-                <button key={tag}
-                  className="rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-600 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition">
-                  {tag}
-                </button>
-              ))}
-            </motion.div>
 
             {/* CTAs */}
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.45 }}
@@ -499,44 +474,7 @@ export default function Home() {
           </motion.div>
 
           {/* Right panel */}
-          <motion.div initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.65, delay: 0.2 }}
-            className="relative hidden lg:block">
-            <div className="rounded-3xl border border-slate-100 bg-slate-50/60 backdrop-blur-sm p-5 shadow-2xl shadow-blue-100/40">
-              <div className="mb-5 flex items-center justify-between">
-                <div>
-                  <h3 className="font-bold text-slate-900">المدارس المميزة</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">أعلى المدارس تقييماً</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
-                  <span className="text-xs font-semibold text-green-600">مباشر</span>
-                  <div className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-bold text-white">+50 مدرسة</div>
-                </div>
-              </div>
-              <div className="space-y-3">
-                {[
-                  { name: "مدرسة التفوق",    city: "الجزائر العاصمة", rating: "4.9", subject: "رياضيات · فيزياء",        delay: 0.3 },
-                  { name: "أكاديمية النجاح", city: "قسنطينة",          rating: "4.8", subject: "علوم طبيعية · كيمياء",   delay: 0.4 },
-                  { name: "مركز التميز",     city: "وهران",             rating: "4.7", subject: "لغة عربية · تاريخ",     delay: 0.5 },
-                ].map(s => <SchoolCard key={s.name} {...s} />)}
-              </div>
-              <div className="mt-5 rounded-2xl bg-white border border-slate-100 p-4">
-                <p className="text-xs font-semibold text-slate-500 mb-3">الطلاب المسجلون هذا الشهر</p>
-                <div className="flex items-end gap-1.5 h-12">
-                  {[40, 65, 50, 80, 60, 90, 75, 95, 70, 100, 85, 110].map((h, i) => (
-                    <div key={i} className="flex-1 rounded-t-sm transition-all"
-                      style={{ height: `${(h / 110) * 100}%`, background: i === 11 ? "#2563EB" : "#DBEAFE" }} />
-                  ))}
-                </div>
-                <div className="flex justify-between mt-1.5">
-                  <span className="text-[10px] text-slate-400">سبتمبر</span>
-                  <span className="text-[10px] font-semibold text-blue-600">+18% هذا الشهر</span>
-                </div>
-              </div>
-            </div>
-            <FloatingBadge icon={Users}  label="طالب مسجل"    value="+1,200" className="-top-4 -right-4" />
-            <FloatingBadge icon={Shield} label="مدرسة معتمدة" value="50+"    className="-bottom-4 -left-4" />
-          </motion.div>
+       
         </div>
       </section>
 

@@ -32,7 +32,7 @@ export default function BrowseSchools() {
 
   useEffect(() => {
      api
-    .get("/api/schools")
+    .get("/api/schools/browse")
     .then((res) => {
       console.log("DATA:", res.data);
       const data = Array.isArray(res.data) ? res.data : res.data.content ?? res.data.data ?? [];
@@ -48,8 +48,8 @@ export default function BrowseSchools() {
     (s) =>
       s.schoolName?.toLowerCase().includes(search.toLowerCase()) ||
       s.wilaya?.toLowerCase().includes(search.toLowerCase()) ||
-      s.commune?.toLowerCase().includes(search.toLowerCase()) ||
-      s.ownerName?.toLowerCase().includes(search.toLowerCase())
+      s.commune?.toLowerCase().includes(search.toLowerCase()) 
+     
   );
 
   return (
@@ -146,7 +146,7 @@ export default function BrowseSchools() {
           <div className="grid gap-7 sm:grid-cols-2 xl:grid-cols-3">
             {filtered.map((school, index) => (
               <motion.div
-                key={school.id}
+                key={school.schoolId}
                 initial={{ opacity: 0, y: 25 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
@@ -161,9 +161,7 @@ export default function BrowseSchools() {
                   }}
                 >
                   <Building2 className="h-16 w-16 text-white/30" />
-                  <div className="absolute right-4 top-4">
-                    <Badge status={school.subscriptionStatus} />
-                  </div>
+                
                 </div>
 
                 {/* Content */}
@@ -172,9 +170,7 @@ export default function BrowseSchools() {
                     {school.schoolName}
                   </h3>
 
-                  <p className="mb-1 text-xs text-slate-400">
-                    المالك: {school.ownerName}
-                  </p>
+                 
 
                   <div className="mb-4 flex items-center gap-2 text-sm text-slate-500">
                     <MapPin className="h-4 w-4 text-blue-500" />
@@ -192,14 +188,17 @@ export default function BrowseSchools() {
                   {/* Footer */}
                   <div className="flex items-center justify-between border-t border-slate-100 pt-4">
                     <div>
-                      <p className="text-xs text-slate-400">السعر السنوي</p>
+                    
                       <p className="text-lg font-extrabold text-blue-600">
-                        {school.yearlyPrice?.toLocaleString()} دج
+                        {school.totalTeachers} ":عدد الأساتدة" 
+                      </p>
+                      <p className="text-lg font-extrabold text-blue-600">
+                        {school.totalModules}  ": عدد مواد المدرسة"
                       </p>
                     </div>
 
                     <button
-                      onClick={() => navigate(`/schools/${school.id}`)}
+                      onClick={() => navigate(`/schools/${school.schoolId}`)}
                       className="rounded-2xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700"
                     >
                       عرض التفاصيل

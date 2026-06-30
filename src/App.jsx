@@ -39,6 +39,8 @@ import ProtectedRoute from "./auth/ProtectedRoutes";
 //
  import SuperAdminDashboard from "./pages/SuperAdminDashborad";
 import PasswordResetFlow from "./pages/PasswordReset";
+import CreateModule from "./pages/CreateModule";
+import SubjectsAndClassrooms from "./pages/SubjectAndClassRoom";
 
 // Load Google Fonts
 const link = document.createElement("link");
@@ -83,6 +85,8 @@ export default function App() {
       <Route path="/students" element={<Students />} />
       <Route path="/teachers" element={<Teachers />} />
       <Route path="/schedule" element={<Schedule />} />
+      <Route path="/createmodule" element={<CreateModule/>} />
+      <Route path="/subjectandclassroom" element={<SubjectsAndClassrooms />} />
       <Route path="/settings" element={<Settings />} />
       <Route path="/requests" element={<Requests />} />
     </Route>

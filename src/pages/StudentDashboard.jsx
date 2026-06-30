@@ -1,58 +1,57 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   BookOpen, User, CalendarDays, School,
   LogOut, Edit3, Check, AlertCircle,
-  Loader2, RefreshCw,
+  Loader2, RefreshCw, Clock, MapPin, GraduationCap,
+  Wallet, ChevronLeft, Menu, X,
 } from "lucide-react";
 import { useAuth } from "../context/authContext";
 import api from "../api";
 
 // ─────────────────────────────────────────────────────────
-// API  — real backend endpoints
+// API  — real backend endpoints (unchanged)
 // ─────────────────────────────────────────────────────────
 const studentApi = {
-  // GET /api/students/profile  → StudentResponseDto
   getProfile: () => api.get("api/students/profile"),
-
-  // PUT /api/students/profile  → StudentResponseDto
   updateProfile: (data) => api.put("api/students/profile", data),
-
-  // GET /api/enrollments/mine  → List<EnrollmentResponseDto>
   getEnrollments: () => api.get("api/enrollments/mine"),
-
-  // GET /api/invoices/mine  → List<StudentInvoiceResponseDto>
   getInvoices: () => api.get("api/invoices/mine"),
-
-  // GET /api/sessions/school/{schoolId}  → List<SessionResponseDto>
   getSessionsBySchool: (schoolId) => api.get(`api/sessions/school/${schoolId}`),
-
-  // GET /api/modules/browse?schoolId=x&level=y  → List<CourseModuleResponseDto>
   browseModules: (schoolId, level) =>
     api.get("api/modules/browse", { params: { schoolId, level } }),
 };
 
 // ─────────────────────────────────────────────────────────
-// Palette
+// Design tokens
 // ─────────────────────────────────────────────────────────
+const INK    = "#0B2540";
+const INK_2  = "#0F3A5F";
+const ACTION = "#1C6FB8";
+const ACTION_DEEP = "#0B4D85";
+const CANVAS = "#F5F8FB";
+const SUCCESS = "#0E8F6F";
+const SUCCESS_BG = "#E7F6EF";
+const WARNING = "#C2780C";
+const WARNING_BG = "#FCF1DD";
+const DANGER  = "#D23B3B";
+const DANGER_BG = "#FDEAEA";
+const LINE    = "#E6ECF3";
+
 const PALETTE = [
-  { bg: "#EBF4FE", text: "#0C447C", border: "#85B7EB", dot: "#185FA5" },
-  { bg: "#E1F5EE", text: "#085041", border: "#5DCAA5", dot: "#0F6E56" },
-  { bg: "#EEEDFE", text: "#3C3489", border: "#AFA9EC", dot: "#534AB7" },
-  { bg: "#FAECE7", text: "#712B13", border: "#F0997B", dot: "#C05621" },
+  { bg: "#EAF3FC", text: "#0B4D85", border: "#BBDBF6", accent: "#1C6FB8" },
+  { bg: "#E7F6EF", text: "#0E6F54", border: "#A9E2C9", accent: "#0E8F6F" },
+  { bg: "#F1EEFC", text: "#5142A8", border: "#CDC4F2", accent: "#6C5CE7" },
+  { bg: "#FCEFE6", text: "#9A4A18", border: "#F3CBA9", accent: "#D9762D" },
 ];
 const pal = (i) => PALETTE[i % PALETTE.length];
 
 const WEEK_DAYS_AR = {
-  MONDAY:    "الإثنين",
-  TUESDAY:   "الثلاثاء",
-  WEDNESDAY: "الأربعاء",
-  THURSDAY:  "الخميس",
-  FRIDAY:    "الجمعة",
-  SATURDAY:  "السبت",
-  SUNDAY:    "الأحد",
+  MONDAY: "الإثنين", TUESDAY: "الثلاثاء", WEDNESDAY: "الأربعاء",
+  THURSDAY: "الخميس", FRIDAY: "الجمعة", SATURDAY: "السبت", SUNDAY: "الأحد",
 };
 const WEEK_ORDER = ["السبت","الأحد","الإثنين","الثلاثاء","الأربعاء","الخميس","الجمعة"];
+const WEEK_SHORT = { "السبت":"سبت","الأحد":"أحد","الإثنين":"إثن","الثلاثاء":"ثلا","الأربعاء":"أرب","الخميس":"خمي","الجمعة":"جمع" };
 
 const PAGE_TITLES = {
   sessions: "حصصي والفواتير",
@@ -60,28 +59,31 @@ const PAGE_TITLES = {
   schools:  "مدارسي المسجلة",
   profile:  "بروفايل شخصي",
 };
+const PAGE_SUBTITLES = {
+  sessions: "تابع حصصك القادمة وفواتيرك الشهرية",
+  schedule: "نظرة شاملة على أسبوعك الدراسي",
+  schools:  "كل المدارس والوحدات المسجل فيها",
+  profile:  "معلوماتك الشخصية وإحصائياتك",
+};
 
 const NAV = [
   { id: "sessions", icon: BookOpen,     label: "حصصي" },
-  { id: "schedule", icon: CalendarDays, label: "الجدول الأسبوعي" },
+  { id: "schedule", icon: CalendarDays, label: "الجدول" },
   { id: "schools",  icon: School,       label: "مدارسي" },
   { id: "profile",  icon: User,         label: "بروفايل" },
 ];
 
-// Arabic date formatter
 const fmtDate = (d) =>
-  new Date(d).toLocaleDateString("ar-MA", {
-    weekday: "long", month: "long", day: "numeric",
-  });
-
+  new Date(d).toLocaleDateString("ar-MA", { weekday: "long", month: "long", day: "numeric" });
+const fmtDateShort = (d) =>
+  new Date(d).toLocaleDateString("ar-MA", { month: "short", day: "numeric" });
 const fmtTime = (t) => (t ? String(t).slice(0, 5) : "—");
 
-// Invoice status → Arabic label + colour
 const invoiceStyle = (status) => {
   switch (status) {
-    case "PAID":    return { label: "مدفوعة",    color: "#0F6E56", bg: "#E1F5EE" };
-    case "PENDING": return { label: "معلقة",     color: "#BA7517", bg: "#FAEEDA" };
-    case "OVERDUE": return { label: "متأخرة",    color: "#DC2626", bg: "#FEF2F2" };
+    case "PAID":    return { label: "مدفوعة", color: SUCCESS, bg: SUCCESS_BG };
+    case "PENDING": return { label: "معلقة",  color: WARNING, bg: WARNING_BG };
+    case "OVERDUE": return { label: "متأخرة", color: DANGER,  bg: DANGER_BG };
     default:        return { label: status || "—", color: "#64748B", bg: "#F1F5F9" };
   }
 };
@@ -91,7 +93,7 @@ function initials(name = "") {
 }
 
 // ─────────────────────────────────────────────────────────
-// useFetch hook
+// useFetch hook (unchanged logic)
 // ─────────────────────────────────────────────────────────
 function useFetch(fetchFn, deps = []) {
   const [data,    setData]    = useState(null);
@@ -103,7 +105,6 @@ function useFetch(fetchFn, deps = []) {
     setError(null);
     try {
       const res = await fetchFn();
-      // handle both paginated {content:[]} and plain []
       setData(res.data?.content ?? res.data);
     } catch (err) {
       setError(err?.response?.data?.message || err.message || "خطأ في التحميل");
@@ -118,57 +119,208 @@ function useFetch(fetchFn, deps = []) {
 }
 
 // ─────────────────────────────────────────────────────────
+// Global styles (keyframes, responsive rules, focus states)
+// ─────────────────────────────────────────────────────────
+function GlobalStyles() {
+  return (
+    <style>{`
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      @keyframes fadeSlideUp {
+        from { opacity: 0; transform: translateY(10px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to   { opacity: 1; }
+      }
+      @keyframes scaleIn {
+        from { opacity: 0; transform: scale(.96); }
+        to   { opacity: 1; transform: scale(1); }
+      }
+      @keyframes shimmer {
+        0%   { background-position: -300px 0; }
+        100% { background-position: 300px 0; }
+      }
+      @keyframes slideInRight {
+        from { opacity: 0; transform: translateX(14px); }
+        to   { opacity: 1; transform: translateX(0); }
+      }
+      @keyframes pulseDot {
+        0%, 100% { opacity: 1; }
+        50%      { opacity: .35; }
+      }
+
+      .sd-fade-up { animation: fadeSlideUp .45s cubic-bezier(.16,1,.3,1) both; }
+      .sd-fade-in { animation: fadeIn .3s ease both; }
+      .sd-scale-in { animation: scaleIn .35s cubic-bezier(.16,1,.3,1) both; }
+      .sd-slide-in { animation: slideInRight .4s cubic-bezier(.16,1,.3,1) both; }
+
+      .sd-skeleton {
+        background: linear-gradient(90deg, #EEF2F7 25%, #F8FAFC 37%, #EEF2F7 63%);
+        background-size: 400px 100%;
+        animation: shimmer 1.4s ease-in-out infinite;
+        border-radius: 8px;
+      }
+
+      .sd-card {
+        transition: box-shadow .25s ease, border-color .25s ease, transform .25s ease;
+      }
+      .sd-card:hover {
+        box-shadow: 0 4px 18px -4px rgba(11,37,64,.08);
+      }
+
+      .sd-row {
+        transition: border-color .18s ease, background .18s ease, transform .18s ease;
+      }
+      .sd-row:hover {
+        transform: translateX(-2px);
+      }
+
+      .sd-btn { transition: background .18s ease, color .18s ease, border-color .18s ease, transform .12s ease; }
+      .sd-btn:active { transform: scale(.97); }
+
+      .sd-nav-item { transition: background .18s ease, color .18s ease, border-color .18s ease; }
+
+      .sd-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+      .sd-scroll::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
+      .sd-scroll::-webkit-scrollbar-track { background: transparent; }
+
+      *:focus-visible {
+        outline: 2px solid ${ACTION};
+        outline-offset: 2px;
+        border-radius: 4px;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .sd-fade-up, .sd-fade-in, .sd-scale-in, .sd-slide-in, .sd-skeleton {
+          animation: none !important;
+        }
+        .sd-card, .sd-row, .sd-btn { transition: none !important; }
+      }
+
+      /* ── Mobile layout ── */
+      @media (max-width: 860px) {
+        .sd-sidebar { display: none !important; }
+        .sd-main { width: 100% !important; }
+        .sd-topbar { padding: 0 1rem !important; }
+        .sd-welcome { padding: 1rem 1rem !important; }
+        .sd-body { padding: 1rem .85rem 5.5rem !important; }
+        .sd-stats-grid { grid-template-columns: 1fr 1fr !important; }
+        .sd-stats-grid > *:last-child { grid-column: span 2; }
+        .sd-week-grid { grid-template-columns: repeat(7, minmax(86px,1fr)) !important; overflow-x: auto; }
+        .sd-mobile-tabbar { display: flex !important; }
+        .sd-form-grid { grid-template-columns: 1fr !important; }
+        .sd-schools-summary { grid-template-columns: 1fr 1fr !important; }
+      }
+      @media (min-width: 861px) {
+        .sd-mobile-tabbar { display: none !important; }
+      }
+    `}</style>
+  );
+}
+
+// ─────────────────────────────────────────────────────────
 // Shared UI atoms
 // ─────────────────────────────────────────────────────────
-function Card({ children, style = {} }) {
+function Card({ children, style = {}, className = "", delay = 0 }) {
   return (
-    <div style={{
-      background: "#fff", borderRadius: 14,
-      border: "1.5px solid #E8EEF6", padding: "1.25rem", ...style,
-    }}>
+    <div
+      className={`sd-card sd-fade-up ${className}`}
+      style={{
+        background: "#fff", borderRadius: 16,
+        border: `1px solid ${LINE}`, padding: "1.4rem",
+        animationDelay: `${delay}ms`, ...style,
+      }}
+    >
       {children}
     </div>
   );
 }
 
-function SecTitle({ children }) {
+function SecTitle({ children, icon: Icon, action }) {
   return (
-    <h2 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: "0 0 1.1rem" }}>
-      {children}
-    </h2>
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      marginBottom: "1.15rem",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+        {Icon && (
+          <div style={{
+            width: 30, height: 30, borderRadius: 9, background: CANVAS,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            color: ACTION_DEEP, flexShrink: 0,
+          }}>
+            <Icon size={15} />
+          </div>
+        )}
+        <h2 style={{ fontSize: 15.5, fontWeight: 800, color: INK, margin: 0, letterSpacing: "-.01em" }}>
+          {children}
+        </h2>
+      </div>
+      {action}
+    </div>
   );
 }
 
-function Tag({ children, bg = "#EBF4FE", color = "#0C447C" }) {
+function Tag({ children, bg = "#EAF3FC", color = ACTION_DEEP }) {
   return (
     <span style={{
-      background: bg, color, fontSize: 11, fontWeight: 600,
-      padding: "2px 10px", borderRadius: 20, display: "inline-block",
+      background: bg, color, fontSize: 11, fontWeight: 700,
+      padding: "3px 11px", borderRadius: 20, display: "inline-block",
+      whiteSpace: "nowrap", letterSpacing: "-.01em",
     }}>
       {children}
     </span>
   );
 }
 
-function Spinner({ size = 20 }) {
-  return <Loader2 size={size} style={{ animation: "spin 1s linear infinite", color: "#185FA5" }} />;
+function Spinner({ size = 20, color = ACTION }) {
+  return <Loader2 size={size} style={{ animation: "spin .85s linear infinite", color }} />;
 }
 
-function LoadingBlock() {
-  return <div style={{ display: "flex", justifyContent: "center", padding: "3rem" }}><Spinner size={28} /></div>;
+function SkeletonCard({ lines = 3, height = 64 }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {Array.from({ length: lines }).map((_, i) => (
+        <div key={i} className="sd-skeleton" style={{ height, borderRadius: 12 }} />
+      ))}
+    </div>
+  );
+}
+
+function StatSkeleton() {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }} className="sd-stats-grid">
+      {[0, 1, 2].map((i) => (
+        <Card key={i} style={{ padding: "1.1rem" }} delay={i * 60}>
+          <div className="sd-skeleton" style={{ height: 26, width: "40%", margin: "0 auto 8px" }} />
+          <div className="sd-skeleton" style={{ height: 11, width: "70%", margin: "0 auto" }} />
+        </Card>
+      ))}
+    </div>
+  );
 }
 
 function ErrorBlock({ message, onRetry }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "2rem" }}>
-      <AlertCircle size={32} color="#E2A84B" />
-      <div style={{ fontSize: 13, color: "#64748B", textAlign: "center" }}>{message}</div>
+    <div className="sd-fade-in" style={{
+      display: "flex", flexDirection: "column", alignItems: "center", gap: 12,
+      padding: "3rem 1.5rem", textAlign: "center",
+    }}>
+      <div style={{
+        width: 52, height: 52, borderRadius: "50%", background: DANGER_BG,
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <AlertCircle size={24} color={DANGER} />
+      </div>
+      <div style={{ fontSize: 13.5, color: "#64748B", maxWidth: 280, lineHeight: 1.6 }}>{message}</div>
       {onRetry && (
-        <button onClick={onRetry} style={{
+        <button className="sd-btn" onClick={onRetry} style={{
           display: "flex", alignItems: "center", gap: 6,
-          padding: "6px 14px", borderRadius: 8,
-          border: "1.5px solid #185FA5", background: "#EBF4FE",
-          color: "#185FA5", fontSize: 12, fontWeight: 600,
+          padding: "8px 18px", borderRadius: 10,
+          border: `1.5px solid ${ACTION}`, background: "#fff",
+          color: ACTION, fontSize: 12.5, fontWeight: 700,
           cursor: "pointer", fontFamily: "inherit",
         }}>
           <RefreshCw size={13} /> إعادة المحاولة
@@ -178,108 +330,140 @@ function ErrorBlock({ message, onRetry }) {
   );
 }
 
-function Empty({ text = "لا توجد بيانات" }) {
-  return <div style={{ color: "#94A3B8", fontSize: 13, textAlign: "center", padding: "1.5rem" }}>{text}</div>;
+function Empty({ text = "لا توجد بيانات", icon: Icon = AlertCircle }) {
+  return (
+    <div className="sd-fade-in" style={{
+      display: "flex", flexDirection: "column", alignItems: "center", gap: 10,
+      color: "#94A3B8", fontSize: 13, textAlign: "center", padding: "2.4rem 1rem",
+    }}>
+      <Icon size={26} style={{ opacity: .45 }} />
+      {text}
+    </div>
+  );
 }
 
 // ─────────────────────────────────────────────────────────
-// Sidebar
+// Sidebar (desktop)
 // ─────────────────────────────────────────────────────────
-function Sidebar({ active, setActive, profile, enrollments, onLogout }) {
+function Sidebar({ active, setActive, profile, profileLoading, enrollments, onLogout }) {
   return (
-    <aside style={{
-      width: 220, flexShrink: 0, background: "#0F172A",
+    <aside className="sd-sidebar" style={{
+      width: 232, flexShrink: 0, background: INK,
       display: "flex", flexDirection: "column", height: "100vh",
       position: "sticky", top: 0,
     }}>
       {/* Logo */}
       <div style={{
-        padding: "1.1rem 1rem", borderBottom: "1px solid rgba(255,255,255,.07)",
-        display: "flex", alignItems: "center", gap: 9,
+        padding: "1.15rem 1.1rem", borderBottom: "1px solid rgba(255,255,255,.07)",
+        display: "flex", alignItems: "center", gap: 10,
       }}>
         <div style={{
-          width: 36, height: 36, borderRadius: 10, background: "#185FA5",
-          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18,
+          width: 38, height: 38, borderRadius: 11,
+          background: `linear-gradient(135deg, ${ACTION} 0%, ${ACTION_DEEP} 100%)`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 18, boxShadow: `0 4px 12px -2px ${ACTION}66`,
         }}>🎓</div>
         <div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>مدارس الدعم</div>
-          <div style={{ fontSize: 10, color: "#64748B", marginTop: 1 }}>لوحة الطالب</div>
+          <div style={{ fontSize: 13.5, fontWeight: 800, color: "#fff", letterSpacing: "-.01em" }}>مدارس الدعم</div>
+          <div style={{ fontSize: 10, color: "#5B7494", marginTop: 1 }}>لوحة الطالب</div>
         </div>
       </div>
 
       {/* Student badge */}
       <div style={{
-        padding: "10px 1rem", borderBottom: "1px solid rgba(255,255,255,.07)",
-        display: "flex", alignItems: "center", gap: 9, background: "rgba(255,255,255,.03)",
+        padding: "11px 1.1rem", borderBottom: "1px solid rgba(255,255,255,.07)",
+        display: "flex", alignItems: "center", gap: 10, background: "rgba(255,255,255,.025)",
       }}>
-        <div style={{
-          width: 36, height: 36, borderRadius: "50%", background: "#185FA5",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 12, fontWeight: 700, color: "#fff",
-          border: "2px solid rgba(255,255,255,.15)", flexShrink: 0,
-        }}>
-          {profile ? initials(profile.fullName) : "?"}
-        </div>
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: "#E2E8F0" }}>
-            {profile?.fullName || "..."}
-          </div>
-          <div style={{ fontSize: 10, color: "#1D9E75", marginTop: 1 }}>
-            {profile?.level || "طالب مسجل ✓"}
-          </div>
-        </div>
+        {profileLoading ? (
+          <>
+            <div className="sd-skeleton" style={{ width: 38, height: 38, borderRadius: "50%", background: "rgba(255,255,255,.06)" }} />
+            <div style={{ flex: 1 }}>
+              <div className="sd-skeleton" style={{ height: 10, width: "70%", marginBottom: 6, background: "rgba(255,255,255,.06)" }} />
+              <div className="sd-skeleton" style={{ height: 8, width: "45%", background: "rgba(255,255,255,.06)" }} />
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{
+              width: 38, height: 38, borderRadius: "50%",
+              background: `linear-gradient(135deg, ${ACTION} 0%, ${ACTION_DEEP} 100%)`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 12.5, fontWeight: 800, color: "#fff",
+              border: "2px solid rgba(255,255,255,.15)", flexShrink: 0,
+            }}>
+              {profile ? initials(profile.fullName) : "?"}
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{
+                fontSize: 12.5, fontWeight: 700, color: "#E8EEF6",
+                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+              }}>
+                {profile?.fullName || "..."}
+              </div>
+              <div style={{ fontSize: 10, color: "#3FBF93", marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>
+                <span style={{
+                  width: 6, height: 6, borderRadius: "50%", background: "#3FBF93",
+                  display: "inline-block", animation: "pulseDot 2s ease-in-out infinite",
+                }} />
+                {profile?.level || "طالب مسجل"}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Nav */}
-      <nav style={{ flex: 1, padding: "8px 0", overflowY: "auto" }}>
+      <nav style={{ flex: 1, padding: "10px 0", overflowY: "auto" }}>
         {NAV.map((item) => {
           const Icon = item.icon;
           const isActive = active === item.id;
           return (
-            <button key={item.id} onClick={() => setActive(item.id)} style={{
-              display: "flex", alignItems: "center", gap: 10, width: "100%",
-              padding: "9px 1rem", border: "none", cursor: "pointer",
-              background: isActive ? "rgba(24,95,165,.2)" : "transparent",
-              borderRight: `3px solid ${isActive ? "#185FA5" : "transparent"}`,
-              color: isActive ? "#fff" : "#64748B",
-              fontSize: 13, fontWeight: 500,
-              fontFamily: "'Cairo',system-ui,sans-serif",
-              transition: "all .15s", textAlign: "right",
-            }}
-              onMouseEnter={(e) => { if (!isActive) { e.currentTarget.style.background = "rgba(255,255,255,.04)"; e.currentTarget.style.color = "#CBD5E1"; } }}
-              onMouseLeave={(e) => { if (!isActive) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#64748B"; } }}
+            <button
+              key={item.id}
+              className="sd-nav-item"
+              onClick={() => setActive(item.id)}
+              style={{
+                display: "flex", alignItems: "center", gap: 11, width: "100%",
+                padding: "10px 1.1rem", border: "none", cursor: "pointer",
+                background: isActive ? "rgba(28,111,184,.18)" : "transparent",
+                borderRight: `3px solid ${isActive ? ACTION : "transparent"}`,
+                color: isActive ? "#fff" : "#7E93AC",
+                fontSize: 13, fontWeight: isActive ? 700 : 500,
+                fontFamily: "'Cairo',system-ui,sans-serif",
+                textAlign: "right",
+              }}
+              onMouseEnter={(e) => { if (!isActive) { e.currentTarget.style.background = "rgba(255,255,255,.045)"; e.currentTarget.style.color = "#C5D4E5"; } }}
+              onMouseLeave={(e) => { if (!isActive) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#7E93AC"; } }}
             >
-              <Icon size={16} style={{ flexShrink: 0, color: isActive ? "#185FA5" : "inherit" }} />
+              <Icon size={16} style={{ flexShrink: 0, color: isActive ? "#5BA3E0" : "inherit" }} />
               {item.label}
             </button>
           );
         })}
       </nav>
 
-      {/* School count */}
       {enrollments && enrollments.length > 0 && (
-        <div style={{ padding: "8px 1rem", borderTop: "1px solid rgba(255,255,255,.07)" }}>
+        <div style={{ padding: "8px 1.1rem" }}>
           <div style={{
-            background: "rgba(24,95,165,.15)", borderRadius: 8,
-            padding: "6px 10px", fontSize: 11, color: "#93C5FD",
-            display: "flex", justifyContent: "space-between",
+            background: "rgba(28,111,184,.14)", borderRadius: 10,
+            padding: "8px 12px", fontSize: 11, color: "#8FBFEA",
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            border: "1px solid rgba(28,111,184,.2)",
           }}>
             <span>مدارس مسجلة</span>
-            <span style={{ fontWeight: 700 }}>{enrollments.length}</span>
+            <span style={{ fontWeight: 800, color: "#fff", fontSize: 13 }}>{enrollments.length}</span>
           </div>
         </div>
       )}
 
-      {/* Logout */}
-      <div style={{ padding: "10px 1rem", borderTop: "1px solid rgba(255,255,255,.07)" }}>
-        <button onClick={onLogout} style={{
+      <div style={{ padding: "12px 1.1rem", borderTop: "1px solid rgba(255,255,255,.07)" }}>
+        <button className="sd-btn" onClick={onLogout} style={{
           display: "flex", alignItems: "center", gap: 8, background: "none",
-          border: "none", color: "#475569", fontSize: 12, fontWeight: 500,
-          cursor: "pointer", fontFamily: "inherit", width: "100%", padding: "5px 0",
-          transition: "color .15s",
+          border: "none", color: "#5B7494", fontSize: 12, fontWeight: 600,
+          cursor: "pointer", fontFamily: "inherit", width: "100%", padding: "6px 0",
         }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = "#94A3B8")}
-          onMouseLeave={(e) => (e.currentTarget.style.color = "#475569")}
+          onMouseEnter={(e) => (e.currentTarget.style.color = "#A8C0D9")}
+          onMouseLeave={(e) => (e.currentTarget.style.color = "#5B7494")}
         >
           <LogOut size={14} /> تسجيل الخروج
         </button>
@@ -289,22 +473,53 @@ function Sidebar({ active, setActive, profile, enrollments, onLogout }) {
 }
 
 // ─────────────────────────────────────────────────────────
-// Page: حصصي  (upcoming sessions from real date + invoices)
+// Mobile bottom tab bar
 // ─────────────────────────────────────────────────────────
-// sessions  = List<SessionResponseDto>  {id, moduleId, schoolId, date, startTime, endTime}
-// enrollments = List<EnrollmentResponseDto>  (used to find enrolled moduleIds)
-// invoices  = List<StudentInvoiceResponseDto> {id, studentName, moduleName, period, amount, status, dueDate, paidAt}
-// modules   = Map<moduleId, CourseModuleResponseDto>
+function MobileTabBar({ active, setActive }) {
+  return (
+    <nav className="sd-mobile-tabbar" style={{
+      position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 50,
+      background: "#fff", borderTop: `1px solid ${LINE}`,
+      padding: "6px 8px calc(6px + env(safe-area-inset-bottom))",
+      justifyContent: "space-around",
+      boxShadow: "0 -8px 24px -8px rgba(11,37,64,.08)",
+    }}>
+      {NAV.map((item) => {
+        const Icon = item.icon;
+        const isActive = active === item.id;
+        return (
+          <button
+            key={item.id}
+            onClick={() => setActive(item.id)}
+            className="sd-btn"
+            style={{
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+              border: "none", background: "none", cursor: "pointer",
+              padding: "6px 14px", borderRadius: 12,
+              color: isActive ? ACTION_DEEP : "#94A3B8",
+              fontFamily: "inherit",
+            }}
+          >
+            <Icon size={19} strokeWidth={isActive ? 2.4 : 2} />
+            <span style={{ fontSize: 10, fontWeight: isActive ? 800 : 600 }}>{item.label}</span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
+// ─────────────────────────────────────────────────────────
+// Page: حصصي
+// ─────────────────────────────────────────────────────────
 function PageSessions({ sessions, enrollments, invoices, moduleMap }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Enrolled module IDs
   const enrolledModuleIds = new Set(
     (enrollments || []).map((e) => e.moduleId ?? e.module?.id)
   );
 
-  // Future sessions the student is in, sorted by date
   const upcoming = (sessions || [])
     .filter((s) => {
       if (s.isArchived || s.archived) return false;
@@ -314,74 +529,79 @@ function PageSessions({ sessions, enrollments, invoices, moduleMap }) {
     .sort((a, b) => new Date(a.date) - new Date(b.date))
     .slice(0, 20);
 
-  // Stats
   const totalWeekly = (enrollments || []).reduce(
     (sum, e) => sum + (moduleMap[e.moduleId ?? e.module?.id]?.schedules?.length || 0), 0
   );
   const unpaidCount = (invoices || []).filter(
     (inv) => inv.status === "PENDING" || inv.status === "OVERDUE"
   ).length;
-  const totalFees = (invoices || [])
-    .filter((inv) => inv.status === "PENDING" || inv.status === "OVERDUE")
-    .reduce((s, inv) => s + (inv.amount || 0), 0);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-      {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
+      <div className="sd-stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
         {[
-          { label: "حصص أسبوعية",    value: totalWeekly || "—" },
-          { label: "حصص قادمة",      value: upcoming.length },
-          { label: "فواتير غير مدفوعة", value: unpaidCount, alert: unpaidCount > 0 },
-        ].map((stat) => (
-          <Card key={stat.label} style={{ textAlign: "center", padding: "1rem" }}>
-            <div style={{ fontSize: 22, fontWeight: 700, color: stat.alert ? "#DC2626" : "#185FA5" }}>
-              {stat.value}
-            </div>
-            <div style={{ fontSize: 11, color: "#64748B", marginTop: 4 }}>{stat.label}</div>
-          </Card>
-        ))}
+          { label: "حصص أسبوعية", value: totalWeekly || "—", icon: CalendarDays, color: ACTION_DEEP },
+          { label: "حصص قادمة", value: upcoming.length, icon: BookOpen, color: SUCCESS },
+          { label: "فواتير غير مدفوعة", value: unpaidCount, icon: Wallet, color: unpaidCount > 0 ? DANGER : "#64748B" },
+        ].map((stat, i) => {
+          const Icon = stat.icon;
+          return (
+            <Card key={stat.label} delay={i * 70} style={{ textAlign: "center", padding: "1.15rem 1rem" }}>
+              <div style={{
+                width: 34, height: 34, borderRadius: 10, margin: "0 auto 8px",
+                background: `${stat.color}14`, display: "flex",
+                alignItems: "center", justifyContent: "center",
+              }}>
+                <Icon size={16} color={stat.color} />
+              </div>
+              <div style={{ fontSize: 23, fontWeight: 800, color: stat.color, letterSpacing: "-.02em" }}>
+                {stat.value}
+              </div>
+              <div style={{ fontSize: 11, color: "#64748B", marginTop: 3, fontWeight: 600 }}>{stat.label}</div>
+            </Card>
+          );
+        })}
       </div>
 
-      {/* Upcoming sessions */}
-      <Card>
-        <SecTitle>الحصص القادمة</SecTitle>
+      <Card delay={120}>
+        <SecTitle icon={BookOpen}>الحصص القادمة</SecTitle>
         {upcoming.length === 0 ? (
-          <Empty text="لا توجد حصص قادمة" />
+          <Empty text="لا توجد حصص قادمة" icon={CalendarDays} />
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
             {upcoming.map((s, i) => {
               const c   = pal(i);
               const mod = moduleMap[s.moduleId];
               return (
-                <div key={s.id} style={{
-                  display: "flex", alignItems: "center", gap: 12,
-                  padding: "10px 12px", borderRadius: 10,
-                  border: "1px solid #F1F5F9", background: "#FAFCFF",
-                  transition: "border-color .15s",
+                <div key={s.id} className="sd-row sd-slide-in" style={{
+                  display: "flex", alignItems: "center", gap: 13,
+                  padding: "11px 13px", borderRadius: 12,
+                  border: `1px solid ${LINE}`, background: "#FBFCFE",
+                  borderRight: `3px solid ${c.accent}`,
+                  animationDelay: `${i * 35}ms`,
                 }}
-                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = c.border)}
-                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#F1F5F9")}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = c.bg)}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "#FBFCFE")}
                 >
-                  {/* Date pill */}
                   <div style={{
                     background: c.bg, border: `1px solid ${c.border}`,
-                    borderRadius: 9, padding: "5px 12px",
-                    textAlign: "center", flexShrink: 0, minWidth: 80,
+                    borderRadius: 10, padding: "6px 13px",
+                    textAlign: "center", flexShrink: 0, minWidth: 84,
                   }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: c.text }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: c.text }}>
                       {fmtDate(s.date)}
                     </div>
-                    <div style={{ fontSize: 10, color: "#64748B", marginTop: 1 }}>
-                      🕐 {fmtTime(s.startTime)} – {fmtTime(s.endTime)}
+                    <div style={{ fontSize: 10, color: "#64748B", marginTop: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 3 }}>
+                      <Clock size={10} /> {fmtTime(s.startTime)} – {fmtTime(s.endTime)}
                     </div>
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: INK }}>
                       {mod?.subjectName || mod?.name || `وحدة #${s.moduleId}`}
                     </div>
-                    <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>
-                      👨‍🏫 {mod?.teacherName || "—"} · 🏫 {mod?.classroomName || "—"}
+                    <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 3, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: 3 }}><GraduationCap size={11} /> {mod?.teacherName || "—"}</span>
+                      <span style={{ display: "flex", alignItems: "center", gap: 3 }}><MapPin size={11} /> {mod?.classroomName || "—"}</span>
                     </div>
                   </div>
                   <Tag bg={c.bg} color={c.text}>{mod?.level || "—"}</Tag>
@@ -392,33 +612,33 @@ function PageSessions({ sessions, enrollments, invoices, moduleMap }) {
         )}
       </Card>
 
-      {/* Invoices */}
-      <Card>
-        <SecTitle>الفواتير الشهرية</SecTitle>
+      <Card delay={170}>
+        <SecTitle icon={Wallet}>الفواتير الشهرية</SecTitle>
         {!invoices || invoices.length === 0 ? (
-          <Empty text="لا توجد فواتير" />
+          <Empty text="لا توجد فواتير" icon={Wallet} />
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
             {invoices.map((inv, i) => {
               const st = invoiceStyle(inv.status);
-              const c  = pal(i);
               return (
-                <div key={inv.id} style={{
-                  display: "flex", alignItems: "center", gap: 12,
-                  padding: "10px 14px", borderRadius: 10,
-                  border: `1px solid ${c.border}`, background: c.bg,
+                <div key={inv.id} className="sd-row sd-slide-in" style={{
+                  display: "flex", alignItems: "center", gap: 13,
+                  padding: "11px 14px", borderRadius: 12,
+                  border: `1px solid ${LINE}`, background: "#FBFCFE",
+                  borderRight: `3px solid ${st.color}`,
+                  animationDelay: `${i * 35}ms`,
                 }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: INK }}>
                       {inv.moduleName || "—"}
                     </div>
-                    <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
+                    <div style={{ fontSize: 11, color: "#64748B", marginTop: 3 }}>
                       📅 {inv.period ? String(inv.period).replace("-", "/") : "—"}
                       {inv.dueDate ? ` · الاستحقاق: ${new Date(inv.dueDate).toLocaleDateString("ar-MA")}` : ""}
                     </div>
                   </div>
                   <div style={{ textAlign: "center", flexShrink: 0 }}>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: c.text }}>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: INK, marginBottom: 4 }}>
                       {inv.amount ? `${inv.amount} دج` : "—"}
                     </div>
                     <Tag bg={st.bg} color={st.color}>{st.label}</Tag>
@@ -436,10 +656,7 @@ function PageSessions({ sessions, enrollments, invoices, moduleMap }) {
 // ─────────────────────────────────────────────────────────
 // Page: الجدول الأسبوعي
 // ─────────────────────────────────────────────────────────
-// Uses schedules from CourseModuleResponseDto
-// schedules = List<ScheduleEntryDto>  — assumed to have {dayOfWeek, startTime, endTime}
 function PageSchedule({ enrollments, moduleMap }) {
-  // Build byDay from module schedules
   const byDay = {};
   WEEK_ORDER.forEach((d) => { byDay[d] = []; });
 
@@ -448,48 +665,55 @@ function PageSchedule({ enrollments, moduleMap }) {
     if (!mod) return;
     (mod.schedules || []).forEach((sch) => {
       const dayAr = WEEK_DAYS_AR[sch.dayOfWeek] || sch.dayOfWeek;
-      if (byDay[dayAr]) {
-        byDay[dayAr].push({ ...sch, mod, idx });
-      }
+      if (byDay[dayAr]) byDay[dayAr].push({ ...sch, mod, idx });
     });
   });
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
       <Card>
-        <SecTitle>الجدول الأسبوعي</SecTitle>
-        <div style={{
+        <SecTitle icon={CalendarDays}>الجدول الأسبوعي</SecTitle>
+        <div className="sd-week-grid sd-scroll" style={{
           display: "grid",
           gridTemplateColumns: `repeat(${WEEK_ORDER.length}, 1fr)`,
-          gap: 6,
+          gap: 7,
         }}>
-          {WEEK_ORDER.map((day) => {
+          {WEEK_ORDER.map((day, di) => {
             const slots = byDay[day];
+            const isToday = false;
             return (
-              <div key={day}>
+              <div key={day} className="sd-fade-up" style={{ animationDelay: `${di * 40}ms` }}>
                 <div style={{
-                  fontSize: 10, fontWeight: 700, color: "#185FA5",
-                  textAlign: "center", paddingBottom: 5,
-                  borderBottom: "2px solid #EBF4FE", marginBottom: 5,
+                  fontSize: 11, fontWeight: 800, color: ACTION_DEEP,
+                  textAlign: "center", padding: "6px 0",
+                  borderRadius: 8, marginBottom: 6,
+                  background: isToday ? "#EAF3FC" : "transparent",
                 }}>
                   {day}
                 </div>
                 {slots.length === 0
-                  ? <div style={{ height: 44, borderRadius: 8, background: "#F8FAFC", border: "1px dashed #E2E8F0" }} />
+                  ? <div style={{
+                      height: 48, borderRadius: 10, background: "#FAFBFD",
+                      border: "1.5px dashed #E2E8F0", display: "flex",
+                      alignItems: "center", justifyContent: "center",
+                      fontSize: 9, color: "#CBD5E1",
+                    }}>—</div>
                   : slots.map((slot, si) => {
                       const c = pal(slot.idx);
                       return (
-                        <div key={si} style={{
+                        <div key={si} className="sd-row" style={{
                           background: c.bg, border: `1px solid ${c.border}`,
-                          borderRadius: 8, padding: "5px 6px", marginBottom: 4,
+                          borderRight: `3px solid ${c.accent}`,
+                          borderRadius: 9, padding: "6px 8px", marginBottom: 5,
+                          cursor: "default",
                         }}>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: c.text, lineHeight: 1.3 }}>
+                          <div style={{ fontSize: 10.5, fontWeight: 800, color: c.text, lineHeight: 1.3 }}>
                             {slot.mod.subjectName || slot.mod.name || "—"}
                           </div>
-                          <div style={{ fontSize: 9, color: "#64748B", marginTop: 1 }}>
-                            {fmtTime(slot.startTime)}
+                          <div style={{ fontSize: 9.5, color: "#64748B", marginTop: 2, display: "flex", alignItems: "center", gap: 2 }}>
+                            <Clock size={9} /> {fmtTime(slot.startTime)}
                           </div>
-                          <div style={{ fontSize: 9, color: c.text, opacity: .75, marginTop: 1 }}>
+                          <div style={{ fontSize: 9, color: c.text, opacity: .7, marginTop: 1 }}>
                             {slot.mod.classroomName || ""}
                           </div>
                         </div>
@@ -502,35 +726,35 @@ function PageSchedule({ enrollments, moduleMap }) {
         </div>
       </Card>
 
-      {/* Module summary cards */}
-      <Card>
-        <SecTitle>وحداتي الدراسية</SecTitle>
+      <Card delay={100}>
+        <SecTitle icon={BookOpen}>وحداتي الدراسية</SecTitle>
         {(enrollments || []).length === 0
-          ? <Empty text="لا توجد وحدات مسجلة" />
+          ? <Empty text="لا توجد وحدات مسجلة" icon={BookOpen} />
           : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
               {(enrollments || []).map((enr, i) => {
                 const c   = pal(i);
                 const mod = moduleMap[enr.moduleId ?? enr.module?.id];
                 if (!mod) return null;
                 return (
-                  <div key={enr.id || i} style={{
-                    display: "flex", alignItems: "center", gap: 12,
-                    padding: "10px 12px", borderRadius: 10,
-                    border: `1.5px solid ${c.border}`, background: c.bg,
+                  <div key={enr.id || i} className="sd-row" style={{
+                    display: "flex", alignItems: "center", gap: 13,
+                    padding: "11px 13px", borderRadius: 12,
+                    border: `1px solid ${c.border}`, background: c.bg,
                   }}>
                     <div style={{
-                      width: 40, height: 40, borderRadius: 10, background: "#fff",
+                      width: 42, height: 42, borderRadius: 11, background: "#fff",
                       border: `1px solid ${c.border}`, display: "flex",
                       alignItems: "center", justifyContent: "center",
                       fontSize: 18, flexShrink: 0,
                     }}>📚</div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: c.text }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 800, color: c.text }}>
                         {mod.subjectName || mod.name}
                       </div>
-                      <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
-                        👨‍🏫 {mod.teacherName || "—"} · {mod.schedules?.length || 0} حصص/أسبوع
+                      <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 3, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                        <span style={{ display: "flex", alignItems: "center", gap: 3 }}><GraduationCap size={11} /> {mod.teacherName || "—"}</span>
+                        <span>{mod.schedules?.length || 0} حصص/أسبوع</span>
                       </div>
                     </div>
                     <Tag bg="#fff" color={c.text}>{mod.level}</Tag>
@@ -549,7 +773,6 @@ function PageSchedule({ enrollments, moduleMap }) {
 // Page: مدارسي المسجلة
 // ─────────────────────────────────────────────────────────
 function PageSchools({ enrollments, moduleMap, invoices }) {
-  // Group enrollments by schoolId
   const bySchool = {};
   (enrollments || []).forEach((enr) => {
     const sid = enr.schoolId ?? enr.school?.id ?? "unknown";
@@ -564,75 +787,79 @@ function PageSchools({ enrollments, moduleMap, invoices }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-      {/* Summary */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <Card style={{ textAlign: "center", padding: "1rem" }}>
-          <div style={{ fontSize: 26, fontWeight: 700, color: "#185FA5" }}>{schools.length}</div>
-          <div style={{ fontSize: 12, color: "#64748B", marginTop: 4 }}>مدارس مسجلة</div>
+      <div className="sd-schools-summary" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <Card style={{ textAlign: "center", padding: "1.15rem 1rem" }}>
+          <div style={{
+            width: 34, height: 34, borderRadius: 10, margin: "0 auto 8px",
+            background: "#EAF3FC", display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <School size={16} color={ACTION_DEEP} />
+          </div>
+          <div style={{ fontSize: 25, fontWeight: 800, color: ACTION_DEEP }}>{schools.length}</div>
+          <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4, fontWeight: 600 }}>مدارس مسجلة</div>
         </Card>
-        <Card style={{ textAlign: "center", padding: "1rem" }}>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "#0F6E56" }}>
+        <Card delay={60} style={{ textAlign: "center", padding: "1.15rem 1rem" }}>
+          <div style={{
+            width: 34, height: 34, borderRadius: 10, margin: "0 auto 8px",
+            background: SUCCESS_BG, display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <Wallet size={16} color={SUCCESS} />
+          </div>
+          <div style={{ fontSize: 21, fontWeight: 800, color: SUCCESS }}>
             {totalInvoiced ? `${totalInvoiced} دج` : "—"}
           </div>
-          <div style={{ fontSize: 12, color: "#64748B", marginTop: 4 }}>مستحق الدفع</div>
+          <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4, fontWeight: 600 }}>مستحق الدفع</div>
         </Card>
       </div>
 
       {schools.length === 0
-        ? <Card><Empty text="لم تسجل في أي مدرسة بعد" /></Card>
+        ? <Card><Empty text="لم تسجل في أي مدرسة بعد" icon={School} /></Card>
         : schools.map((school, si) => {
             const c = pal(si);
             return (
-              <Card key={school.schoolId}>
-                {/* School header */}
-                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: "1rem" }}>
+              <Card key={school.schoolId} delay={si * 80}>
+                <div style={{ display: "flex", alignItems: "center", gap: 13, marginBottom: "1.05rem" }}>
                   <div style={{
-                    width: 46, height: 46, borderRadius: 12, background: c.bg,
+                    width: 48, height: 48, borderRadius: 13, background: c.bg,
                     display: "flex", alignItems: "center", justifyContent: "center",
                     fontSize: 22, border: `1.5px solid ${c.border}`, flexShrink: 0,
                   }}>🏫</div>
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: "#0F172A" }}>
+                    <div style={{ fontSize: 15.5, fontWeight: 800, color: INK }}>
                       {school.schoolName}
                     </div>
-                    <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>
+                    <div style={{ fontSize: 12, color: "#64748B", marginTop: 3 }}>
                       {school.items.length} وحدة دراسية
                     </div>
                   </div>
                 </div>
 
-                <hr style={{ border: "none", borderTop: "1px solid #F1F5F9", margin: "0 0 12px" }} />
+                <hr style={{ border: "none", borderTop: `1px solid ${LINE}`, margin: "0 0 13px" }} />
 
-                {/* Modules in this school */}
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                   {school.items.map((enr, ei) => {
                     const mod = moduleMap[enr.moduleId ?? enr.module?.id];
                     return (
-                      <div key={enr.id || ei} style={{
-                        display: "flex", alignItems: "center", gap: 10,
-                        padding: "8px 12px", borderRadius: 9,
+                      <div key={enr.id || ei} className="sd-row" style={{
+                        display: "flex", alignItems: "center", gap: 11,
+                        padding: "9px 13px", borderRadius: 10,
                         background: c.bg, border: `1px solid ${c.border}`,
                       }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: c.text }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: c.text }}>
                             {mod?.subjectName || mod?.name || `وحدة #${enr.moduleId}`}
                           </div>
                           {mod && (
-                            <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
+                            <div style={{ fontSize: 11, color: "#64748B", marginTop: 3 }}>
                               👨‍🏫 {mod.teacherName || "—"} · {mod.schedules?.length || 0} حصص/أسبوع
                             </div>
                           )}
                         </div>
-                        {mod && (
-                          <div style={{ textAlign: "left", flexShrink: 0 }}>
-                            <Tag bg="#fff" color={c.text}>{mod.level}</Tag>
-                          </div>
-                        )}
-                        {/* Enrollment status badge */}
+                        {mod && <Tag bg="#fff" color={c.text}>{mod.level}</Tag>}
                         {enr.status && (
                           <Tag
-                            bg={enr.status === "ACTIVE" ? "#E1F5EE" : "#FAEEDA"}
-                            color={enr.status === "ACTIVE" ? "#085041" : "#BA7517"}
+                            bg={enr.status === "ACTIVE" ? SUCCESS_BG : WARNING_BG}
+                            color={enr.status === "ACTIVE" ? SUCCESS : WARNING}
                           >
                             {enr.status === "ACTIVE" ? "نشط" : enr.status === "PENDING" ? "قيد الانتظار" : enr.status}
                           </Tag>
@@ -651,8 +878,6 @@ function PageSchools({ enrollments, moduleMap, invoices }) {
 
 // ─────────────────────────────────────────────────────────
 // Page: بروفايل شخصي
-// Fields from StudentResponseDto: fullName, email, level, parentName, parentPhone
-// PUT /api/students/profile  accepts StudentRequestDto
 // ─────────────────────────────────────────────────────────
 function PageProfile({ profile, enrollments, moduleMap, onProfileUpdated }) {
   const [editing, setEditing] = useState(false);
@@ -677,16 +902,16 @@ function PageProfile({ profile, enrollments, moduleMap, onProfileUpdated }) {
   }, [profile]);
 
   const inp = {
-    padding: "8px 11px", borderRadius: 9, border: "1.5px solid #E2E8F0",
-    fontSize: 13, fontFamily: "inherit", color: "#0F172A",
-    background: "#FAFCFF", outline: "none", width: "100%", boxSizing: "border-box",
+    padding: "9px 12px", borderRadius: 10, border: `1.5px solid ${LINE}`,
+    fontSize: 13, fontFamily: "inherit", color: INK,
+    background: "#FBFCFE", outline: "none", width: "100%", boxSizing: "border-box",
+    transition: "border-color .18s ease, box-shadow .18s ease",
   };
 
   const handleSave = async () => {
     setSaving(true);
     setSaveErr(null);
     try {
-      // StudentRequestDto fields: fullName, parentName, parentPhone
       await studentApi.updateProfile(form);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
@@ -704,157 +929,168 @@ function PageProfile({ profile, enrollments, moduleMap, onProfileUpdated }) {
   );
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", maxWidth: 560 }}>
-      {/* Avatar card */}
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", maxWidth: 580 }}>
       <Card>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 17, flexWrap: "wrap" }}>
           <div style={{
-            width: 72, height: 72, borderRadius: "50%", background: "#185FA5",
+            width: 74, height: 74, borderRadius: "50%",
+            background: `linear-gradient(135deg, ${ACTION} 0%, ${ACTION_DEEP} 100%)`,
             display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 24, fontWeight: 700, color: "#fff",
-            border: "3px solid #EBF4FE", flexShrink: 0,
+            fontSize: 25, fontWeight: 800, color: "#fff",
+            border: "3px solid #EAF3FC", flexShrink: 0,
+            boxShadow: `0 6px 16px -4px ${ACTION}55`,
           }}>
             {initials(form.fullName)}
           </div>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: "#0F172A" }}>{form.fullName || "—"}</div>
-            <div style={{ fontSize: 12, color: "#64748B", marginTop: 3 }}>
+          <div style={{ flex: 1, minWidth: 140 }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: INK }}>{form.fullName || "—"}</div>
+            <div style={{ fontSize: 12, color: "#64748B", marginTop: 4 }}>
               {profile?.email || "—"}
             </div>
             {profile?.level && (
-              <div style={{ fontSize: 11, color: "#185FA5", marginTop: 2 }}>
-                📖 {profile.level}
+              <div style={{ fontSize: 11.5, color: ACTION_DEEP, marginTop: 5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                <GraduationCap size={12} /> {profile.level}
               </div>
             )}
           </div>
-          <button onClick={() => { setEditing((e) => !e); setSaveErr(null); }} style={{
-            marginRight: "auto", display: "flex", alignItems: "center", gap: 6,
-            padding: "7px 14px", borderRadius: 9,
-            border: `1.5px solid ${editing ? "#E2E8F0" : "#185FA5"}`,
-            background: editing ? "#fff" : "#EBF4FE",
-            color: editing ? "#64748B" : "#185FA5",
-            fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+          <button className="sd-btn" onClick={() => { setEditing((e) => !e); setSaveErr(null); }} style={{
+            display: "flex", alignItems: "center", gap: 6,
+            padding: "8px 16px", borderRadius: 10,
+            border: `1.5px solid ${editing ? LINE : ACTION}`,
+            background: editing ? "#fff" : "#EAF3FC",
+            color: editing ? "#64748B" : ACTION_DEEP,
+            fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
           }}>
             <Edit3 size={13} /> {editing ? "إلغاء" : "تعديل"}
           </button>
         </div>
       </Card>
 
-      {/* Info form */}
-      <Card>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.1rem" }}>
-          <SecTitle>المعلومات الشخصية</SecTitle>
-          {saved && (
-            <span style={{ fontSize: 12, color: "#0F6E56", fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}>
-              <Check size={13} /> تم الحفظ بنجاح
-            </span>
-          )}
-        </div>
+      <Card delay={80}>
+        <SecTitle icon={User} action={saved && (
+          <span className="sd-scale-in" style={{ fontSize: 12, color: SUCCESS, fontWeight: 700, display: "flex", alignItems: "center", gap: 5 }}>
+            <Check size={13} /> تم الحفظ بنجاح
+          </span>
+        )}>
+          المعلومات الشخصية
+        </SecTitle>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {/* Read-only: email + level (not editable from StudentRequestDto) */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div className="sd-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 4 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "#64748B", display: "block", marginBottom: 5 }}>
                 البريد الإلكتروني
               </label>
-              <div style={{ fontSize: 13, color: "#94A3B8", padding: "8px 0", borderBottom: "1px solid #F1F5F9" }}>
+              <div style={{ fontSize: 13, color: "#94A3B8", padding: "9px 0", borderBottom: `1px solid ${LINE}` }}>
                 {profile?.email || "—"}
               </div>
             </div>
             <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 4 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "#64748B", display: "block", marginBottom: 5 }}>
                 المستوى الدراسي
               </label>
-              <div style={{ fontSize: 13, color: "#94A3B8", padding: "8px 0", borderBottom: "1px solid #F1F5F9" }}>
+              <div style={{ fontSize: 13, color: "#94A3B8", padding: "9px 0", borderBottom: `1px solid ${LINE}` }}>
                 {profile?.level || "—"}
               </div>
             </div>
           </div>
 
-          {/* Editable: fullName */}
           <div>
-            <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 4 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "#64748B", display: "block", marginBottom: 5 }}>
               الاسم الكامل
             </label>
             {editing
-              ? <input style={inp} value={form.fullName} onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))} />
-              : <div style={{ fontSize: 14, color: "#0F172A", padding: "8px 0", borderBottom: "1px solid #F1F5F9" }}>
+              ? <input
+                  style={inp} value={form.fullName}
+                  onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))}
+                  onFocus={(e) => { e.target.style.borderColor = ACTION; e.target.style.boxShadow = `0 0 0 3px ${ACTION}1A`; }}
+                  onBlur={(e) => { e.target.style.borderColor = LINE; e.target.style.boxShadow = "none"; }}
+                />
+              : <div style={{ fontSize: 14, color: INK, padding: "9px 0", borderBottom: `1px solid ${LINE}`, fontWeight: 600 }}>
                   {form.fullName || "—"}
                 </div>
             }
           </div>
 
-          {/* Editable: parentName + parentPhone */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div className="sd-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 4 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "#64748B", display: "block", marginBottom: 5 }}>
                 اسم ولي الأمر
               </label>
               {editing
-                ? <input style={inp} value={form.parentName} onChange={(e) => setForm((f) => ({ ...f, parentName: e.target.value }))} />
-                : <div style={{ fontSize: 14, color: "#0F172A", padding: "8px 0", borderBottom: "1px solid #F1F5F9" }}>
+                ? <input
+                    style={inp} value={form.parentName}
+                    onChange={(e) => setForm((f) => ({ ...f, parentName: e.target.value }))}
+                    onFocus={(e) => { e.target.style.borderColor = ACTION; e.target.style.boxShadow = `0 0 0 3px ${ACTION}1A`; }}
+                    onBlur={(e) => { e.target.style.borderColor = LINE; e.target.style.boxShadow = "none"; }}
+                  />
+                : <div style={{ fontSize: 14, color: INK, padding: "9px 0", borderBottom: `1px solid ${LINE}`, fontWeight: 600 }}>
                     {form.parentName || "—"}
                   </div>
               }
             </div>
             <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 4 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "#64748B", display: "block", marginBottom: 5 }}>
                 هاتف ولي الأمر
               </label>
               {editing
-                ? <input style={inp} type="tel" value={form.parentPhone} onChange={(e) => setForm((f) => ({ ...f, parentPhone: e.target.value }))} />
-                : <div style={{ fontSize: 14, color: "#0F172A", padding: "8px 0", borderBottom: "1px solid #F1F5F9", direction: "ltr", textAlign: "right" }}>
+                ? <input
+                    style={inp} type="tel" value={form.parentPhone}
+                    onChange={(e) => setForm((f) => ({ ...f, parentPhone: e.target.value }))}
+                    onFocus={(e) => { e.target.style.borderColor = ACTION; e.target.style.boxShadow = `0 0 0 3px ${ACTION}1A`; }}
+                    onBlur={(e) => { e.target.style.borderColor = LINE; e.target.style.boxShadow = "none"; }}
+                  />
+                : <div style={{ fontSize: 14, color: INK, padding: "9px 0", borderBottom: `1px solid ${LINE}`, direction: "ltr", textAlign: "right", fontWeight: 600 }}>
                     {form.parentPhone || "—"}
                   </div>
               }
             </div>
           </div>
 
-          {/* Stats */}
-          <hr style={{ border: "none", borderTop: "1px solid #F1F5F9" }} />
+          <hr style={{ border: "none", borderTop: `1px solid ${LINE}` }} />
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
             {[
-              { label: "مدارس مسجلة",    value: [...new Set((enrollments||[]).map(e => e.schoolId ?? e.school?.id))].length },
-              { label: "وحدات دراسية",   value: (enrollments || []).length },
-              { label: "حصص أسبوعية",   value: totalWeekly },
+              { label: "مدارس مسجلة",  value: [...new Set((enrollments||[]).map(e => e.schoolId ?? e.school?.id))].length },
+              { label: "وحدات دراسية", value: (enrollments || []).length },
+              { label: "حصص أسبوعية", value: totalWeekly },
             ].map((stat) => (
               <div key={stat.label} style={{
-                background: "#F8FAFC", borderRadius: 10,
-                padding: "10px 12px", border: "1px solid #E8EEF6",
+                background: CANVAS, borderRadius: 11,
+                padding: "11px 13px", border: `1px solid ${LINE}`,
               }}>
-                <div style={{ fontSize: 18, fontWeight: 700, color: "#185FA5" }}>{stat.value}</div>
-                <div style={{ fontSize: 11, color: "#64748B", marginTop: 3 }}>{stat.label}</div>
+                <div style={{ fontSize: 19, fontWeight: 800, color: ACTION_DEEP }}>{stat.value}</div>
+                <div style={{ fontSize: 11, color: "#64748B", marginTop: 4, fontWeight: 600 }}>{stat.label}</div>
               </div>
             ))}
           </div>
 
           {saveErr && (
-            <div style={{
-              fontSize: 12, color: "#DC2626", background: "#FEF2F2",
-              border: "1px solid #FECACA", borderRadius: 8, padding: "8px 12px",
+            <div className="sd-fade-in" style={{
+              fontSize: 12, color: DANGER, background: DANGER_BG,
+              border: "1px solid #F7C9C9", borderRadius: 10, padding: "9px 13px",
             }}>
               ⚠️ {saveErr}
             </div>
           )}
 
           {editing && (
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
-              <button onClick={() => { setEditing(false); setSaveErr(null); }} style={{
-                padding: "7px 16px", borderRadius: 9,
-                border: "1.5px solid #E2E8F0", background: "#fff",
-                color: "#64748B", fontSize: 13, cursor: "pointer", fontFamily: "inherit",
+            <div className="sd-fade-in" style={{ display: "flex", justifyContent: "flex-end", gap: 9, marginTop: 4 }}>
+              <button className="sd-btn" onClick={() => { setEditing(false); setSaveErr(null); }} style={{
+                padding: "8px 18px", borderRadius: 10,
+                border: `1.5px solid ${LINE}`, background: "#fff",
+                color: "#64748B", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
               }}>
                 إلغاء
               </button>
-              <button onClick={handleSave} disabled={saving} style={{
-                display: "flex", alignItems: "center", gap: 6,
-                padding: "7px 18px", borderRadius: 9, border: "none",
-                background: saving ? "#93B5D9" : "#185FA5",
-                color: "#fff", fontSize: 13, fontWeight: 600,
+              <button className="sd-btn" onClick={handleSave} disabled={saving} style={{
+                display: "flex", alignItems: "center", gap: 7,
+                padding: "8px 20px", borderRadius: 10, border: "none",
+                background: saving ? "#8FB8DC" : ACTION_DEEP,
+                color: "#fff", fontSize: 13, fontWeight: 700,
                 cursor: saving ? "not-allowed" : "pointer", fontFamily: "inherit",
+                boxShadow: saving ? "none" : `0 4px 12px -3px ${ACTION_DEEP}55`,
               }}>
-                {saving ? <Spinner size={13} /> : <Check size={13} />}
+                {saving ? <Spinner size={13} color="#fff" /> : <Check size={13} />}
                 {saving ? "جاري الحفظ..." : "حفظ التعديلات"}
               </button>
             </div>
@@ -872,19 +1108,11 @@ export default function StudentDashboard() {
   const navigate = useNavigate();
   const { logout } = useAuth?.() || {};
   const [active, setActive] = useState("sessions");
+  const [transitionKey, setTransitionKey] = useState(0);
 
-  // Inject keyframes once
-  useEffect(() => {
-    const id = "sdash-keyframes";
-    if (!document.getElementById(id)) {
-      const s = document.createElement("style");
-      s.id = id;
-      s.textContent = `@keyframes spin { to { transform: rotate(360deg); } }`;
-      document.head.appendChild(s);
-    }
-  }, []);
+  useEffect(() => { setTransitionKey((k) => k + 1); }, [active]);
 
-  // ── Core fetches ─────────────────────────────────────
+  // ── Core fetches (unchanged) ─────────────────────────
   const {
     data: profile,
     loading: profileLoading,
@@ -892,7 +1120,6 @@ export default function StudentDashboard() {
     reload: reloadProfile,
   } = useFetch(() => studentApi.getProfile());
 
-  // GET /api/enrollments/mine
   const {
     data: enrollments,
     loading: enrollLoading,
@@ -900,7 +1127,6 @@ export default function StudentDashboard() {
     reload: reloadEnroll,
   } = useFetch(() => studentApi.getEnrollments());
 
-  // GET /api/invoices/mine
   const {
     data: invoices,
     loading: invoicesLoading,
@@ -908,12 +1134,10 @@ export default function StudentDashboard() {
     reload: reloadInvoices,
   } = useFetch(() => studentApi.getInvoices());
 
-  // ── Derived: unique schoolIds from enrollments ───────
   const schoolIds = enrollments
     ? [...new Set(enrollments.map((e) => e.schoolId ?? e.school?.id).filter(Boolean))]
     : [];
 
-  // ── Sessions: fetch per school once schoolIds are known ──
   const [allSessions, setAllSessions]   = useState([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
 
@@ -930,14 +1154,11 @@ export default function StudentDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(schoolIds)]);
 
-  // ── Modules: fetch per unique moduleId from enrollments ─
   const [moduleMap, setModuleMap] = useState({});
   const [modulesLoading, setModulesLoading] = useState(false);
 
   useEffect(() => {
     if (!enrollments || enrollments.length === 0) { setModuleMap({}); return; }
-    // Group by schoolId+level to use the browse endpoint
-    // Fallback: try to get module info from enrollment itself if present
     const toFetch = enrollments.reduce((acc, enr) => {
       const sid   = enr.schoolId   ?? enr.school?.id;
       const level = enr.level      ?? enr.module?.level ?? profile?.level;
@@ -950,7 +1171,6 @@ export default function StudentDashboard() {
 
     const entries = Object.values(toFetch);
     if (entries.length === 0) {
-      // Build moduleMap directly from enrollment data if it contains module info
       const map = {};
       enrollments.forEach((enr) => {
         if (enr.module) map[enr.module.id] = enr.module;
@@ -968,7 +1188,6 @@ export default function StudentDashboard() {
           const mods = r.data?.content ?? r.data ?? [];
           mods.forEach((m) => { map[m.id] = m; });
         });
-        // Also inline any module data already in enrollment
         enrollments.forEach((enr) => {
           if (enr.module) map[enr.module.id] = enr.module;
         });
@@ -979,7 +1198,6 @@ export default function StudentDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(enrollments?.map((e) => e.id))]);
 
-  // ── Helpers ──────────────────────────────────────────
   const handleLogout = () => {
     if (typeof logout === "function") logout();
     navigate("/");
@@ -993,15 +1211,13 @@ export default function StudentDashboard() {
 
   const isLoading = profileLoading || enrollLoading || invoicesLoading || sessionsLoading || modulesLoading;
 
-  // ── Page renderer ─────────────────────────────────────
   const renderPage = () => {
-    // Profile always needs to load first
-    if (profileLoading) return <LoadingBlock />;
+    if (profileLoading) return <StatSkeleton />;
     if (profileError)   return <ErrorBlock message={profileError} onRetry={reloadProfile} />;
 
     switch (active) {
       case "sessions":
-        if (enrollLoading || invoicesLoading) return <LoadingBlock />;
+        if (enrollLoading || invoicesLoading) return <StatSkeleton />;
         if (enrollError)   return <ErrorBlock message={enrollError}   onRetry={reloadEnroll} />;
         if (invoicesError) return <ErrorBlock message={invoicesError} onRetry={reloadInvoices} />;
         return (
@@ -1014,7 +1230,7 @@ export default function StudentDashboard() {
         );
 
       case "schedule":
-        if (enrollLoading || modulesLoading) return <LoadingBlock />;
+        if (enrollLoading || modulesLoading) return <SkeletonCard lines={4} height={90} />;
         if (enrollError) return <ErrorBlock message={enrollError} onRetry={reloadEnroll} />;
         return (
           <PageSchedule
@@ -1024,7 +1240,7 @@ export default function StudentDashboard() {
         );
 
       case "schools":
-        if (enrollLoading || invoicesLoading) return <LoadingBlock />;
+        if (enrollLoading || invoicesLoading) return <SkeletonCard lines={3} height={100} />;
         if (enrollError) return <ErrorBlock message={enrollError} onRetry={reloadEnroll} />;
         return (
           <PageSchools
@@ -1053,58 +1269,83 @@ export default function StudentDashboard() {
     <div dir="rtl" style={{
       display: "flex", minHeight: "100vh",
       fontFamily: "'Cairo', system-ui, Arial, sans-serif",
-      background: "#F8FAFC",
+      background: CANVAS,
     }}>
+      <GlobalStyles />
+
       <Sidebar
         active={active}
         setActive={setActive}
         profile={profile}
+        profileLoading={profileLoading}
         enrollments={enrollments}
         onLogout={handleLogout}
       />
 
-      <main style={{ flex: 1, minWidth: 0, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+      <main className="sd-main" style={{ flex: 1, minWidth: 0, overflowY: "auto", display: "flex", flexDirection: "column" }}>
         {/* Top bar */}
-        <div style={{
-          background: "#fff", borderBottom: "1.5px solid #E8EEF6",
-          padding: "0 1.5rem", height: 56,
+        <div className="sd-topbar" style={{
+          background: "rgba(255,255,255,.92)", backdropFilter: "blur(8px)",
+          borderBottom: `1px solid ${LINE}`,
+          padding: "0 1.6rem", height: 58,
           display: "flex", alignItems: "center", justifyContent: "space-between",
           position: "sticky", top: 0, zIndex: 40,
         }}>
-          <h1 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0 }}>
-            {PAGE_TITLES[active]}
-          </h1>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div>
+            <h1 style={{ fontSize: 16, fontWeight: 800, color: INK, margin: 0, letterSpacing: "-.01em" }}>
+              {PAGE_TITLES[active]}
+            </h1>
+            <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 1, display: "none" }} className="sd-subtitle">
+              {PAGE_SUBTITLES[active]}
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {isLoading && <Spinner size={16} />}
-            <button onClick={reloadAll} title="تحديث" style={{
+            <button className="sd-btn" onClick={reloadAll} title="تحديث" style={{
               display: "flex", alignItems: "center", justifyContent: "center",
-              width: 32, height: 32, borderRadius: 8,
-              border: "1.5px solid #E2E8F0", background: "#fff",
+              width: 34, height: 34, borderRadius: 10,
+              border: `1.5px solid ${LINE}`, background: "#fff",
               cursor: "pointer", color: "#64748B",
-            }}>
+            }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = ACTION_DEEP; e.currentTarget.style.borderColor = ACTION; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = "#64748B"; e.currentTarget.style.borderColor = LINE; }}
+            >
               <RefreshCw size={14} />
             </button>
           </div>
         </div>
 
         {/* Welcome banner */}
-        <div style={{ background: "#185FA5", padding: "1.1rem 1.5rem" }}>
-          <div style={{ fontSize: 11, color: "#B5D4F4", marginBottom: 2 }}>مرحباً بك،</div>
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: "#fff", margin: 0 }}>
-            {profile?.fullName || "..."}
-          </h2>
-          {profile?.level && (
-            <div style={{ fontSize: 11, color: "#93C5FD", marginTop: 3 }}>
-              المستوى: {profile.level}
-            </div>
-          )}
+        <div className="sd-welcome" style={{
+          background: `linear-gradient(120deg, ${INK} 0%, ${ACTION_DEEP} 100%)`,
+          padding: "1.3rem 1.6rem", position: "relative", overflow: "hidden",
+        }}>
+          <div style={{
+            position: "absolute", left: -40, top: -60, width: 180, height: 180,
+            borderRadius: "50%", background: "rgba(255,255,255,.05)",
+          }} />
+          <div style={{ position: "relative", zIndex: 1 }}>
+            <div style={{ fontSize: 11.5, color: "#8FBFEA", marginBottom: 3, fontWeight: 600 }}>مرحباً بك،</div>
+            <h2 style={{ fontSize: 19, fontWeight: 800, color: "#fff", margin: 0, letterSpacing: "-.01em" }}>
+              {profileLoading ? "جاري التحميل..." : (profile?.fullName || "—")}
+            </h2>
+            {profile?.level && !profileLoading && (
+              <div style={{ fontSize: 11.5, color: "#A8CCEC", marginTop: 5, display: "flex", alignItems: "center", gap: 5 }}>
+                <GraduationCap size={12} /> المستوى: {profile.level}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Page body */}
-        <div style={{ padding: "1.5rem", flex: 1 }}>
-          {renderPage()}
+        <div className="sd-body" style={{ padding: "1.6rem", flex: 1 }}>
+          <div key={transitionKey} className="sd-fade-up">
+            {renderPage()}
+          </div>
         </div>
       </main>
+
+      <MobileTabBar active={active} setActive={setActive} />
     </div>
   );
 }

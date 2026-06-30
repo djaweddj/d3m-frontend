@@ -1,25 +1,34 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
-  Plus, X, Edit2, Trash2, Users, Check, XCircle,
+  Plus, X, Edit2, Trash2, Users, Check, XCircle, Clock4, MinusCircle,
   RefreshCw, AlertCircle, Clock, BookOpen, GripVertical, ChevronDown,
+  Calendar, LayoutGrid, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { useAuth } from "../context/authContext";
 import api from "../api";
 
-// ── API ───────────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+//  API — wired to the new backend endpoints
+// ══════════════════════════════════════════════════════════════════
 const scheduleApi = {
-  getModules:     ()                        => api.get("api/modules"),
-  getStudents:    (moduleId)                => api.get(`api/students/by-module/${moduleId}`),
-  createSession:  (data)                    => api.post("api/sessions", data),
-  // PUT /api/modules/{moduleId}/schedules/{day}  → update time of a schedule slot
-  updateSchedule: (moduleId, day, data)     => api.put(`api/modules/${moduleId}/schedules/${day}`, data),
-  // PATCH /api/modules/{id}/archive             → archive the whole module (removes from schedule)
-  archiveModule:  (moduleId)                => api.patch(`api/modules/${moduleId}/archive`),
+  getModules:        ()                    => api.get("api/modules"),
+  createSession:      (data)                => api.post("api/sessions", data),
+  updateSchedule:      (moduleId, day, data) => api.put(`api/modules/${moduleId}/schedules/${day}`, data),
+  archiveModule:       (moduleId)            => api.patch(`api/modules/${moduleId}/archive`),
+
+  // ── NEW: agenda / week endpoints ──
+  getSessionsByDate:   (schoolId, date)      => api.get("api/sessions/by-date", { params: { schoolId, date } }),
+  getWeek:             (schoolId, date)      => api.get("api/sessions/week", { params: { schoolId, date } }),
+
+  // ── NEW: real attendance sheet (per session, not per module) ──
+  getAttendanceSheet:  (sessionId)           => api.get(`api/sessions/${sessionId}/attendance-sheet`),
+  submitAttendance:    (sessionId, entries,user)  => api.post(`api/sessions/${sessionId}/attendance`, entries,user),
 };
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+//  CONSTANTS
+// ══════════════════════════════════════════════════════════════════
 const DAYS_AR = ["الجمعة", "السبت", "الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس"];
-
 const DAY_TO_IDX = {
   FRIDAY: 0, SATURDAY: 1, SUNDAY: 2,
   MONDAY: 3, TUESDAY: 4, WEDNESDAY: 5, THURSDAY: 6,
@@ -27,6 +36,7 @@ const DAY_TO_IDX = {
 const IDX_TO_DAY = ["FRIDAY","SATURDAY","SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY"];
 
 const fmtTime = (t) => (t ? String(t).slice(0, 5) : "—");
+const toLocalDate = (d) => d.toLocaleDateString("fr-CA"); // YYYY-MM-DD
 
 const PALETTE = [
   { bg: "#EEF2FF", text: "#4338CA", border: "#C7D2FE", accent: "#6366F1" },
@@ -41,13 +51,20 @@ const PALETTE = [
 const colFor = (id) => PALETTE[(Number(id) || 0) % PALETTE.length];
 const P = "#185FA5";
 
+const PRICING_BADGE = {
+  MONTHLY_FLAT: { label: "شهري", bg: "#EBF4FE", color: "#185FA5" },
+  PER_SESSION:  { label: "/حصة", bg: "#FAEEDA", color: "#854F0B" },
+};
+
 const inp_css = {
   padding: "9px 12px", borderRadius: 9, border: "1.5px solid #E2E8F0",
   fontSize: 13, fontFamily: "'Cairo',sans-serif", color: "#0F172A",
   background: "#FAFCFF", outline: "none", width: "100%", boxSizing: "border-box",
 };
 
-// ── Spinner ───────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+//  SHARED PRIMITIVES
+// ══════════════════════════════════════════════════════════════════
 function Spinner({ size = 18, color = P }) {
   return (
     <>
@@ -57,7 +74,6 @@ function Spinner({ size = 18, color = P }) {
   );
 }
 
-// ── Modal Wrapper ─────────────────────────────────────────────────────────────
 function ModalWrap({ onClose, children, maxWidth = 420 }) {
   return (
     <div onClick={(e) => e.target === e.currentTarget && onClose()}
@@ -114,7 +130,9 @@ function ErrorBox({ msg }) {
   ) : null;
 }
 
-// ── Add Session Modal ─────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+//  ADD SESSION MODAL — unchanged logic, kept as-is
+// ══════════════════════════════════════════════════════════════════
 function AddModal({ modules, defaultDayIdx, onClose, onCreated }) {
   const [modName, setModName] = useState("");
   const [date,    setDate]    = useState(() => new Date().toISOString().split("T")[0]);
@@ -217,7 +235,9 @@ function AddModal({ modules, defaultDayIdx, onClose, onCreated }) {
   );
 }
 
-// ── Edit Timing Modal — NOW WIRED TO BACKEND ──────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+//  EDIT TIMING MODAL — unchanged
+// ══════════════════════════════════════════════════════════════════
 function EditModal({ slot, onClose, onSaved }) {
   const c = colFor(slot.moduleId);
   const [start,   setStart]   = useState(fmtTime(slot.startTime));
@@ -230,12 +250,10 @@ function EditModal({ slot, onClose, onSaved }) {
     if (start >= end)   return setError("وقت البداية يجب أن يكون قبل النهاية");
     setSaving(true); setError("");
     try {
-      // PUT /api/modules/{moduleId}/schedules/{day}
       await scheduleApi.updateSchedule(slot.moduleId, slot.day, {
         startTime: start + ":00",
         endTime:   end   + ":00",
       });
-      // update local state so UI reflects immediately
       onSaved({ ...slot, startTime: start + ":00", endTime: end + ":00" });
       onClose();
     } catch (err) {
@@ -278,7 +296,9 @@ function EditModal({ slot, onClose, onSaved }) {
   );
 }
 
-// ── Archive Modal — NOW WIRED TO BACKEND ──────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+//  ARCHIVE MODAL — unchanged
+// ══════════════════════════════════════════════════════════════════
 function ArchiveModal({ slot, onClose, onConfirm }) {
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState("");
@@ -286,9 +306,8 @@ function ArchiveModal({ slot, onClose, onConfirm }) {
   const handleConfirm = async () => {
     setSaving(true); setError("");
     try {
-      // PATCH /api/modules/{id}/archive
       await scheduleApi.archiveModule(slot.moduleId);
-      onConfirm(slot); // removes from local state + closes modal
+      onConfirm(slot);
     } catch (err) {
       setError(err?.response?.data?.message || "فشل حذف الوحدة");
       setSaving(false);
@@ -320,106 +339,173 @@ function ArchiveModal({ slot, onClose, onConfirm }) {
   );
 }
 
-// ── Attendance Modal ──────────────────────────────────────────────────────────
-function AttendanceModal({ slot, onClose }) {
-  const c = colFor(slot.moduleId);
-  const [students,  setStudents]  = useState([]);
+// ══════════════════════════════════════════════════════════════════
+//  REAL ATTENDANCE SHEET MODAL — now session-based, not module-based
+//  Uses GET /api/sessions/{id}/attendance-sheet
+//       POST /api/sessions/{id}/attendance
+// ══════════════════════════════════════════════════════════════════
+function AttendanceSheetModal({ session, onClose }) {
+  const { user } = useAuth();
+  const c = colFor(session.moduleId);
+
+  const [sheet,     setSheet]     = useState(null);   // AttendanceSheetDto
   const [loading,   setLoading]   = useState(true);
   const [saving,    setSaving]    = useState(false);
-  const [marks,     setMarks]     = useState({});
+  const [error,     setError]     = useState("");
+  const [marks,     setMarks]     = useState({});     // studentId -> "PRESENT"|"ABSENT"|"LATE"|"EXCUSED"
+
   const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
-    scheduleApi.getStudents(slot.moduleId)
-      .then((r) => setStudents(r.data?.content ?? r.data ?? []))
-      .catch(() => setStudents([]))
+    scheduleApi.getAttendanceSheet(session.id)
+      .then((r) => {
+        setSheet(r.data);
+        const initMarks = {};
+      
+        (r.data.students ?? []).forEach((s) => {
+          if (s.status) initMarks[s.studentId] = s.status;
+      
+        });
+        setMarks(initMarks);
+   
+      })
+      .catch((err) => setError(err?.response?.data?.message || "فشل تحميل ورقة الحضور"))
       .finally(() => setLoading(false));
-  }, [slot.moduleId]);
+  }, [session.id]);
 
-  const mark    = (id, status) => setMarks((prev) => ({ ...prev, [id]: prev[id] === status ? null : status }));
-  const markAll = (status)     => setMarks(Object.fromEntries(students.map((s) => [s.id, status])));
+  const mark = (id, status) => setMarks((prev) => ({ ...prev, [id]: prev[id] === status ? null : status }));
+  const markAll = (status) => {
+    const all = {};
+    (sheet?.students ?? []).forEach((s) => { all[s.studentId] = status; });
+    setMarks(all);
+  };
 
-  const presentCount = Object.values(marks).filter((v) => v === "present").length;
-  const absentCount  = Object.values(marks).filter((v) => v === "absent").length;
-  const markedCount  = presentCount + absentCount;
+  const students = sheet?.students ?? [];
+  const presentCount = Object.values(marks).filter((v) => v === "PRESENT").length;
+  const absentCount  = Object.values(marks).filter((v) => v === "ABSENT").length;
+
+  const markedCount  = Object.values(marks).filter(Boolean).length;
 
   const handleSave = async () => {
-    setSaving(true);
+    setSaving(true); setError("");
     try {
-      const today = new Date().toISOString().split("T")[0];
-      await scheduleApi.createSession({ courseModuleName: slot.moduleName, date: today, startTime: slot.startTime, endTime: slot.endTime });
-    } catch { /* session may already exist */ } finally {
-      setSaving(false); setSubmitted(true);
+      const entries = students
+        .filter((s) => marks[s.studentId])
+        .map((s) => ({
+          studentId: s.studentId,
+          status:    marks[s.studentId],
+        
+        }));
+
+      await scheduleApi.submitAttendance(session.id, entries,user);
+      setSubmitted(true);
       setTimeout(onClose, 900);
+    } catch (err) {
+      setError(err?.response?.data?.message || "فشل حفظ الحضور");
+    } finally {
+      setSaving(false);
     }
   };
 
+  const STATUS_BTNS = [
+    { key: "PRESENT", Icon: Check,        activeColor: "#0F6E56", activeBg: "#E1F5EE", title: "حاضر" },
+    { key: "ABSENT",  Icon: XCircle,      activeColor: "#DC2626", activeBg: "#FEE2E2", title: "غائب" },
+    { key: "LATE",    Icon: Clock4,       activeColor: "#BA7517", activeBg: "#FAEEDA", title: "متأخر" },
+    { key: "EXCUSED", Icon: MinusCircle,  activeColor: "#534AB7", activeBg: "#EEEDFE", title: "معذور" },
+  ];
+
   return (
-    <ModalWrap onClose={onClose} maxWidth={500}>
+    <ModalWrap onClose={onClose} maxWidth={560}>
       <div style={{ padding: "1.1rem 1.25rem", background: c.bg, borderBottom: `1.5px solid ${c.border}`, flexShrink: 0 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: c.text }}>{slot.subjectName ?? slot.moduleName}</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: c.text }}>
+              {sheet?.subjectName ?? session.subjectName ?? session.moduleName}
+            </div>
             <div style={{ fontSize: 11, color: c.text, opacity: .8, marginTop: 3, display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <span>👨‍🏫 {slot.teacherName ?? "—"}</span>
-              <span>🕐 {fmtTime(slot.startTime)} – {fmtTime(slot.endTime)}</span>
-              <span>📅 {DAYS_AR[DAY_TO_IDX[slot.day] ?? 0]}</span>
+              <span>👨‍🏫 {sheet?.teacherName ?? session.teacherName ?? "—"}</span>
+              <span>🕐 {fmtTime(sheet?.startTime ?? session.startTime)} – {fmtTime(sheet?.endTime ?? session.endTime)}</span>
+              <span>📅 {sheet?.date ? new Date(sheet.date).toLocaleDateString("ar-MA", { day: "numeric", month: "long" }) : "—"}</span>
             </div>
           </div>
           <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${c.border}`, background: "rgba(255,255,255,.5)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <X size={14} color={c.text} />
           </button>
         </div>
-        <div style={{ display: "flex", gap: 7, marginTop: 10, flexWrap: "wrap" }}>
-          {[
-            { lbl: `${students.length} طالب`, bg: "rgba(255,255,255,.5)" },
-            { lbl: `${presentCount} حاضر`,    bg: "rgba(16,185,129,.15)" },
-            { lbl: `${absentCount} غائب`,     bg: "rgba(239,68,68,.15)" },
-          ].map(({ lbl, bg }) => (
-            <span key={lbl} style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: bg, color: c.text, border: `1px solid ${c.border}` }}>{lbl}</span>
-          ))}
-          {!loading && students.length > 0 && (
-            <>
-              <button onClick={() => markAll("present")} style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "#E1F5EE", color: "#0F6E56", border: "1px solid #A7F3D0", cursor: "pointer", fontFamily: "inherit" }}>✓ الكل حاضر</button>
-              <button onClick={() => markAll("absent")}  style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "#FEE2E2", color: "#DC2626", border: "1px solid #FECACA", cursor: "pointer", fontFamily: "inherit" }}>✗ الكل غائب</button>
-            </>
-          )}
-        </div>
+
+        {!loading && (
+          <div style={{ display: "flex", gap: 7, marginTop: 10, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "rgba(255,255,255,.6)", color: c.text, border: `1px solid ${c.border}` }}>
+              👥 {students.length} طالب
+            </span>
+            <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "rgba(16,185,129,.15)", color: c.text, border: `1px solid ${c.border}` }}>
+              ✓ {presentCount} حاضر
+            </span>
+            <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "rgba(239,68,68,.15)", color: c.text, border: `1px solid ${c.border}` }}>
+              ✗ {absentCount} غائب
+            </span>
+           
+            {students.length > 0 && (
+              <>
+                <button onClick={() => markAll("PRESENT")} style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "#E1F5EE", color: "#0F6E56", border: "1px solid #A7F3D0", cursor: "pointer", fontFamily: "inherit" }}>✓ الكل حاضر</button>
+                <button onClick={() => markAll("ABSENT")} style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "#FEE2E2", color: "#DC2626", border: "1px solid #FECACA", cursor: "pointer", fontFamily: "inherit" }}>✗ الكل غائب</button>
+              </>
+            )}
+          </div>
+        )}
       </div>
+
       <div style={{ overflowY: "auto", flex: 1 }}>
         {loading ? (
           <div style={{ display: "flex", justifyContent: "center", padding: "2.5rem" }}><Spinner size={26} /></div>
+        ) : error && !sheet ? (
+          <div style={{ padding: "2.5rem", textAlign: "center" }}>
+            <AlertCircle size={32} color="#E2A84B" style={{ marginBottom: 8 }} />
+            <div style={{ fontSize: 13, color: "#64748B" }}>{error}</div>
+          </div>
         ) : students.length === 0 ? (
           <div style={{ padding: "2.5rem", textAlign: "center", color: "#94A3B8", fontSize: 13 }}>
             <Users size={32} color="#E2E8F0" style={{ marginBottom: 8 }} />
-            <div>لا يوجد تلاميذ في هذه الوحدة</div>
+            <div>لا يوجد تلاميذ مسجلين في هذه الوحدة</div>
           </div>
         ) : students.map((s, i) => {
-          const status = marks[s.id];
+          const status = marks[s.studentId];
+          const rowBg =
+            status === "PRESENT" ? "rgba(225,245,238,.55)" :
+            status === "ABSENT"  ? "rgba(254,226,226,.45)" :
+            status === "LATE"    ? "rgba(250,238,218,.55)" :
+            status === "EXCUSED" ? "rgba(238,237,254,.55)" :
+            "#fff";
           return (
-            <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 1.25rem", borderBottom: i < students.length - 1 ? "1px solid #F8FAFC" : "none", background: status === "present" ? "rgba(225,245,238,.55)" : status === "absent" ? "rgba(254,226,226,.45)" : "#fff", transition: "background .2s" }}>
-              <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#EBF4FE", border: "2px solid #B5D4F4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#0C447C", flexShrink: 0 }}>
-                {s.fullName?.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?"}
+            <div key={s.studentId} style={{ padding: "10px 1.25rem", borderBottom: i < students.length - 1 ? "1px solid #F8FAFC" : "none", background: rowBg, transition: "background .2s" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#EBF4FE", border: "2px solid #B5D4F4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#0C447C", flexShrink: 0 }}>
+                  {s.fullName?.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?"}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>{s.fullName}</div>
+                  <div style={{ fontSize: 10, color: "#94A3B8", marginTop: 1 }}>{s.level ?? s.parentPhone ?? ""}</div>
+                </div>
+                <div style={{ display: "flex", gap: 5 }}>
+                  {STATUS_BTNS.map(({ key, Icon, activeColor, activeBg, title }) => (
+                    <button key={key} title={title} onClick={() => mark(s.studentId, key)}
+                      style={{ width: 30, height: 30, borderRadius: 8, cursor: "pointer", border: `1.5px solid ${status === key ? activeColor : "#E2E8F0"}`, background: status === key ? activeBg : "#fff", color: status === key ? activeColor : "#CBD5E1", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s" }}>
+                      <Icon size={13} />
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>{s.fullName}</div>
-                <div style={{ fontSize: 10, color: "#94A3B8", marginTop: 1 }}>{s.level ?? s.email ?? ""}</div>
-              </div>
-              <div style={{ display: "flex", gap: 6 }}>
-                <button onClick={() => mark(s.id, "present")} style={{ width: 32, height: 32, borderRadius: 9, cursor: "pointer", border: `1.5px solid ${status === "present" ? "#0F6E56" : "#E2E8F0"}`, background: status === "present" ? "#E1F5EE" : "#fff", color: status === "present" ? "#0F6E56" : "#CBD5E1", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s" }}>
-                  <Check size={14} />
-                </button>
-                <button onClick={() => mark(s.id, "absent")} style={{ width: 32, height: 32, borderRadius: 9, cursor: "pointer", border: `1.5px solid ${status === "absent" ? "#DC2626" : "#E2E8F0"}`, background: status === "absent" ? "#FEE2E2" : "#fff", color: status === "absent" ? "#DC2626" : "#CBD5E1", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s" }}>
-                  <XCircle size={14} />
-                </button>
-              </div>
+         
             </div>
           );
         })}
       </div>
+
+      {error && sheet && <div style={{ padding: "0 1.25rem" }}><ErrorBox msg={error} /></div>}
+
       <div style={{ padding: ".85rem 1.25rem", borderTop: "1.5px solid #F1F5F9", background: "#FAFCFF", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
         <span style={{ fontSize: 11, color: "#94A3B8" }}>{markedCount} / {students.length} تم تسجيلهم</span>
-        <button onClick={handleSave} disabled={submitted || saving}
+        <button onClick={handleSave} disabled={submitted || saving || students.length === 0}
           style={{ padding: "8px 20px", borderRadius: 9, border: "none", background: submitted ? "#10B981" : P, color: "#fff", fontSize: 13, fontWeight: 600, cursor: submitted ? "default" : "pointer", fontFamily: "'Cairo',sans-serif", display: "flex", alignItems: "center", gap: 6, transition: "background .3s" }}>
           {saving ? <Spinner size={14} color="#fff" /> : submitted ? <><Check size={14} /> تم الحفظ</> : "حفظ الحضور"}
         </button>
@@ -428,9 +514,166 @@ function AttendanceModal({ slot, onClose }) {
   );
 }
 
-// ── Module Chip ───────────────────────────────────────────────────────────────
-function ModuleChip({ slot, onEdit, onArchive, onAttendance, onDragStart, onDragEnd }) {
+// ══════════════════════════════════════════════════════════════════
+//  AGENDA VIEW — day-by-day session list with attendance status
+//  Uses GET /api/sessions/by-date
+// ══════════════════════════════════════════════════════════════════
+function AgendaSessionRow({ session, onAttendance }) {
+  const c  = colFor(session.moduleId);
+  const pm = PRICING_BADGE[session.pricingModel];
+
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 12,
+      padding: "12px 14px", borderRadius: 12,
+      background: "#fff", border: `1.5px solid ${c.border}`,
+      marginBottom: 8,
+    }}>
+      <div style={{
+        width: 56, textAlign: "center", flexShrink: 0,
+        padding: "6px 4px", borderRadius: 9, background: c.bg,
+      }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: c.text }}>{fmtTime(session.startTime)}</div>
+        <div style={{ fontSize: 9, color: c.text, opacity: .6 }}>{fmtTime(session.endTime)}</div>
+      </div>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
+            {session.moduleName}
+          </span>
+          {session.level && (
+            <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: 20, background: "#F1F5F9", color: "#64748B" }}>
+              {session.level}
+            </span>
+          )}
+          {pm && (
+            <span style={{ fontSize: 9, fontWeight: 600, padding: "1px 7px", borderRadius: 20, background: pm.bg, color: pm.color }}>
+              {pm.label}
+            </span>
+          )}
+        </div>
+        <div style={{ fontSize: 11, color: "#64748B", marginTop: 2, display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <span>👨‍🏫 {session.teacherName}</span>
+          <span>👥 {session.enrolledCount ?? 0} مسجّل</span>
+        </div>
+      </div>
+
+      <button
+        onClick={() => onAttendance(session)}
+        style={{
+          display: "flex", alignItems: "center", gap: 6,
+          padding: "7px 14px", borderRadius: 9,
+          background: session.attendanceMarked ? "#E1F5EE" : P,
+          color: session.attendanceMarked ? "#0F6E56" : "#fff",
+          fontSize: 11, fontWeight: 600, cursor: "pointer",
+          fontFamily: "inherit", flexShrink: 0,
+          border: session.attendanceMarked ? "1.5px solid #A7F3D0" : "none",
+        }}
+      >
+        <Users size={12} />
+        {session.attendanceMarked ? "✓ تم التسجيل" : "تسجيل الحضور"}
+      </button>
+    </div>
+  );
+}
+
+function AgendaView({ schoolId, onAttendance, refreshKey }) {
+  const [date,     setDate]     = useState(new Date());
+  const [sessions, setSessions] = useState([]);
+  const [loading,  setLoading]  = useState(true);
+
+  const load = useCallback(async () => {
+    if (!schoolId) return;
+    setLoading(true);
+    try {
+      const res = await scheduleApi.getSessionsByDate(schoolId, toLocalDate(date));
+      setSessions(res.data ?? []);
+    } catch {
+      setSessions([]);
+    } finally { setLoading(false); }
+  }, [schoolId, date]);
+
+  useEffect(() => { load(); }, [load, refreshKey]);
+
+  const shiftDay = (n) => {
+    const d = new Date(date);
+    d.setDate(d.getDate() + n);
+    setDate(d);
+  };
+
+  const isToday = toLocalDate(date) === toLocalDate(new Date());
+
+  return (
+    <div>
+      {/* Date navigator */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button onClick={() => shiftDay(-1)} style={{ width: 30, height: 30, borderRadius: 8, border: "1.5px solid #E2E8F0", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <ChevronRight size={14} color="#64748B" />
+          </button>
+          <div style={{ textAlign: "center", minWidth: 160 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
+              {date.toLocaleDateString("ar-MA", { weekday: "long", day: "numeric", month: "long" })}
+            </div>
+            {isToday && (
+              <span style={{ fontSize: 9, fontWeight: 600, color: "#0F6E56", background: "#E1F5EE", padding: "1px 8px", borderRadius: 20, border: "1px solid #A7F3D0" }}>
+                اليوم
+              </span>
+            )}
+          </div>
+          <button onClick={() => shiftDay(1)} style={{ width: 30, height: 30, borderRadius: 8, border: "1.5px solid #E2E8F0", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <ChevronLeft size={14} color="#64748B" />
+          </button>
+        </div>
+
+        {!isToday && (
+          <button onClick={() => setDate(new Date())} style={{ fontSize: 11, padding: "5px 12px", borderRadius: 8, border: `1.5px solid ${P}`, background: "#EBF4FE", color: P, cursor: "pointer", fontFamily: "inherit" }}>
+            العودة لليوم
+          </button>
+        )}
+
+        <input
+          type="date"
+          value={toLocalDate(date)}
+          onChange={(e) => setDate(new Date(e.target.value + "T00:00:00"))}
+          style={{ fontSize: 12, padding: "6px 10px", borderRadius: 8, border: "1.5px solid #E2E8F0", fontFamily: "inherit", background: "#fff" }}
+        />
+      </div>
+
+      {/* Sessions list */}
+      {loading ? (
+        <div style={{ display: "flex", justifyContent: "center", padding: "3rem" }}><Spinner size={26} /></div>
+      ) : sessions.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "3rem", color: "#94A3B8" }}>
+          <Calendar size={32} color="#E2E8F0" style={{ marginBottom: 10 }} />
+          <div style={{ fontSize: 13 }}>لا توجد حصص في هذا اليوم</div>
+        </div>
+      ) : (
+        <>
+          <div style={{ display: "flex", gap: 14, marginBottom: 12, fontSize: 11, color: "#64748B" }}>
+            <span>{sessions.length} حصة</span>
+            <span style={{ color: "#0F6E56" }}>✓ {sessions.filter((s) => s.attendanceMarked).length} مسجّل</span>
+            <span style={{ color: "#BA7517" }}>⏳ {sessions.filter((s) => !s.attendanceMarked).length} بانتظار</span>
+          </div>
+          {sessions
+            .slice()
+            .sort((a, b) => fmtTime(a.startTime).localeCompare(fmtTime(b.startTime)))
+            .map((s) => (
+              <AgendaSessionRow key={s.id} session={s} onAttendance={onAttendance} />
+            ))}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  WEEK GRID VIEW — existing drag/drop timetable, kept mostly as-is
+// ══════════════════════════════════════════════════════════════════
+function ModuleChip({ slot, onEdit, onArchive, onDragStart, onDragEnd }) {
   const c = colFor(slot.moduleId);
+  const pm = PRICING_BADGE[slot.pricingModel];
   const [hov, setHov] = useState(false);
 
   return (
@@ -446,15 +689,21 @@ function ModuleChip({ slot, onEdit, onArchive, onAttendance, onDragStart, onDrag
       <div style={{ fontSize: 9, color: c.text, opacity: .75, marginTop: 1 }}>
         {fmtTime(slot.startTime)} – {fmtTime(slot.endTime)}
       </div>
-      {slot.teacherName && (
-        <div style={{ fontSize: 9, color: c.text, opacity: .55, marginTop: 1 }}>{slot.teacherName}</div>
-      )}
+      <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 1 }}>
+        {slot.teacherName && (
+          <span style={{ fontSize: 9, color: c.text, opacity: .55 }}>{slot.teacherName}</span>
+        )}
+        {pm && (
+          <span style={{ fontSize: 8, fontWeight: 700, padding: "0 4px", borderRadius: 6, background: "rgba(255,255,255,.6)", color: c.text }}>
+            {pm.label}
+          </span>
+        )}
+      </div>
       {hov && (
         <div style={{ position: "absolute", bottom: 3, left: 3, display: "flex", gap: 3 }}>
           {[
-            { Icon: Edit2,  color: "#475569", fn: () => onEdit(slot),       title: "تعديل" },
-            { Icon: Trash2, color: "#DC2626", fn: () => onArchive(slot),    title: "أرشفة" },
-            { Icon: Users,  color: P,         fn: () => onAttendance(slot), title: "الحضور" },
+            { Icon: Edit2,  color: "#475569", fn: () => onEdit(slot),    title: "تعديل" },
+            { Icon: Trash2, color: "#DC2626", fn: () => onArchive(slot), title: "أرشفة" },
           ].map(({ Icon, color, fn, title }) => (
             <button key={title} title={title} onClick={(e) => { e.stopPropagation(); fn(); }}
               style={{ width: 22, height: 22, borderRadius: 6, border: "none", background: "rgba(255,255,255,.85)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 4px rgba(0,0,0,.1)" }}>
@@ -467,7 +716,6 @@ function ModuleChip({ slot, onEdit, onArchive, onAttendance, onDragStart, onDrag
   );
 }
 
-// ── Drop Cell ─────────────────────────────────────────────────────────────────
 function DropCell({ dayIdx, timeSlot, children, onDrop }) {
   const [over, setOver] = useState(false);
   return (
@@ -479,71 +727,35 @@ function DropCell({ dayIdx, timeSlot, children, onDrop }) {
   );
 }
 
-// ── Main Schedule Page ────────────────────────────────────────────────────────
-export default function Schedule() {
-  const { user } = useAuth();
-  const schoolId = user?.schoolId;
-
-  const [slots,           setSlots]           = useState([]);
-  const [modules,         setModules]         = useState([]);
-  const [loading,         setLoading]         = useState(true);
-  const [error,           setError]           = useState(null);
-  const [addModal,        setAddModal]        = useState(null);
-  const [editSlot,        setEditSlot]        = useState(null);
-  const [archiveSlot,     setArchiveSlot]     = useState(null);
-  const [attendanceSlot,  setAttendanceSlot]  = useState(null);
-
+function WeekGrid({ modules, onAddModal, setEditSlot, setArchiveSlot, onModuleArchived }) {
+  const [slots, setSlots] = useState([]);
   const dragging = useRef(null);
 
-  const load = useCallback(async () => {
-    if (!schoolId) { setLoading(false); setError("لم يتم تحديد المدرسة، يرجى تسجيل الدخول مجدداً"); return; }
-    setLoading(true); setError(null);
-    try {
-      const res    = await scheduleApi.getModules();
-      const mods   = res.data?.content ?? res.data ?? [];
-      const active = mods.filter((m) => !m.archived);
-      setModules(active);
-
-      const flat = [];
-      active.forEach((m) => {
-        (m.schedules ?? []).forEach((sched) => {
-          flat.push({
-            slotKey:     `${m.id}_${sched.day}_${sched.startTime}`,
-            moduleId:    m.id,
-            moduleName:  m.name,
-            subjectName: m.subjectName,
-            teacherName: m.teacherName,
-            startTime:   sched.startTime,
-            endTime:     sched.endTime,
-            day:         sched.day,
-          });
+  useEffect(() => {
+    const flat = [];
+    modules.forEach((m) => {
+      (m.schedules ?? []).forEach((sched) => {
+        flat.push({
+          slotKey:      `${m.id}_${sched.day}_${sched.startTime}`,
+          moduleId:     m.id,
+          moduleName:   m.name,
+          subjectName:  m.subjectName,
+          teacherName:  m.teacherName,
+          startTime:    sched.startTime,
+          endTime:      sched.endTime,
+          day:          sched.day,
+          pricingModel: m.pricingModel,
         });
       });
-      setSlots(flat);
-    } catch (err) {
-      setError(err?.response?.data?.message || "خطأ في تحميل البيانات");
-    } finally { setLoading(false); }
-  }, [schoolId]);
+    });
+    setSlots(flat);
+  }, [modules]);
 
-  useEffect(() => { load(); }, [load]);
-
-  // Edit saved — update local state immediately (backend already updated)
-  const handleEditSaved = (updatedSlot) => {
-    setSlots((prev) => prev.map((s) =>
-      s.moduleId === updatedSlot.moduleId && s.day === updatedSlot.day
-        ? { ...updatedSlot, slotKey: `${updatedSlot.moduleId}_${updatedSlot.day}_${updatedSlot.startTime}` }
-        : s
-    ));
-  };
-
-  // Archive confirmed — remove ALL slots of this module from local state
   const handleArchiveConfirm = (slot) => {
     setSlots((prev) => prev.filter((s) => s.moduleId !== slot.moduleId));
-    setArchiveSlot(null);
+    onModuleArchived(slot.moduleId);
   };
 
-  // Drag & drop (local UI only — moving a slot across days would require
-  // a more complex schedule reassignment; for now it stays visual)
   const handleDragStart = (e, slot) => { dragging.current = slot; e.dataTransfer.effectAllowed = "move"; };
   const handleDragEnd   = () => { dragging.current = null; };
 
@@ -564,7 +776,6 @@ export default function Schedule() {
     ));
   };
 
-  // Build timetable grid
   const byDayTime = {};
   const timeSet   = new Set();
   slots.forEach((slot) => {
@@ -576,8 +787,112 @@ export default function Schedule() {
     if (!byDayTime[key]) byDayTime[key] = [];
     byDayTime[key].push(slot);
   });
-  const allTimes   = [...timeSet].sort();
-  const totalSlots = slots.length;
+  const allTimes = [...timeSet].sort();
+
+  return (
+    <>
+      <div style={{ background: "#fff", borderRadius: 14, border: "1.5px solid #E2E8F0", overflowX: "auto", boxShadow: "0 1px 4px rgba(0,0,0,.04)" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 640, tableLayout: "fixed" }}>
+          <thead>
+            <tr style={{ borderBottom: "1.5px solid #F1F5F9", background: "#FAFCFF" }}>
+              <th style={{ padding: "11px 10px", fontSize: 11, fontWeight: 700, color: "#94A3B8", textAlign: "right", width: 70 }}>
+                <Clock size={12} style={{ verticalAlign: "middle", marginLeft: 3 }} /> الوقت
+              </th>
+              {DAYS_AR.map((d, i) => (
+                <th key={d} style={{ padding: "11px 8px", fontSize: 11, fontWeight: 700, color: "#475569", textAlign: "center" }}>
+                  <div>{d}</div>
+                  <button onClick={() => onAddModal(i)}
+                    style={{ marginTop: 4, fontSize: 9, padding: "2px 8px", borderRadius: 20, border: "1px dashed #CBD5E1", background: "transparent", color: "#94A3B8", cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 3 }}>
+                    <Plus size={8} /> حصة
+                  </button>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {allTimes.length === 0 ? (
+              <tr>
+                <td colSpan={8} style={{ textAlign: "center", padding: "3rem", color: "#94A3B8", fontSize: 13 }}>
+                  <BookOpen size={32} color="#E2E8F0" style={{ marginBottom: 10 }} />
+                  <div>لا توجد حصص في الجدول</div>
+                  <div style={{ fontSize: 11, marginTop: 4 }}>انقر على "إضافة حصة" لتسجيل حصة جديدة</div>
+                </td>
+              </tr>
+            ) : allTimes.map((time, ri) => (
+              <tr key={time} style={{ borderBottom: ri < allTimes.length - 1 ? "1px solid #F8FAFC" : "none" }}>
+                <td style={{ padding: "6px 10px", whiteSpace: "nowrap", verticalAlign: "top", paddingTop: 10 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8" }}>{time}</span>
+                </td>
+                {DAYS_AR.map((_, dayIdx) => {
+                  const key    = `${dayIdx}_${time}`;
+                  const inCell = byDayTime[key] ?? [];
+                  return (
+                    <DropCell key={dayIdx} dayIdx={dayIdx} timeSlot={time} onDrop={handleDrop}>
+                      {inCell.map((slot) => (
+                        <ModuleChip key={slot.slotKey} slot={slot}
+                          onEdit={setEditSlot} onArchive={setArchiveSlot}
+                          onDragStart={handleDragStart} onDragEnd={handleDragEnd} />
+                      ))}
+                    </DropCell>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {slots.length > 0 && (
+        <div style={{ fontSize: 11, color: "#94A3B8", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 5, marginTop: 12 }}>
+          <GripVertical size={11} />
+          اسحب أي حصة إلى يوم أو وقت آخر لإعادة جدولتها
+        </div>
+      )}
+    </>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  MAIN SCHEDULE PAGE
+// ══════════════════════════════════════════════════════════════════
+export default function Schedule() {
+  const { user } = useAuth();
+  const schoolId = user?.schoolId;
+
+  const [view, setView] = useState("agenda"); // "agenda" | "grid"
+  const [modules, setModules] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const [addModal,       setAddModal]       = useState(null);
+  const [editSlot,       setEditSlot]       = useState(null);
+  const [archiveSlot,    setArchiveSlot]    = useState(null);
+  const [attendanceSession, setAttendanceSession] = useState(null);
+
+  const loadModules = useCallback(async () => {
+    if (!schoolId) { setLoading(false); setError("لم يتم تحديد المدرسة، يرجى تسجيل الدخول مجدداً"); return; }
+    setLoading(true); setError(null);
+    try {
+      const res  = await scheduleApi.getModules();
+      const mods = res.data?.content ?? res.data ?? [];
+      setModules(mods.filter((m) => !m.archived));
+    } catch (err) {
+      setError(err?.response?.data?.message || "خطأ في تحميل البيانات");
+    } finally { setLoading(false); }
+  }, [schoolId]);
+
+  useEffect(() => { loadModules(); }, [loadModules]);
+
+  const handleModuleArchived = (moduleId) => {
+    setModules((prev) => prev.filter((m) => m.id !== moduleId));
+  };
+
+  const handleAttendanceClosed = () => {
+    setAttendanceSession(null);
+    setRefreshKey((k) => k + 1); // refresh agenda to show updated attendanceMarked flags
+  };
+
+  const totalSessions = modules.reduce((sum, m) => sum + (m.schedules?.length ?? 0), 0);
 
   return (
     <div dir="rtl" style={{ padding: "1.25rem 1.5rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
@@ -585,13 +900,24 @@ export default function Schedule() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
         <div>
-          <h1 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0 }}>الجدول الأسبوعي</h1>
+          <h1 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0 }}>الجدول الدراسي</h1>
           <p style={{ fontSize: 12, color: "#94A3B8", margin: "3px 0 0" }}>
-            {loading ? "..." : `${totalSlots} حصة أسبوعية`}
+            {loading ? "..." : `${totalSessions} حصة أسبوعية عبر ${modules.length} وحدة`}
           </p>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={load} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {/* View toggle */}
+          <div style={{ display: "flex", padding: 3, borderRadius: 10, background: "#fff", border: "1.5px solid #E2E8F0" }}>
+            <button onClick={() => setView("agenda")}
+              style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, fontFamily: "inherit", background: view === "agenda" ? P : "transparent", color: view === "agenda" ? "#fff" : "#64748B" }}>
+              <Calendar size={12} /> أجندة
+            </button>
+            <button onClick={() => setView("grid")}
+              style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, fontFamily: "inherit", background: view === "grid" ? P : "transparent", color: view === "grid" ? "#fff" : "#64748B" }}>
+              <LayoutGrid size={12} /> جدول
+            </button>
+          </div>
+          <button onClick={loadModules} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
             <RefreshCw size={13} /> تحديث
           </button>
           <button onClick={() => setAddModal({ defaultDayIdx: null })} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 9, border: "none", background: P, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
@@ -606,75 +932,56 @@ export default function Schedule() {
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "3rem" }}>
           <AlertCircle size={36} color="#E2A84B" />
           <p style={{ color: "#64748B", fontSize: 13, margin: 0 }}>{error}</p>
-          <button onClick={load} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 9, border: `1.5px solid ${P}`, background: "#EBF4FE", color: P, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+          <button onClick={loadModules} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 9, border: `1.5px solid ${P}`, background: "#EBF4FE", color: P, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
             <RefreshCw size={13} /> إعادة المحاولة
           </button>
         </div>
+      ) : view === "agenda" ? (
+        <div style={{ background: "#fff", borderRadius: 14, border: "1.5px solid #E2E8F0", padding: "1.25rem" }}>
+          <AgendaView
+            schoolId={schoolId}
+            onAttendance={setAttendanceSession}
+            refreshKey={refreshKey}
+          />
+        </div>
       ) : (
-        <>
-          <div style={{ background: "#fff", borderRadius: 14, border: "1.5px solid #E2E8F0", overflowX: "auto", boxShadow: "0 1px 4px rgba(0,0,0,.04)" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 640, tableLayout: "fixed" }}>
-              <thead>
-                <tr style={{ borderBottom: "1.5px solid #F1F5F9", background: "#FAFCFF" }}>
-                  <th style={{ padding: "11px 10px", fontSize: 11, fontWeight: 700, color: "#94A3B8", textAlign: "right", width: 70 }}>
-                    <Clock size={12} style={{ verticalAlign: "middle", marginLeft: 3 }} /> الوقت
-                  </th>
-                  {DAYS_AR.map((d, i) => (
-                    <th key={d} style={{ padding: "11px 8px", fontSize: 11, fontWeight: 700, color: "#475569", textAlign: "center" }}>
-                      <div>{d}</div>
-                      <button onClick={() => setAddModal({ defaultDayIdx: i })}
-                        style={{ marginTop: 4, fontSize: 9, padding: "2px 8px", borderRadius: 20, border: "1px dashed #CBD5E1", background: "transparent", color: "#94A3B8", cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 3 }}>
-                        <Plus size={8} /> حصة
-                      </button>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {allTimes.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} style={{ textAlign: "center", padding: "3rem", color: "#94A3B8", fontSize: 13 }}>
-                      <BookOpen size={32} color="#E2E8F0" style={{ marginBottom: 10 }} />
-                      <div>لا توجد حصص في الجدول</div>
-                      <div style={{ fontSize: 11, marginTop: 4 }}>انقر على "إضافة حصة" لتسجيل حصة جديدة</div>
-                    </td>
-                  </tr>
-                ) : allTimes.map((time, ri) => (
-                  <tr key={time} style={{ borderBottom: ri < allTimes.length - 1 ? "1px solid #F8FAFC" : "none" }}>
-                    <td style={{ padding: "6px 10px", whiteSpace: "nowrap", verticalAlign: "top", paddingTop: 10 }}>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8" }}>{time}</span>
-                    </td>
-                    {DAYS_AR.map((_, dayIdx) => {
-                      const key    = `${dayIdx}_${time}`;
-                      const inCell = byDayTime[key] ?? [];
-                      return (
-                        <DropCell key={dayIdx} dayIdx={dayIdx} timeSlot={time} onDrop={handleDrop}>
-                          {inCell.map((slot) => (
-                            <ModuleChip key={slot.slotKey} slot={slot}
-                              onEdit={setEditSlot} onArchive={setArchiveSlot} onAttendance={setAttendanceSlot}
-                              onDragStart={handleDragStart} onDragEnd={handleDragEnd} />
-                          ))}
-                        </DropCell>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {totalSlots > 0 && (
-            <div style={{ fontSize: 11, color: "#94A3B8", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-              <GripVertical size={11} />
-              اسحب أي حصة إلى يوم أو وقت آخر لإعادة جدولتها
-            </div>
-          )}
-        </>
+        <WeekGrid
+          modules={modules}
+          onAddModal={(dayIdx) => setAddModal({ defaultDayIdx: dayIdx })}
+          setEditSlot={setEditSlot}
+          setArchiveSlot={setArchiveSlot}
+          onModuleArchived={handleModuleArchived}
+        />
       )}
 
-      {addModal && <AddModal modules={modules} defaultDayIdx={addModal.defaultDayIdx} onClose={() => setAddModal(null)} onCreated={() => { setAddModal(null); load(); }} />}
-      {editSlot && <EditModal slot={editSlot} onClose={() => setEditSlot(null)} onSaved={handleEditSaved} />}
-      {archiveSlot && <ArchiveModal slot={archiveSlot} onClose={() => setArchiveSlot(null)} onConfirm={handleArchiveConfirm} />}
-      {attendanceSlot && <AttendanceModal slot={attendanceSlot} onClose={() => setAttendanceSlot(null)} />}
+      {addModal && (
+        <AddModal
+          modules={modules}
+          defaultDayIdx={addModal.defaultDayIdx}
+          onClose={() => setAddModal(null)}
+          onCreated={() => { setAddModal(null); loadModules(); setRefreshKey((k) => k + 1); }}
+        />
+      )}
+      {editSlot && (
+        <EditModal
+          slot={editSlot}
+          onClose={() => setEditSlot(null)}
+          onSaved={() => { setEditSlot(null); loadModules(); }}
+        />
+      )}
+      {archiveSlot && (
+        <ArchiveModal
+          slot={archiveSlot}
+          onClose={() => setArchiveSlot(null)}
+          onConfirm={() => { setArchiveSlot(null); loadModules(); setRefreshKey((k) => k + 1); }}
+        />
+      )}
+      {attendanceSession && (
+        <AttendanceSheetModal
+          session={attendanceSession}
+          onClose={handleAttendanceClosed}
+        />
+      )}
     </div>
   );
 }

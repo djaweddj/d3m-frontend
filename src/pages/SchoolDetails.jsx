@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import api from "../api/axios";
+import api from "../api.jsx";
 import { useAuth } from "../context/authContext";
 
 // ── Day ordering & labels ─────────────────────────────────────────

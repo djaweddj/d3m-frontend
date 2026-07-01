@@ -1,28 +1,48 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Phone, Mail, BookOpen, RefreshCw, AlertCircle, X, Check, Archive, Eye } from "lucide-react";
+import { Plus, Mail, BookOpen, RefreshCw, AlertCircle, X, Check, Archive, Pencil, TrendingUp, TrendingDown } from "lucide-react";
 import { useAuth } from "../context/authContext";
 import api from "../api";
 
 // ── API ───────────────────────────────────────────────────
-// GET  /api/teachers                → List<TeacherResponseDto>  (active only)
-// GET  /api/teachers/archived       → List<TeacherResponseDto>  (archived only)
-// POST /api/teachers                → TeacherResponseDto
-// PATCH /api/teachers/{id}/archive
-// PATCH /api/teachers/{id}/unarchive
-// GET  /api/subjects                → List<SubjectResponseDto>
-
 const teacherApi = {
-  getAll:       ()     => api.get("api/teachers"),
-  getArchived:  ()     => api.get("api/teachers/archived"),
-  create:       (data) => api.post("api/teachers/create", data),
-  archive:      (id)   => api.patch(`api/teachers/${id}/archive`),
-  unarchive:    (id)   => api.patch(`api/teachers/${id}/unarchive`),
-  getSubjects:  ()     => api.get("api/subjects"),
+  getAll:          ()         => api.get("api/teachers"),
+  getArchived:     ()         => api.get("api/teachers/archived"),
+  create:          (data)     => api.post("api/teachers/create", data),
+  update:          (id, data) => api.put(`api/teachers/${id}`, data),
+  archive:         (id)       => api.patch(`api/teachers/${id}/archive`),
+  unarchive:       (id)       => api.patch(`api/teachers/${id}/unarchive`),
+  getSubjects:     ()         => api.get("api/subjects"),
+  getLatestPayout: (id)       => api.get(`api/payouts/teacher/${id}/latest`),
 };
+
+// ── Helpers ───────────────────────────────────────────────
+function formatDA(amount) {
+  if (amount == null) return "—";
+  return new Intl.NumberFormat("fr-DZ", { maximumFractionDigits: 2 }).format(amount) + " د.ج";
+}
+
+function formatPeriod(period) {
+  if (!period) return "—";
+  // period comes as "2025-06" from YearMonth serialization
+  try {
+    const [year, month] = String(period).split("-");
+    const date = new Date(Number(year), Number(month) - 1, 1);
+    return date.toLocaleDateString("ar-DZ", { month: "long", year: "numeric" });
+  } catch {
+    return String(period);
+  }
+}
 
 function initials(name = "") {
   return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
 }
+
+// ── Shared input style ────────────────────────────────────
+const inp = {
+  padding: "8px 11px", borderRadius: 9, border: "1.5px solid #E2E8F0",
+  fontSize: 13, fontFamily: "inherit", color: "#0F172A",
+  background: "#FAFCFF", outline: "none", width: "100%", boxSizing: "border-box",
+};
 
 // ── Spinner ───────────────────────────────────────────────
 function Spinner({ size = 20 }) {
@@ -52,32 +72,27 @@ function ErrorBlock({ message, onRetry }) {
 // ── Add Teacher Modal ─────────────────────────────────────
 function AddTeacherModal({ subjects, onClose, onSaved, primaryColor }) {
   const [form, setForm] = useState({
-    fullName: "", email: "", specialization: "", bio: "", subjectId: "",
+    fullName: "", email: "", password: "Teacher@123",
+    percentage: "20", specialization: "", bio: "", subjectId: "",
   });
   const [saving, setSaving] = useState(false);
-  const [error,  setError]  = useState("");
-
-  const inp = {
-    padding: "8px 11px", borderRadius: 9, border: "1.5px solid #E2E8F0",
-    fontSize: 13, fontFamily: "inherit", color: "#0F172A",
-    background: "#FAFCFF", outline: "none", width: "100%", boxSizing: "border-box",
-  };
+  const [error, setError]   = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSave = async () => {
     if (!form.fullName.trim()) return setError("الاسم مطلوب");
     if (!form.email.trim())    return setError("البريد الإلكتروني مطلوب");
-    setSaving(true);
-    setError("");
+    if (!form.password.trim()) return setError("كلمة المرور مطلوبة");
+    const pct = parseFloat(form.percentage);
+    if (isNaN(pct) || pct < 0 || pct > 100) return setError("النسبة يجب أن تكون بين 0 و 100");
+
+    setSaving(true); setError("");
     try {
-      const payload = {
-        fullName:       form.fullName,
-        email:          form.email,
-        specialization: form.specialization,
-        bio:            form.bio,
-        subjectId:      form.subjectId ? Number(form.subjectId) : null,
-        password:       "Teacher@123",
-      };
-      const res = await teacherApi.create(payload);
+      const res = await teacherApi.create({
+        fullName: form.fullName, email: form.email, password: form.password,
+        percentage: pct, specialization: form.specialization,
+        bio: form.bio, subjectId: form.subjectId ? Number(form.subjectId) : null,
+      });
       onSaved(res.data);
       onClose();
     } catch (err) {
@@ -88,87 +103,368 @@ function AddTeacherModal({ subjects, onClose, onSaved, primaryColor }) {
   };
 
   return (
+    <ModalShell onClose={onClose} title="إضافة أستاذ جديد" subtitle="سيتم إنشاء حساب للأستاذ تلقائياً" emoji="👨‍🏫">
+      <FormBody
+        form={form} setForm={setForm} subjects={subjects}
+        showPassword={showPassword} setShowPassword={setShowPassword}
+        primaryColor={primaryColor} isEdit={false}
+      />
+      {error && <ErrorMsg msg={error} />}
+      <ModalFooter onClose={onClose} onSave={handleSave} saving={saving} primaryColor={primaryColor} label="إضافة الأستاذ" />
+    </ModalShell>
+  );
+}
+
+// ── Edit Teacher Modal ────────────────────────────────────
+function EditTeacherModal({ teacher, subjects, onClose, onSaved, primaryColor }) {
+  const [form, setForm] = useState({
+    fullName:       teacher.fullName       || "",
+    email:          teacher.email          || "",
+    password:       "",
+    percentage:     teacher.percentage != null ? String(teacher.percentage) : "0",
+    specialization: teacher.specialization || "",
+    bio:            teacher.bio            || "",
+    subjectId:      teacher.subjectIds?.[0] != null ? String(teacher.subjectIds[0]) : "",
+  });
+  const [saving, setSaving]               = useState(false);
+  const [error, setError]                 = useState("");
+  const [showPassword, setShowPassword]   = useState(false);
+  const [lastPayout, setLastPayout]       = useState(null);
+  const [payoutLoading, setPayoutLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    setPayoutLoading(true);
+    teacherApi.getLatestPayout(teacher.id)
+      .then((res) => { if (active) setLastPayout(res.data ?? null); })
+      .catch(() => { if (active) setLastPayout(null); })
+      .finally(() => { if (active) setPayoutLoading(false); });
+    return () => { active = false; };
+  }, [teacher.id]);
+
+  const handleSave = async () => {
+    if (!form.fullName.trim()) return setError("الاسم مطلوب");
+    if (!form.email.trim())    return setError("البريد الإلكتروني مطلوب");
+    const pct = parseFloat(form.percentage);
+    if (isNaN(pct) || pct < 0 || pct > 100) return setError("النسبة يجب أن تكون بين 0 و 100");
+
+    setSaving(true); setError("");
+    try {
+      const payload = {
+        fullName: form.fullName, email: form.email, percentage: pct,
+        specialization: form.specialization, bio: form.bio,
+        subjectId: form.subjectId ? Number(form.subjectId) : null,
+      };
+      if (form.password.trim()) payload.password = form.password;
+
+      const res = await teacherApi.update(teacher.id, payload);
+      onSaved(res.data);
+      onClose();
+    } catch (err) {
+      setError(err?.response?.data?.message || "فشل الحفظ");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <ModalShell onClose={onClose} title="تعديل بيانات الأستاذ" subtitle={`تعديل بيانات ${teacher.fullName}`} emoji="✏️">
+      <FormBody
+        form={form} setForm={setForm} subjects={subjects}
+        showPassword={showPassword} setShowPassword={setShowPassword}
+        primaryColor={primaryColor} isEdit={true}
+        lastPayout={lastPayout} payoutLoading={payoutLoading}
+        previousPercentage={teacher.percentage}
+      />
+      {error && <ErrorMsg msg={error} />}
+      <ModalFooter onClose={onClose} onSave={handleSave} saving={saving} primaryColor={primaryColor} label="حفظ التعديلات" />
+    </ModalShell>
+  );
+}
+
+// ── Payout Info Card (edit modal only) ───────────────────
+function PayoutInfoCard({ lastPayout, payoutLoading, previousPercentage, currentPercentage, primaryColor }) {
+  const prevPct   = previousPercentage != null ? Number(previousPercentage) : null;
+  const currPct   = parseFloat(currentPercentage);
+  const changed   = prevPct != null && !isNaN(currPct) && currPct !== prevPct;
+  const increased = changed && currPct > prevPct;
+
+  return (
+    <div style={{
+      borderRadius: 10, border: "1.5px solid #E2E8F0",
+      background: "#F8FAFC", overflow: "hidden",
+    }}>
+      {/* Card header */}
+      <div style={{
+        padding: "7px 12px", background: "#EBF4FE",
+        borderBottom: "1.5px solid #DBEAFE",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+      }}>
+        <span style={{ fontSize: 10, fontWeight: 700, color: "#185FA5", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          آخر دفعة محسوبة
+        </span>
+        {lastPayout && !payoutLoading && (
+          <span style={{ fontSize: 10, color: "#64748B", fontWeight: 600 }}>
+            {formatPeriod(lastPayout.period)}
+          </span>
+        )}
+      </div>
+
+      {/* Card body */}
+      <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+
+        {payoutLoading ? (
+          <div style={{ display: "flex", justifyContent: "center", padding: "6px 0" }}>
+            <Spinner size={16} />
+          </div>
+        ) : !lastPayout ? (
+          <p style={{ fontSize: 12, color: "#94A3B8", margin: 0, textAlign: "center", padding: "4px 0" }}>
+            لا توجد دفعات محسوبة بعد
+          </p>
+        ) : (
+          <>
+            {/* Breakdown row: revenue × % = payout */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+
+              {/* Revenue */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 1, alignItems: "center", flex: 1 }}>
+                <span style={{ fontSize: 9, fontWeight: 600, color: "#94A3B8" }}>إيرادات الموديولات</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#0F172A" }}>
+                  {formatDA(lastPayout.totalModuleRevenue)}
+                </span>
+              </div>
+
+              {/* × */}
+              <span style={{ fontSize: 13, color: "#CBD5E1", fontWeight: 700 }}>×</span>
+
+              {/* Percentage used */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 1, alignItems: "center", flex: 1 }}>
+                <span style={{ fontSize: 9, fontWeight: 600, color: "#94A3B8" }}>النسبة المطبّقة</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#0F172A" }}>
+                  {lastPayout.percentage != null ? `${lastPayout.percentage}%` : "—"}
+                </span>
+              </div>
+
+              {/* = */}
+              <span style={{ fontSize: 13, color: "#CBD5E1", fontWeight: 700 }}>=</span>
+
+              {/* Payout amount */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 1, alignItems: "center", flex: 1 }}>
+                <span style={{ fontSize: 9, fontWeight: 600, color: "#94A3B8" }}>الدفعة</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: primaryColor }}>
+                  {formatDA(lastPayout.payoutAmount)}
+                </span>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div style={{ height: 1, background: "#F1F5F9" }} />
+
+            {/* Previous percentage + change indicator */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                <span style={{ fontSize: 9, fontWeight: 600, color: "#94A3B8" }}>النسبة السابقة</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
+                  {prevPct != null ? `${prevPct}%` : "—"}
+                </span>
+              </div>
+
+              {/* Change badge — only shown when admin has typed a new value */}
+              {changed && (
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 4,
+                  padding: "3px 9px", borderRadius: 20,
+                  background: increased ? "#ECFDF5" : "#FEF2F2",
+                  border: `1px solid ${increased ? "#A7F3D0" : "#FECACA"}`,
+                }}>
+                  {increased
+                    ? <TrendingUp  size={11} color="#059669" />
+                    : <TrendingDown size={11} color="#DC2626" />
+                  }
+                  <span style={{ fontSize: 11, fontWeight: 700, color: increased ? "#059669" : "#DC2626" }}>
+                    {prevPct}% → {currPct}%
+                  </span>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Shared modal shell ────────────────────────────────────
+function ModalShell({ onClose, title, subtitle, emoji, children }) {
+  return (
     <div
       onClick={(e) => e.target === e.currentTarget && onClose()}
       style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: "1rem" }}
     >
-      <div dir="rtl" style={{ background: "#fff", borderRadius: 14, width: "100%", maxWidth: 420, border: "1.5px solid #E2E8F0", overflow: "hidden", fontFamily: "'Cairo',sans-serif" }}>
+      <div dir="rtl" style={{ background: "#fff", borderRadius: 14, width: "100%", maxWidth: 440, border: "1.5px solid #E2E8F0", overflow: "hidden", fontFamily: "'Cairo',sans-serif", maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.25rem", borderBottom: "1.5px solid #F1F5F9", background: "#FAFCFF" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.25rem", borderBottom: "1.5px solid #F1F5F9", background: "#FAFCFF", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 9, background: "#EBF4FE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>👨‍🏫</div>
+            <div style={{ width: 34, height: 34, borderRadius: 9, background: "#EBF4FE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>{emoji}</div>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>إضافة أستاذ جديد</div>
-              <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 1 }}>سيتم إنشاء حساب للأستاذ تلقائياً</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>{title}</div>
+              <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 1 }}>{subtitle}</div>
             </div>
           </div>
           <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: "1px solid #E2E8F0", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <X size={13} color="#64748B" />
           </button>
         </div>
-
-        {/* Body */}
-        <div style={{ padding: "1.1rem 1.25rem", display: "flex", flexDirection: "column", gap: 11 }}>
-          {[
-            { key: "fullName",       label: "الاسم الكامل *",      type: "text",  placeholder: "اسم الأستاذ" },
-            { key: "email",          label: "البريد الإلكتروني *",  type: "email", placeholder: "example@mail.com", dir: "ltr" },
-            { key: "specialization", label: "التخصص",               type: "text",  placeholder: "مثال: رياضيات تطبيقية" },
-            { key: "bio",            label: "نبذة مختصرة",          type: "text",  placeholder: "وصف قصير عن الأستاذ" },
-          ].map(({ key, label, type, placeholder, dir: d }) => (
-            <div key={key}>
-              <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 4 }}>{label}</label>
-              <input
-                style={{ ...inp, direction: d || "rtl" }}
-                type={type}
-                placeholder={placeholder}
-                value={form[key]}
-                onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-              />
-            </div>
-          ))}
-
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 4 }}>المادة الدراسية</label>
-            <select
-              style={{ ...inp, cursor: "pointer" }}
-              value={form.subjectId}
-              onChange={(e) => setForm((f) => ({ ...f, subjectId: e.target.value }))}
-            >
-              <option value="">-- اختر مادة --</option>
-              {subjects.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
-
-          {error && (
-            <div style={{ fontSize: 12, color: "#DC2626", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "7px 12px" }}>
-              ⚠️ {error}
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div style={{ display: "flex", gap: 8, padding: "1rem 1.25rem", borderTop: "1.5px solid #F1F5F9", background: "#FAFCFF" }}>
-          <button onClick={onClose} style={{ flex: 1, padding: "8px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
-            إلغاء
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            style={{ flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px", borderRadius: 9, border: "none", background: saving ? "#93B5D9" : primaryColor, color: "#fff", fontSize: 13, fontWeight: 600, cursor: saving ? "not-allowed" : "pointer", fontFamily: "inherit" }}
-          >
-            {saving ? <Spinner size={13} /> : <Check size={13} />}
-            {saving ? "جارٍ الحفظ..." : "إضافة الأستاذ"}
-          </button>
+        {/* Scrollable body */}
+        <div style={{ padding: "1.1rem 1.25rem", display: "flex", flexDirection: "column", gap: 11, overflowY: "auto" }}>
+          {children}
         </div>
       </div>
     </div>
   );
 }
 
+// ── Shared form body ──────────────────────────────────────
+function FormBody({ form, setForm, subjects, showPassword, setShowPassword, primaryColor, isEdit, lastPayout, payoutLoading, previousPercentage }) {
+  return (
+    <>
+      {/* Section: Account Info */}
+      <SectionLabel>معلومات الحساب</SectionLabel>
+
+      <Field label="الاسم الكامل *">
+        <input style={inp} type="text" placeholder="اسم الأستاذ"
+          value={form.fullName} onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))} />
+      </Field>
+
+      <Field label="البريد الإلكتروني *">
+        <input style={{ ...inp, direction: "ltr" }} type="email" placeholder="example@mail.com"
+          value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+      </Field>
+
+      <Field label={isEdit ? "كلمة المرور الجديدة (اتركها فارغة للإبقاء على الحالية)" : "كلمة المرور *"}>
+        <div style={{ position: "relative" }}>
+          <input
+            style={{ ...inp, direction: "ltr", paddingLeft: 34 }}
+            type={showPassword ? "text" : "password"}
+            placeholder={isEdit ? "اترك فارغاً إن لم ترد تغييرها" : "كلمة المرور"}
+            value={form.password}
+            onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+          />
+          <button
+            onClick={() => setShowPassword((v) => !v)}
+            style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 2, color: "#94A3B8", display: "flex", alignItems: "center" }}
+          >
+            {showPassword
+              ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            }
+          </button>
+        </div>
+        {!isEdit && <p style={{ fontSize: 10, color: "#94A3B8", margin: "4px 0 0" }}>سيستخدم الأستاذ هذه البيانات لتسجيل الدخول</p>}
+      </Field>
+
+      {/* Section: Revenue */}
+      <SectionLabel>النسبة والدفعات</SectionLabel>
+
+      {/* Payout info card — edit mode only, shown ABOVE the percentage slider */}
+      {isEdit && (
+        <PayoutInfoCard
+          lastPayout={lastPayout}
+          payoutLoading={payoutLoading}
+          previousPercentage={previousPercentage}
+          currentPercentage={form.percentage}
+          primaryColor={primaryColor}
+        />
+      )}
+
+      <Field label="نسبة الأستاذ من الإيرادات (%) *">
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <input
+            style={{ ...inp, width: 90, textAlign: "center", fontWeight: 700, fontSize: 15, color: primaryColor }}
+            type="number" min="0" max="100" step="1"
+            value={form.percentage}
+            onChange={(e) => setForm((f) => ({ ...f, percentage: e.target.value }))}
+          />
+          <div style={{ flex: 1 }}>
+            <input
+              type="range" min="0" max="100" step="1"
+              value={form.percentage}
+              onChange={(e) => setForm((f) => ({ ...f, percentage: e.target.value }))}
+              style={{ width: "100%", accentColor: primaryColor }}
+            />
+          </div>
+        </div>
+        <p style={{ fontSize: 10, color: "#94A3B8", margin: "4px 0 0" }}>
+          الأستاذ سيحصل على {form.percentage || 0}% من إيرادات موديولاته
+        </p>
+      </Field>
+
+      {/* Section: Professional Info */}
+      <SectionLabel>المعلومات المهنية</SectionLabel>
+
+      <Field label="المادة الدراسية">
+        <select style={{ ...inp, cursor: "pointer" }} value={form.subjectId}
+          onChange={(e) => setForm((f) => ({ ...f, subjectId: e.target.value }))}>
+          <option value="">-- اختر مادة --</option>
+          {subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
+      </Field>
+
+      <Field label="التخصص">
+        <input style={inp} type="text" placeholder="مثال: رياضيات تطبيقية"
+          value={form.specialization} onChange={(e) => setForm((f) => ({ ...f, specialization: e.target.value }))} />
+      </Field>
+
+      <Field label="نبذة مختصرة">
+        <input style={inp} type="text" placeholder="وصف قصير عن الأستاذ"
+          value={form.bio} onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))} />
+      </Field>
+    </>
+  );
+}
+
+// ── Tiny helpers ──────────────────────────────────────────
+function SectionLabel({ children }) {
+  return (
+    <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.05em", paddingBottom: 4, borderBottom: "1px solid #F1F5F9" }}>
+      {children}
+    </div>
+  );
+}
+function Field({ label, children }) {
+  return (
+    <div>
+      <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 4 }}>{label}</label>
+      {children}
+    </div>
+  );
+}
+function ErrorMsg({ msg }) {
+  return (
+    <div style={{ fontSize: 12, color: "#DC2626", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "7px 12px" }}>
+      ⚠️ {msg}
+    </div>
+  );
+}
+function ModalFooter({ onClose, onSave, saving, primaryColor, label }) {
+  return (
+    <div style={{ display: "flex", gap: 8, padding: "1rem 1.25rem", borderTop: "1.5px solid #F1F5F9", background: "#FAFCFF", flexShrink: 0 }}>
+      <button onClick={onClose} style={{ flex: 1, padding: "8px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+        إلغاء
+      </button>
+      <button
+        onClick={onSave} disabled={saving}
+        style={{ flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px", borderRadius: 9, border: "none", background: saving ? "#93B5D9" : primaryColor, color: "#fff", fontSize: 13, fontWeight: 600, cursor: saving ? "not-allowed" : "pointer", fontFamily: "inherit" }}
+      >
+        {saving ? <Spinner size={13} /> : <Check size={13} />}
+        {saving ? "جارٍ الحفظ..." : label}
+      </button>
+    </div>
+  );
+}
+
 // ── Teacher Card ──────────────────────────────────────────
-function TeacherCard({ t, subjectMap, primaryColor, isArchived, onArchive, onUnarchive, actionId }) {
+function TeacherCard({ t, subjectMap, primaryColor, isArchived, onArchive, onUnarchive, onEdit, actionId }) {
   return (
     <div
       style={{
@@ -185,25 +481,19 @@ function TeacherCard({ t, subjectMap, primaryColor, isArchived, onArchive, onUna
       onMouseEnter={(e) => { if (!isArchived) { e.currentTarget.style.borderColor = "#CBD5E1"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,.06)"; }}}
       onMouseLeave={(e) => { e.currentTarget.style.borderColor = isArchived ? "#E2E8F0" : "#E8EEF6"; e.currentTarget.style.boxShadow = "none"; }}
     >
-      {/* Action button top-left */}
+      {/* Top-left: archive / unarchive */}
       {isArchived ? (
-        // Unarchive button
         <button
-          onClick={() => onUnarchive(t.id)}
-          disabled={actionId === t.id}
+          onClick={() => onUnarchive(t.id)} disabled={actionId === t.id}
           title="استعادة الأستاذ"
-          style={{ position: "absolute", top: 10, left: 10, display: "flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 7, border: "1px solid #D1FAE5", background: "#ECFDF5", cursor: "pointer", fontSize: 10, fontWeight: 600, color: "#059669", transition: "opacity .15s" }}
-          onMouseEnter={(e) => (e.currentTarget.style.opacity = ".8")}
-          onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+          style={{ position: "absolute", top: 10, left: 10, display: "flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 7, border: "1px solid #D1FAE5", background: "#ECFDF5", cursor: "pointer", fontSize: 10, fontWeight: 600, color: "#059669" }}
         >
           {actionId === t.id ? <Spinner size={10} /> : <RefreshCw size={10} />}
           استعادة
         </button>
       ) : (
-        // Archive button
         <button
-          onClick={() => onArchive(t.id)}
-          disabled={actionId === t.id}
+          onClick={() => onArchive(t.id)} disabled={actionId === t.id}
           title="أرشفة الأستاذ"
           style={{ position: "absolute", top: 10, left: 10, width: 26, height: 26, borderRadius: 7, border: "1px solid #E2E8F0", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: .6, transition: "opacity .15s" }}
           onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
@@ -213,8 +503,18 @@ function TeacherCard({ t, subjectMap, primaryColor, isArchived, onArchive, onUna
         </button>
       )}
 
-      {/* Archived badge */}
-      {isArchived && (
+      {/* Top-right: edit (active only) or archived badge */}
+      {!isArchived ? (
+        <button
+          onClick={() => onEdit(t)}
+          title="تعديل بيانات الأستاذ"
+          style={{ position: "absolute", top: 10, right: 10, width: 26, height: 26, borderRadius: 7, border: "1px solid #E2E8F0", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: .6, transition: "opacity .15s" }}
+          onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+          onMouseLeave={(e) => (e.currentTarget.style.opacity = ".6")}
+        >
+          <Pencil size={11} color="#185FA5" />
+        </button>
+      ) : (
         <span style={{ position: "absolute", top: 10, right: 10, fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 20, background: "#FEF2F2", color: "#DC2626", border: "1px solid #FECACA" }}>
           مؤرشف
         </span>
@@ -229,7 +529,7 @@ function TeacherCard({ t, subjectMap, primaryColor, isArchived, onArchive, onUna
 
       <p style={{ fontSize: 11, color: "#64748B", margin: 0, display: "flex", alignItems: "center", gap: 4 }}>
         <BookOpen size={11} />
-        {subjectMap[t.subjectId] || t.specialization || "—"}
+        {subjectMap[t.subjectIds?.[0]] || t.specialization || "—"}
       </p>
 
       {t.specialization && (
@@ -261,25 +561,21 @@ export default function Teachers() {
   const { school } = useAuth();
   const p = school?.primaryColor || "#185FA5";
 
-  const [teachers,         setTeachers]         = useState([]);
+  const [teachers,         setTeachers]       = useState([]);
   const [archivedTeachers, setArchivedTeachers] = useState([]);
-  const [subjects,         setSubjects]         = useState([]);
-  const [loading,          setLoading]          = useState(true);
-  const [archivedLoading,  setArchivedLoading]  = useState(false);
-  const [error,            setError]            = useState(null);
-  const [showModal,        setShowModal]        = useState(false);
-  const [showArchived,     setShowArchived]     = useState(false);
-  const [actionId,         setActionId]         = useState(null); // id being archived/unarchived
+  const [subjects,         setSubjects]       = useState([]);
+  const [loading,          setLoading]        = useState(true);
+  const [archivedLoading,  setArchivedLoading] = useState(false);
+  const [error,            setError]          = useState(null);
+  const [showAddModal,     setShowAddModal]   = useState(false);
+  const [editingTeacher,   setEditingTeacher] = useState(null);
+  const [showArchived,     setShowArchived]   = useState(false);
+  const [actionId,         setActionId]       = useState(null);
 
-  // Load active teachers + subjects
   const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
-      const [tRes, sRes] = await Promise.all([
-        teacherApi.getAll(),
-        teacherApi.getSubjects(),
-      ]);
+      const [tRes, sRes] = await Promise.all([teacherApi.getAll(), teacherApi.getSubjects()]);
       setTeachers(tRes.data?.content ?? tRes.data ?? []);
       setSubjects(sRes.data?.content ?? sRes.data ?? []);
     } catch (err) {
@@ -289,7 +585,6 @@ export default function Teachers() {
     }
   }, []);
 
-  // Load archived teachers (only when panel is opened)
   const loadArchived = useCallback(async () => {
     setArchivedLoading(true);
     try {
@@ -303,23 +598,15 @@ export default function Teachers() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
-
-  // When archived panel opens, fetch archived list
-  useEffect(() => {
-    if (showArchived) loadArchived();
-  }, [showArchived, loadArchived]);
+  useEffect(() => { if (showArchived) loadArchived(); }, [showArchived, loadArchived]);
 
   const handleArchive = async (id) => {
     setActionId(id);
     try {
       await teacherApi.archive(id);
-      // Remove from active list
       const archived = teachers.find((t) => t.id === id);
       setTeachers((prev) => prev.filter((t) => t.id !== id));
-      // If archived panel is open, add to it
-      if (showArchived && archived) {
-        setArchivedTeachers((prev) => [{ ...archived, archived: true }, ...prev]);
-      }
+      if (showArchived && archived) setArchivedTeachers((prev) => [{ ...archived, archived: true }, ...prev]);
     } catch (err) {
       alert(err?.response?.data?.message || "فشلت الأرشفة");
     } finally {
@@ -331,13 +618,9 @@ export default function Teachers() {
     setActionId(id);
     try {
       await teacherApi.unarchive(id);
-      // Remove from archived list
       const restored = archivedTeachers.find((t) => t.id === id);
       setArchivedTeachers((prev) => prev.filter((t) => t.id !== id));
-      // Add back to active list
-      if (restored) {
-        setTeachers((prev) => [{ ...restored, archived: false }, ...prev]);
-      }
+      if (restored) setTeachers((prev) => [{ ...restored, archived: false }, ...prev]);
     } catch (err) {
       alert(err?.response?.data?.message || "فشلت الاستعادة");
     } finally {
@@ -345,7 +628,11 @@ export default function Teachers() {
     }
   };
 
-  const subjectMap = Object.fromEntries(subjects.map((s) => [s.id, s.name]));
+  const handleTeacherUpdated = (updated) => {
+    setTeachers((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+  };
+
+  const subjectMap  = Object.fromEntries(subjects.map((s) => [s.id, s.name]));
   const displayList = showArchived ? archivedTeachers : teachers;
 
   return (
@@ -360,35 +647,22 @@ export default function Teachers() {
           </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          {/* Refresh */}
           <button
             onClick={showArchived ? loadArchived : load}
             style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}
           >
             <RefreshCw size={13} />
           </button>
-
-          {/* Toggle archived */}
           <button
             onClick={() => setShowArchived((v) => !v)}
-            style={{
-              display: "flex", alignItems: "center", gap: 7,
-              padding: "8px 14px", borderRadius: 9,
-              border: `1.5px solid ${showArchived ? "#FECACA" : "#E2E8F0"}`,
-              background: showArchived ? "#FEF2F2" : "#fff",
-              color: showArchived ? "#DC2626" : "#64748B",
-              fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-              transition: "all .15s",
-            }}
+            style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 14px", borderRadius: 9, border: `1.5px solid ${showArchived ? "#FECACA" : "#E2E8F0"}`, background: showArchived ? "#FEF2F2" : "#fff", color: showArchived ? "#DC2626" : "#64748B", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "all .15s" }}
           >
             <Archive size={13} />
             {showArchived ? "إخفاء المؤرشفين" : "الأساتذة المؤرشفون"}
           </button>
-
-          {/* Add teacher — only shown in active view */}
           {!showArchived && (
             <button
-              onClick={() => setShowModal(true)}
+              onClick={() => setShowAddModal(true)}
               style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 9, border: "none", background: p, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "opacity .15s" }}
               onMouseEnter={(e) => (e.currentTarget.style.opacity = ".88")}
               onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
@@ -399,7 +673,7 @@ export default function Teachers() {
         </div>
       </div>
 
-      {/* Archived section label */}
+      {/* Archived banner */}
       {showArchived && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, padding: "8px 14px", borderRadius: 10, background: "#FEF2F2", border: "1.5px solid #FECACA" }}>
           <Archive size={14} color="#DC2626" />
@@ -422,26 +696,30 @@ export default function Teachers() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 12 }}>
           {displayList.map((t) => (
             <TeacherCard
-              key={t.id}
-              t={t}
-              subjectMap={subjectMap}
-              primaryColor={p}
-              isArchived={showArchived}
-              onArchive={handleArchive}
-              onUnarchive={handleUnarchive}
-              actionId={actionId}
+              key={t.id} t={t} subjectMap={subjectMap}
+              primaryColor={p} isArchived={showArchived}
+              onArchive={handleArchive} onUnarchive={handleUnarchive}
+              onEdit={setEditingTeacher} actionId={actionId}
             />
           ))}
         </div>
       )}
 
-      {/* Modal */}
-      {showModal && (
+      {/* Add Modal */}
+      {showAddModal && (
         <AddTeacherModal
-          subjects={subjects}
-          primaryColor={p}
-          onClose={() => setShowModal(false)}
+          subjects={subjects} primaryColor={p}
+          onClose={() => setShowAddModal(false)}
           onSaved={(newTeacher) => setTeachers((prev) => [newTeacher, ...prev])}
+        />
+      )}
+
+      {/* Edit Modal */}
+      {editingTeacher && (
+        <EditTeacherModal
+          teacher={editingTeacher} subjects={subjects} primaryColor={p}
+          onClose={() => setEditingTeacher(null)}
+          onSaved={(updated) => { handleTeacherUpdated(updated); setEditingTeacher(null); }}
         />
       )}
     </div>

@@ -36,6 +36,7 @@ import SubjectsAndClassrooms from "./pages/SubjectAndClassRoom";
 import TeacherDashboard from "./pages/teacherDashboard";
 import MyStudents from "./pages/MyStudent";
 import TeacherProfile from "./pages/teacherprofile";
+
 import ProtectedRoute from "./auth/ProtectedRoutes";
 import CreateModule from "./pages/CreateModule";
 
@@ -80,6 +81,8 @@ export default function App() {
   <Route path="/signup" element={<Signup />} />
   <Route path="/forgot-password" element={<PasswordResetFlow />} />
   <Route path="/schoolregister" element={<SchoolRegister />} />
+
+
 
   {/* SCHOOL ADMIN */}
   <Route element={<ProtectedRoute role="SCHOOL_ADMIN" />}>

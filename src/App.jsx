@@ -36,6 +36,7 @@ import CreateModule from "./pages/CreateModule";
 import TeacherDashboard from "./pages/teacherDashboard";
 import MyStudents from "./pages/MyStudent";
 import TeacherProfile from "./pages/teacherprofile";
+
 import ProtectedRoute from "./auth/ProtectedRoutes";
 
 //
@@ -79,6 +80,12 @@ export default function App() {
   <Route path="/signup" element={<Signup />} />
   <Route path="/forgot-password" element={<PasswordResetFlow />} />
   <Route path="/schoolregister" element={<SchoolRegister />} />
+  {/*teacher dashboard */}
+   <Route path="/teacherDashboard" element={<TeacherDashboard/>} />
+   {/*student dashboard*/}
+   <Route path="/studentdashboard" element={<StudentDashboard/>} />
+   <Route path="/mystudent" element={<MyStudents/>} />
+
 
   {/* SCHOOL ADMIN */}
   <Route element={<ProtectedRoute role="SCHOOL_ADMIN" />}>
@@ -94,17 +101,6 @@ export default function App() {
     </Route>
   </Route>
 
-          {/* Dashboard Layout */}
-          <Route element={<DashboardLayout />}>
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/students" element={<Students />} />
-            <Route path="/teachers" element={<Teachers />} />
-            <Route path="/schedule" element={<Schedule />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/requests" element={<Requests />} />
-            <Route path="/subjectandclassroom" element={<SubjectsAndClassrooms/>} />
-            <Route path="/createmodule" element={<CreateModule/>} />
-          </Route>
             {/* superadmin*/}
          <Route path="/superadmindashboard" element={<SuperAdminDashboard/>} />
         </Routes>

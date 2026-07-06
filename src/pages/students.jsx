@@ -1,21 +1,35 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Search, Users, CheckCircle, XCircle, RefreshCw, AlertCircle,
   ChevronDown, ChevronUp, Plus, X, Eye, EyeOff, UserPlus,
   BookOpen, CreditCard, ChevronRight, ArrowLeft, GraduationCap,
+  Clock, Wallet, Printer, History,
 } from "lucide-react";
-import { useAuth } from "../context/authContext";
+import { useSchool } from "../context/SchoolContext";
 import api from "../api";
 
 // ── API ───────────────────────────────────────────────────
+// Every call here is matched 1:1 against the real controllers:
+//   ModuleController, StudentController, EnrollmentController, InvoiceController
 const schoolApi = {
-  getModules:       ()           => api.get("api/modules"),
-  getStudents:      (moduleId)   => api.get(`api/students/by-module/${moduleId}`),
-  getAllStudents:    ()           => api.get("api/students"),
-  getRevenue:       (period)     => api.get("api/invoices/school/revenue", { params: { period } }),
-  registerStudent:  (data)       => api.post("api/students/register", data),
-  enrollRequest:    (data)       => api.post("api/enrollments/request", data),
-  getStudentModules:(studentId)  => api.get(`api/enrollments/student/${studentId}`),
+  getModules:          ()                       => api.get("api/modules"),
+  getStudentsByModule: (moduleId)               => api.get(`api/students/by-module/${moduleId}`),
+  getAllStudents:      ()                       => api.get("api/students"),
+  registerStudent:     (data)                   => api.post("api/students/register", data),
+
+  // EnrollmentController
+  adminEnroll:         (studentId, moduleId)    =>
+    api.post(`api/enrollments/admin-enroll?studentId=${studentId}&moduleId=${moduleId}`),
+  getStudentEnrollments: (studentId)            => api.get(`api/enrollments/student/${studentId}`),
+
+  // InvoiceController
+  // Returns List<StudentInvoiceResponseDto> — every invoice ever issued to this student,
+  // across all periods/modules, most recent first (assumed; we don't re-sort defensively
+  // beyond picking "this month" out of whatever order comes back).
+  getStudentInvoices: (studentId)               => api.get(`api/invoices/student/${studentId}`),
+  getSchoolRevenue:    (period)                 => api.get(`api/invoices/school/revenue?period=${period}`),
+  markInvoicePaid:     (invoiceId)              => api.post(`api/invoices/${invoiceId}/pay`),
+  createInvoiceManually: (payload)              => api.post("api/invoices/create", payload),
 };
 
 function todayYearMonth() {
@@ -23,7 +37,28 @@ function todayYearMonth() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+// StudentInvoiceResponseDto.period is a java.time.YearMonth, which Jackson serializes as
+// "2026-07" by default — same shape as todayYearMonth(), so plain string equality works
+// whether the field arrives as "2026-07" or (if a toString()-based serializer is ever
+// swapped in) "2026-07". Guard against either an object-with-toString or a raw string.
+function periodToKey(period) {
+  if (!period) return null;
+  return String(period).slice(0, 7);
+}
+
+function isCurrentPeriod(invoice) {
+  return periodToKey(invoice?.period) === todayYearMonth();
+}
+
+// Picks "this month's" invoice out of a student's full invoice list, if any.
+function currentMonthInvoice(invoices) {
+  if (!Array.isArray(invoices)) return null;
+  return invoices.find(isCurrentPeriod) ?? null;
+}
+
 // ── Palette ───────────────────────────────────────────────
+// Kept the level-color system already established in the app (blue/violet/green/amber/red
+// rotation), just centralized so drawer, modals, and lists all agree on the same mapping.
 const LEVEL_COLORS = [
   { color: "#3B82F6", light: "#EFF6FF" },
   { color: "#8B5CF6", light: "#F5F3FF" },
@@ -41,11 +76,168 @@ function initials(name = "") {
   return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
 }
 
+function money(n) {
+  if (n === null || n === undefined) return "—";
+  return new Intl.NumberFormat("fr-DZ").format(n);
+}
+
+function formatDate(d) {
+  if (!d) return "—";
+  try { return new Intl.DateTimeFormat("fr-DZ", { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(d)); }
+  catch { return String(d); }
+}
+
+// YearMonth ("2026-07") has no day component, so `new Date("2026-07")` is technically
+// parseable but drifts by timezone in some browsers. Format it directly from the parts.
+function formatPeriod(period) {
+  const key = periodToKey(period);
+  if (!key) return "—";
+  const [y, m] = key.split("-");
+  if (!y || !m) return key;
+  try {
+    return new Intl.DateTimeFormat("fr-DZ", { year: "numeric", month: "long" }).format(new Date(Number(y), Number(m) - 1, 1));
+  } catch { return key; }
+}
+
+// ── Invoice printing ───────────────────────────────────────
+// Takes a real StudentInvoiceResponseDto (id, studentName, moduleName, period, amount,
+// status, dueDate, paidAt) — no more hand-built snapshots. Only ever called for PAID
+// invoices. No backend PDF endpoint exists, so this renders a print-only sheet directly
+// in the browser and opens the native print dialog — user can pick a physical printer or
+// "Save as PDF" from there.
+function printInvoice({ invoice, student, schoolName }) {
+  const w = window.open("", "_blank", "width=800,height=900");
+  if (!w) {
+    alert("الرجاء السماح بالنوافذ المنبثقة لطباعة الفاتورة");
+    return;
+  }
+
+  const rows = [
+    ["التلميذ", invoice.studentName || student?.fullName || "—"],
+    ["ولي الأمر", student?.parentName || "—"],
+    ["الوحدة الدراسية", invoice.moduleName ?? "—"],
+    ["الفترة", formatPeriod(invoice.period)],
+    ["تاريخ الاستحقاق", formatDate(invoice.dueDate)],
+    ["تاريخ الدفع", formatDate(invoice.paidAt)],
+  ];
+
+  w.document.write(`
+    <!DOCTYPE html>
+    <html dir="rtl" lang="ar">
+    <head>
+      <meta charset="UTF-8" />
+      <title>فاتورة - ${invoice.studentName ?? student?.fullName ?? ""}</title>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
+        * { box-sizing: border-box; }
+        body {
+          font-family: 'Cairo', sans-serif;
+          margin: 0;
+          padding: 48px;
+          color: #0F172A;
+          direction: rtl;
+        }
+        .header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          border-bottom: 3px solid #3B82F6;
+          padding-bottom: 20px;
+          margin-bottom: 32px;
+        }
+        .school-name { font-size: 22px; font-weight: 800; color: #0F172A; margin: 0; }
+        .doc-label { font-size: 12px; color: #64748B; margin: 4px 0 0; }
+        .badge {
+          font-size: 13px; font-weight: 700; padding: 6px 16px; border-radius: 20px;
+          background: #ECFDF5; color: #065F46; border: 1.5px solid #A7F3D0;
+        }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 32px; }
+        td { padding: 12px 4px; font-size: 14px; border-bottom: 1px solid #F1F5F9; }
+        td:first-child { color: #64748B; width: 40%; }
+        td:last-child { color: #0F172A; font-weight: 600; text-align: left; direction: ltr; text-align: right; }
+        .amount-box {
+          background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 12px;
+          padding: 20px 24px; display: flex; align-items: center; justify-content: space-between;
+          margin-bottom: 32px;
+        }
+        .amount-label { font-size: 13px; color: #64748B; }
+        .amount-value { font-size: 24px; font-weight: 800; color: #0F172A; }
+        .footer { font-size: 11px; color: #94A3B8; text-align: center; margin-top: 48px; }
+        @media print {
+          body { padding: 24px; }
+          @page { margin: 16mm; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <div>
+          <p class="school-name">${schoolName || "المؤسسة التعليمية"}</p>
+          <p class="doc-label">فاتورة دفع رسوم دراسية</p>
+        </div>
+        <span class="badge">✓ مدفوع</span>
+      </div>
+      <table>
+        ${rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("")}
+      </table>
+      <div class="amount-box">
+        <span class="amount-label">المبلغ المدفوع</span>
+        <span class="amount-value">${money(invoice.amount)} دج</span>
+      </div>
+      <p class="footer">تم إصدار هذه الفاتورة إلكترونياً · ${formatDate(new Date())}</p>
+    </body>
+    </html>
+  `);
+  w.document.close();
+  w.focus();
+  // Give fonts/layout a beat to settle before invoking print
+  setTimeout(() => { w.print(); }, 350);
+}
+
+// ── Status badge (shared by drawer + invoice panel) ───────
+const STATUS_MAP = {
+  PAID:      { bg: "#ECFDF5", color: "#065F46", label: "مدفوع",  icon: CheckCircle },
+  PENDING:   { bg: "#FEF9C3", color: "#854D0E", label: "معلق",   icon: Clock },
+  OVERDUE:   { bg: "#FEF2F2", color: "#991B1B", label: "متأخر",  icon: AlertCircle },
+  CANCELLED: { bg: "#F1F5F9", color: "#64748B", label: "ملغى",   icon: XCircle },
+};
+function StatusBadge({ status, size = 10 }) {
+  const s = STATUS_MAP[status] ?? STATUS_MAP.PENDING;
+  const Icon = s.icon;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: size + 1, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: s.bg, color: s.color, whiteSpace: "nowrap" }}>
+      <Icon size={size} />{s.label}
+    </span>
+  );
+}
+
+// Print trigger — only ever rendered when invoice.status === "PAID" by the caller.
+function PrintButton({ onClick, compact = false, title = "طباعة الفاتورة" }) {
+  if (compact) {
+    return (
+      <button
+        onClick={(e) => { e.stopPropagation(); onClick(); }}
+        title={title}
+        style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = "#EFF6FF"; e.currentTarget.style.borderColor = "#3B82F6"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.borderColor = "#E2E8F0"; }}
+      >
+        <Printer size={12} color="#3B82F6" />
+      </button>
+    );
+  }
+  return (
+    <button onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 7, border: "1.5px solid #3B82F6", background: "#EFF6FF", color: "#3B82F6", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+      <Printer size={12} />طباعة
+    </button>
+  );
+}
+
 // ── Tiny helpers ──────────────────────────────────────────
 function LoadingBlock() {
   return (
     <div style={{ display: "flex", justifyContent: "center", padding: "3rem" }}>
-      <div style={{ width: 24, height: 24, borderRadius: "50%", border: "2.5px solid #185FA5", borderTopColor: "transparent", animation: "spin 1s linear infinite" }} />
+      <div style={{ width: 24, height: 24, borderRadius: "50%", border: "2.5px solid #185FA5", borderTopColor: "transparent", animation: "spin .8s linear infinite" }} />
     </div>
   );
 }
@@ -54,7 +246,7 @@ function ErrorBlock({ message, onRetry }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "2rem" }}>
       <AlertCircle size={32} color="#E2A84B" />
-      <p style={{ color: "#64748B", fontSize: 13 }}>{message}</p>
+      <p style={{ color: "#64748B", fontSize: 13, margin: 0 }}>{message}</p>
       {onRetry && (
         <button onClick={onRetry} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 8, border: "1.5px solid #185FA5", background: "#EBF4FE", color: "#185FA5", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
           <RefreshCw size={13} /> إعادة المحاولة
@@ -64,30 +256,35 @@ function ErrorBlock({ message, onRetry }) {
   );
 }
 
-function Toast({ message, onDone }) {
+function Toast({ message, tone = "success", onDone }) {
   useEffect(() => { const t = setTimeout(onDone, 3200); return () => clearTimeout(t); }, [onDone]);
+  const bg = tone === "error" ? "#DC2626" : "#059669";
   return (
-    <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: "#059669", color: "#fff", borderRadius: 10, padding: "12px 20px", fontSize: 13, fontWeight: 600, zIndex: 3000, display: "flex", alignItems: "center", gap: 8, boxShadow: "0 8px 24px #05966955", fontFamily: "'Cairo',sans-serif", whiteSpace: "nowrap" }}>
-      <CheckCircle size={15} /> {message}
+    <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: bg, color: "#fff", borderRadius: 10, padding: "12px 20px", fontSize: 13, fontWeight: 600, zIndex: 3000, display: "flex", alignItems: "center", gap: 8, boxShadow: `0 8px 24px ${bg}55`, fontFamily: "'Cairo',sans-serif", whiteSpace: "nowrap" }}>
+      {tone === "error" ? <AlertCircle size={15} /> : <CheckCircle size={15} />} {message}
     </div>
   );
 }
 
-// ── Add Student Modal (3-step: create + enroll) ───────────
-function AddStudentModal({ modules, allLevels, onClose, onSuccess }) {
+const inp = { width: "100%", padding: "10px 12px", borderRadius: 9, border: "1.5px solid #E2E8F0", fontSize: 13, fontFamily: "inherit", color: "#0F172A", background: "#fff", outline: "none", boxSizing: "border-box" };
+const lbl = { fontSize: 12, fontWeight: 700, color: "#475569", marginBottom: 5, display: "block" };
+const fw  = { display: "flex", flexDirection: "column", gap: 4 };
+
+// ── Add Student Modal (3-step: register + enroll) ─────────
+function AddStudentModal({ modules, allLevels, onClose, onSuccess, onError }) {
   const STEPS = ["معلومات التلميذ", "تفاصيل إضافية", "اختيار الوحدة"];
   const [step, setStep]               = useState(0);
   const [showPw, setShowPw]           = useState(false);
   const [submitting, setSubmitting]   = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [form, setForm] = useState({
-    fullName: "", email: "", Password: "", level: allLevels[0] ?? "",
+    fullName: "", email: "", password: "", level: allLevels[0] ?? "",
     parentName: "", parentPhone: "", birthDate: "", moduleId: "",
   });
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const modulesForLevel = modules.filter((m) => m.level === form.level);
   const stepValid = [
-    form.fullName.trim() && form.email.trim() && form.Password.length >= 6,
+    form.fullName.trim() && form.email.trim() && form.password.length >= 6,
     !!form.birthDate,
     !!form.moduleId,
   ];
@@ -95,18 +292,22 @@ function AddStudentModal({ modules, allLevels, onClose, onSuccess }) {
   const handleSubmit = async () => {
     setSubmitting(true); setSubmitError(null);
     try {
-      const regRes    = await schoolApi.registerStudent({ fullName: form.fullName, email: form.email, Password: form.Password, level: form.level, parentName: form.parentName, parentPhone: form.parentPhone, birthDate: form.birthDate });
+      const regRes = await schoolApi.registerStudent({
+        fullName: form.fullName, email: form.email, password: form.password,
+        level: form.level, parentName: form.parentName, parentPhone: form.parentPhone,
+        birthDate: form.birthDate,
+      });
       const studentId = regRes.data?.id;
-      if (studentId && form.moduleId) await schoolApi.enrollRequest({ studentId, moduleId: Number(form.moduleId) });
+      if (!studentId) throw new Error("لم يتم استرجاع معرّف التلميذ بعد التسجيل");
+
+      // registerStudent creates the account; admin-enroll is the direct-enroll path
+      // (skips the PENDING student-request flow since the admin is doing this themselves)
+      await schoolApi.adminEnroll(studentId, form.moduleId);
       onSuccess("تم إنشاء حساب التلميذ وتسجيله في الوحدة بنجاح ✓");
     } catch (err) {
-      setSubmitError(err?.response?.data?.message || "حدث خطأ، يرجى المحاولة مجدداً");
+      setSubmitError(err?.response?.data?.message || err.message || "حدث خطأ، يرجى المحاولة مجدداً");
     } finally { setSubmitting(false); }
   };
-
-  const inp = { width: "100%", padding: "10px 12px", borderRadius: 9, border: "1.5px solid #E2E8F0", fontSize: 13, fontFamily: "inherit", color: "#0F172A", background: "#fff", outline: "none", boxSizing: "border-box" };
-  const lbl = { fontSize: 12, fontWeight: 700, color: "#475569", marginBottom: 5, display: "block" };
-  const fw  = { display: "flex", flexDirection: "column", gap: 4 };
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.45)", backdropFilter: "blur(4px)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
@@ -145,7 +346,7 @@ function AddStudentModal({ modules, allLevels, onClose, onSuccess }) {
               <div style={fw}>
                 <label style={lbl}>كلمة المرور * (6 أحرف على الأقل)</label>
                 <div style={{ position: "relative" }}>
-                  <input style={{ ...inp, direction: "ltr", paddingLeft: 38 }} type={showPw ? "text" : "password"} placeholder="••••••••" value={form.Password} onChange={(e) => set("Password", e.target.value)} />
+                  <input style={{ ...inp, direction: "ltr", paddingLeft: 38 }} type={showPw ? "text" : "password"} placeholder="••••••••" value={form.password} onChange={(e) => set("password", e.target.value)} />
                   <button onClick={() => setShowPw((v) => !v)} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#94A3B8", display: "flex" }}>{showPw ? <EyeOff size={15} /> : <Eye size={15} />}</button>
                 </div>
               </div>
@@ -176,7 +377,7 @@ function AddStudentModal({ modules, allLevels, onClose, onSuccess }) {
                     <div style={{ width: 36, height: 36, borderRadius: 9, background: active ? c.color : "#F1F5F9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: active ? "#fff" : "#94A3B8", flexShrink: 0 }}>{m.level?.slice(0, 3) ?? "—"}</div>
                     <div style={{ flex: 1, textAlign: "right" }}>
                       <p style={{ fontSize: 13, fontWeight: 700, color: active ? c.color : "#0F172A", margin: 0 }}>{m.subjectName ?? m.name}</p>
-                      <p style={{ fontSize: 11, color: "#94A3B8", margin: 0, marginTop: 2 }}>👨‍🏫 {m.teacherName ?? "—"}</p>
+                      <p style={{ fontSize: 11, color: "#94A3B8", margin: 0, marginTop: 2 }}>👨‍🏫 {m.teacherName ?? "—"} · {money(m.monthlyprice ?? m.monthlyPrice)} دج/شهر</p>
                     </div>
                     {active && <CheckCircle size={16} color={c.color} />}
                   </button>
@@ -198,7 +399,7 @@ function AddStudentModal({ modules, allLevels, onClose, onSuccess }) {
           {step < 2
             ? <button onClick={() => setStep((s) => s + 1)} disabled={!stepValid[step]} style={{ padding: "9px 22px", borderRadius: 9, border: "none", background: stepValid[step] ? "#3B82F6" : "#E2E8F0", color: stepValid[step] ? "#fff" : "#94A3B8", fontSize: 13, fontWeight: 700, cursor: stepValid[step] ? "pointer" : "not-allowed", fontFamily: "inherit" }}>التالي</button>
             : <button onClick={handleSubmit} disabled={submitting || !stepValid[2]} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 22px", borderRadius: 9, border: "none", background: (!submitting && stepValid[2]) ? "#059669" : "#E2E8F0", color: (!submitting && stepValid[2]) ? "#fff" : "#94A3B8", fontSize: 13, fontWeight: 700, cursor: (!submitting && stepValid[2]) ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
-              {submitting ? <><div style={{ width: 13, height: 13, borderRadius: "50%", border: "2px solid #fff", borderTopColor: "transparent", animation: "spin 1s linear infinite" }} />جاري التسجيل...</> : <><UserPlus size={14} />تسجيل التلميذ</>}
+              {submitting ? <><div style={{ width: 13, height: 13, borderRadius: "50%", border: "2px solid #fff", borderTopColor: "transparent", animation: "spin .8s linear infinite" }} />جاري التسجيل...</> : <><UserPlus size={14} />تسجيل التلميذ</>}
             </button>
           }
         </div>
@@ -221,7 +422,7 @@ function EnrollExistingModal({ student, modules, allLevels, enrolledModuleIds, o
     if (!selectedModule) return;
     setSubmitting(true); setError(null);
     try {
-      await schoolApi.enrollRequest({ studentId: student.id, moduleId: selectedModule });
+      await schoolApi.adminEnroll(student.id, selectedModule);
       onSuccess(`تم تسجيل ${student.fullName} في الوحدة بنجاح ✓`);
     } catch (err) {
       setError(err?.response?.data?.message || "حدث خطأ، يرجى المحاولة مجدداً");
@@ -278,7 +479,7 @@ function EnrollExistingModal({ student, modules, allLevels, enrolledModuleIds, o
         <div style={{ padding: "12px 16px", borderTop: "1px solid #F1F5F9", display: "flex", gap: 10, justifyContent: "space-between" }}>
           <button onClick={onClose} style={{ padding: "9px 18px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>إلغاء</button>
           <button onClick={handleEnroll} disabled={!selectedModule || submitting} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 22px", borderRadius: 9, border: "none", background: selectedModule && !submitting ? "#8B5CF6" : "#E2E8F0", color: selectedModule && !submitting ? "#fff" : "#94A3B8", fontSize: 13, fontWeight: 700, cursor: selectedModule && !submitting ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
-            {submitting ? <><div style={{ width: 13, height: 13, borderRadius: "50%", border: "2px solid #fff", borderTopColor: "transparent", animation: "spin 1s linear infinite" }} />جاري التسجيل...</> : <><BookOpen size={14} />تسجيل</>}
+            {submitting ? <><div style={{ width: 13, height: 13, borderRadius: "50%", border: "2px solid #fff", borderTopColor: "transparent", animation: "spin .8s linear infinite" }} />جاري التسجيل...</> : <><BookOpen size={14} />تسجيل</>}
           </button>
         </div>
       </div>
@@ -286,33 +487,166 @@ function EnrollExistingModal({ student, modules, allLevels, enrolledModuleIds, o
   );
 }
 
+// ── Create Invoice Manually Modal ─────────────────────────
+// Covers InvoiceService's own documented use case: a student who joins mid-month and
+// needs a one-off invoice created outside the automatic monthly billing job.
+function CreateInvoiceModal({ student, enrollments, schoolId, onClose, onSuccess }) {
+  const [enrollmentId, setEnrollmentId] = useState(enrollments[0]?.id ?? "");
+  const [period, setPeriod]             = useState(todayYearMonth());
+  const [dueDate, setDueDate]           = useState(new Date().toISOString().slice(0, 10));
+  const [amount, setAmount]             = useState("");
+  const [submitting, setSubmitting]     = useState(false);
+  const [error, setError]               = useState(null);
+
+  const handleSubmit = async () => {
+    if (!enrollmentId || !amount) return;
+    setSubmitting(true); setError(null);
+    try {
+      await schoolApi.createInvoiceManually({
+        enrollmentId: Number(enrollmentId),
+      
+        studentId: student.id,
+        dueDate,
+        period,
+        totalAmount: Number(amount),
+      });
+      onSuccess("تم إنشاء الفاتورة بنجاح ✓");
+    } catch (err) {
+      setError(err?.response?.data?.message || "حدث خطأ، يرجى المحاولة مجدداً");
+    } finally { setSubmitting(false); }
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.45)", backdropFilter: "blur(4px)", zIndex: 1200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 420, boxShadow: "0 24px 60px rgba(15,23,42,.18)" }}>
+        <div style={{ padding: "18px 20px 14px", borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: "#FFFBEB", display: "flex", alignItems: "center", justifyContent: "center" }}><CreditCard size={16} color="#D97706" /></div>
+            <div>
+              <p style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", margin: 0 }}>إنشاء فاتورة يدوياً</p>
+              <p style={{ fontSize: 11, color: "#94A3B8", margin: 0 }}>{student.fullName}</p>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid #E2E8F0", background: "#F8FAFC", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><X size={14} color="#64748B" /></button>
+        </div>
+        <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={fw}>
+            <label style={lbl}>الوحدة الدراسية *</label>
+            <select style={{ ...inp, appearance: "auto" }} value={enrollmentId} onChange={(e) => setEnrollmentId(e.target.value)}>
+              {enrollments.length === 0 && <option value="">لا توجد وحدات مسجلة</option>}
+              {enrollments.map((e) => <option key={e.id} value={e.id}>{e.subjectName ?? e.moduleName}</option>)}
+            </select>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div style={fw}><label style={lbl}>الفترة (شهر)</label><input style={{ ...inp, direction: "ltr" }} type="month" value={period} onChange={(e) => setPeriod(e.target.value)} /></div>
+            <div style={fw}><label style={lbl}>تاريخ الاستحقاق</label><input style={{ ...inp, direction: "ltr" }} type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} /></div>
+          </div>
+          <div style={fw}>
+            <label style={lbl}>المبلغ (دج) *</label>
+            <input style={{ ...inp, direction: "ltr" }} type="number" min="0" placeholder="3000" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          </div>
+          {error && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 9, background: "#FEF2F2", border: "1px solid #FECACA" }}>
+              <AlertCircle size={14} color="#DC2626" /><span style={{ fontSize: 12, color: "#DC2626" }}>{error}</span>
+            </div>
+          )}
+        </div>
+        <div style={{ padding: "12px 20px", borderTop: "1px solid #F1F5F9", display: "flex", gap: 10, justifyContent: "space-between" }}>
+          <button onClick={onClose} style={{ padding: "9px 18px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>إلغاء</button>
+          <button onClick={handleSubmit} disabled={submitting || !enrollmentId || !amount} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 22px", borderRadius: 9, border: "none", background: (!submitting && enrollmentId && amount) ? "#D97706" : "#E2E8F0", color: (!submitting && enrollmentId && amount) ? "#fff" : "#94A3B8", fontSize: 13, fontWeight: 700, cursor: (!submitting && enrollmentId && amount) ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
+            {submitting ? <><div style={{ width: 13, height: 13, borderRadius: "50%", border: "2px solid #fff", borderTopColor: "transparent", animation: "spin .8s linear infinite" }} />جاري الإنشاء...</> : <><CreditCard size={14} />إنشاء الفاتورة</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Invoice history row (used inside the drawer's collapsible list) ──
+function InvoiceHistoryRow({ invoice, student, schoolName, onPay, payingId }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 12px", borderRadius: 9, background: "#fff", border: "1px solid #F1F5F9" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+        <span style={{ fontSize: 12, color: "#0F172A", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{invoice.moduleName ?? "الوحدة"}</span>
+        <span style={{ fontSize: 11, color: "#94A3B8" }}>{formatPeriod(invoice.period)}{invoice.amount != null ? ` · ${money(invoice.amount)} دج` : ""}</span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+        <StatusBadge status={invoice.status} size={9} />
+        {invoice.status !== "PAID" && invoice.id && (
+          <button onClick={() => onPay(invoice)} disabled={payingId === invoice.id} style={{ padding: "4px 10px", borderRadius: 7, border: "none", background: "#059669", color: "#fff", fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", opacity: payingId === invoice.id ? .6 : 1 }}>
+            {payingId === invoice.id ? "..." : "تسجيل الدفع"}
+          </button>
+        )}
+        {invoice.status === "PAID" && (
+          <PrintButton compact onClick={() => printInvoice({ invoice, student, schoolName })} />
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Student Detail Drawer ─────────────────────────────────
-function StudentDrawer({ student, modules, allLevels, invoiceMap, onClose, onSuccess }) {
+function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onClose, onSuccess, onError }) {
   const [enrollments, setEnrollments] = useState([]);
   const [loadingEnr, setLoadingEnr]   = useState(true);
   const [errEnr, setErrEnr]           = useState(null);
   const [showEnroll, setShowEnroll]   = useState(false);
+  const [showInvoice, setShowInvoice] = useState(false);
+  const [payingId, setPayingId]       = useState(null);
+
+  const [invoices, setInvoices]       = useState([]);
+  const [loadingInv, setLoadingInv]   = useState(true);
+  const [errInv, setErrInv]           = useState(null);
+  const [showHistory, setShowHistory] = useState(false);
 
   const c = levelColorByName(student.level, allLevels);
 
-  useEffect(() => {
+  const loadEnrollments = useCallback(() => {
     setLoadingEnr(true);
-    schoolApi.getStudentModules(student.id)
+    schoolApi.getStudentEnrollments(student.id)
       .then((r) => setEnrollments(r.data?.content ?? r.data ?? []))
       .catch(() => setErrEnr("تعذر تحميل الوحدات"))
       .finally(() => setLoadingEnr(false));
   }, [student.id]);
 
-  const enrolledModuleIds = enrollments.map((e) => e.moduleId ?? e.module?.id).filter(Boolean);
+  // List<StudentInvoiceResponseDto> — every invoice this student has ever had,
+  // across all periods and modules.
+  const loadInvoices = useCallback(() => {
+    setLoadingInv(true); setErrInv(null);
+    schoolApi.getStudentInvoices(student.id)
+      .then((r) => setInvoices(r.data?.content ?? r.data ?? []))
+      .catch(() => setErrInv("تعذر تحميل الفواتير"))
+      .finally(() => setLoadingInv(false));
+  }, [student.id]);
 
-  const statusBadge = (status) => {
-    const map = {
-      PAID:    { bg: "#ECFDF5", color: "#065F46", label: "مدفوع",  icon: <CheckCircle size={10} /> },
-      PENDING: { bg: "#FEF9C3", color: "#854D0E", label: "معلق",   icon: <XCircle size={10} /> },
-      OVERDUE: { bg: "#FEF2F2", color: "#991B1B", label: "متأخر",  icon: <AlertCircle size={10} /> },
-    };
-    const s = map[status] ?? map.PENDING;
-    return <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: s.bg, color: s.color }}>{s.icon}{s.label}</span>;
+  useEffect(() => { loadEnrollments(); }, [loadEnrollments]);
+  useEffect(() => { loadInvoices(); }, [loadInvoices]);
+
+  // EnrollmentResponseDto fields are flat (moduleName / subjectName / teacherName / ModuleId),
+  // not nested under a `.module` object — matching the DTO builder in EnrollmentService.
+  const enrolledModuleIds = enrollments.map((e) => e.ModuleId).filter(Boolean);
+
+  const currentInvoice = currentMonthInvoice(invoices);
+  const pastInvoices    = invoices.filter((inv) => inv.id !== currentInvoice?.id);
+
+  const handlePay = async (invoice) => {
+    setPayingId(invoice.id);
+    try {
+      await schoolApi.markInvoicePaid(invoice.id);
+      onSuccess("تم تسجيل الدفعة بنجاح ✓");
+      // Re-fetch so we print the real, backend-confirmed invoice (real paidAt timestamp,
+      // not a client-guessed one) rather than a hand-built snapshot.
+      const r = await schoolApi.getStudentInvoices(student.id);
+      const fresh = r.data?.content ?? r.data ?? [];
+      setInvoices(fresh);
+      const paidInvoice = fresh.find((i) => i.id === invoice.id) ?? { ...invoice, status: "PAID", paidAt: new Date().toISOString() };
+      // Small delay so the success toast/reload settles before the print popup steals focus
+      setTimeout(() => {
+        printInvoice({ invoice: paidInvoice, student, schoolName });
+      }, 500);
+    } catch (err) {
+      onError(err?.response?.data?.message || "تعذر تسجيل الدفعة");
+    } finally { setPayingId(null); }
   };
 
   return (
@@ -324,7 +658,16 @@ function StudentDrawer({ student, modules, allLevels, invoiceMap, onClose, onSuc
           allLevels={allLevels}
           enrolledModuleIds={enrolledModuleIds}
           onClose={() => setShowEnroll(false)}
-          onSuccess={(msg) => { setShowEnroll(false); onSuccess(msg); onClose(); }}
+          onSuccess={(msg) => { setShowEnroll(false); loadEnrollments(); onSuccess(msg); }}
+        />
+      )}
+      {showInvoice && (
+        <CreateInvoiceModal
+          student={student}
+          enrollments={enrollments}
+          schoolId={schoolId}
+          onClose={() => setShowInvoice(false)}
+          onSuccess={(msg) => { setShowInvoice(false); loadInvoices(); onSuccess(msg); }}
         />
       )}
 
@@ -341,7 +684,7 @@ function StudentDrawer({ student, modules, allLevels, invoiceMap, onClose, onSuc
           <div style={{ padding: "20px", background: c.light, borderBottom: "1px solid #F1F5F9" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <div style={{ width: 54, height: 54, borderRadius: "50%", background: c.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 700, color: "#fff", flexShrink: 0 }}>{initials(student.fullName)}</div>
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 15, fontWeight: 700, color: "#0F172A", margin: 0 }}>{student.fullName}</p>
                 <p style={{ fontSize: 12, color: "#64748B", margin: "3px 0 0", direction: "ltr", textAlign: "right" }}>{student.email || "—"}</p>
                 <span style={{ display: "inline-block", marginTop: 6, fontSize: 11, fontWeight: 700, padding: "2px 10px", borderRadius: 20, background: c.color, color: "#fff" }}>{student.level || "—"}</span>
@@ -357,22 +700,57 @@ function StudentDrawer({ student, modules, allLevels, invoiceMap, onClose, onSuc
             </div>
           </div>
 
-          {/* Invoice */}
+          {/* Invoice / billing */}
           <div style={{ padding: "14px 20px", borderBottom: "1px solid #F1F5F9" }}>
-            <p style={{ fontSize: 12, fontWeight: 700, color: "#475569", margin: "0 0 8px", display: "flex", alignItems: "center", gap: 6 }}><CreditCard size={13} />الفواتير الشهرية</p>
-            {(() => {
-              const inv = invoiceMap[student.fullName];
-              if (!inv) return <p style={{ fontSize: 12, color: "#94A3B8", margin: 0 }}>لا توجد فواتير لهذا الشهر</p>;
-              return (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderRadius: 9, background: "#F8FAFC", border: "1px solid #E2E8F0" }}>
-                  <span style={{ fontSize: 12, color: "#64748B" }}>{inv.moduleName ?? "الوحدة"} · {inv.period ?? ""}</span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    {inv.amount && <span style={{ fontSize: 12, fontWeight: 700, color: "#0F172A" }}>{inv.amount} دج</span>}
-                    {statusBadge(inv.status)}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <p style={{ fontSize: 12, fontWeight: 700, color: "#475569", margin: 0, display: "flex", alignItems: "center", gap: 6 }}><Wallet size={13} />فاتورة الشهر الحالي</p>
+              <button onClick={() => setShowInvoice(true)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 8, border: "1.5px solid #D97706", background: "#FFFBEB", color: "#D97706", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                <Plus size={12} />فاتورة يدوية
+              </button>
+            </div>
+
+            {loadingInv ? <LoadingBlock /> : errInv
+              ? <p style={{ fontSize: 12, color: "#94A3B8", textAlign: "center" }}>{errInv}</p>
+              : !currentInvoice
+                ? <p style={{ fontSize: 12, color: "#94A3B8", margin: 0 }}>لا توجد فاتورة لهذا الشهر</p>
+                : (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderRadius: 9, background: "#F8FAFC", border: "1px solid #E2E8F0" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                      <span style={{ fontSize: 12, color: "#0F172A", fontWeight: 600 }}>{currentInvoice.moduleName ?? "الوحدة"}</span>
+                      <span style={{ fontSize: 11, color: "#94A3B8" }}>{formatPeriod(currentInvoice.period)}{currentInvoice.amount != null ? ` · ${money(currentInvoice.amount)} دج` : ""}</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <StatusBadge status={currentInvoice.status} />
+                      {currentInvoice.status !== "PAID" && currentInvoice.id && (
+                        <button onClick={() => handlePay(currentInvoice)} disabled={payingId === currentInvoice.id} style={{ padding: "5px 12px", borderRadius: 7, border: "none", background: "#059669", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", opacity: payingId === currentInvoice.id ? .6 : 1 }}>
+                          {payingId === currentInvoice.id ? "..." : "تسجيل الدفع"}
+                        </button>
+                      )}
+                      {currentInvoice.status === "PAID" && (
+                        <PrintButton onClick={() => printInvoice({ invoice: currentInvoice, student, schoolName })} />
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })()}
+                )
+            }
+
+            {/* Collapsible full history */}
+            {!loadingInv && !errInv && pastInvoices.length > 0 && (
+              <div style={{ marginTop: 10 }}>
+                <button onClick={() => setShowHistory((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0, color: "#64748B", fontSize: 11, fontWeight: 700 }}>
+                  <History size={12} />
+                  سجل الفواتير ({pastInvoices.length})
+                  {showHistory ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                </button>
+                {showHistory && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+                    {pastInvoices.map((inv) => (
+                      <InvoiceHistoryRow key={inv.id} invoice={inv} student={student} schoolName={schoolName} onPay={handlePay} payingId={payingId} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Enrolled modules */}
@@ -388,21 +766,18 @@ function StudentDrawer({ student, modules, allLevels, invoiceMap, onClose, onSuc
               ? <p style={{ fontSize: 12, color: "#94A3B8", textAlign: "center" }}>{errEnr}</p>
               : enrollments.length === 0
                 ? <div style={{ textAlign: "center", padding: "1.5rem", color: "#94A3B8" }}><BookOpen size={28} style={{ opacity: .4 }} /><p style={{ fontSize: 13, marginTop: 8 }}>لم يُسجَّل في أي وحدة بعد</p></div>
-                : enrollments.map((enr, i) => {
-                  const mc         = levelColorByName(enr.level ?? enr.module?.level, allLevels);
-                  const moduleName = enr.moduleName ?? enr.subjectName ?? enr.module?.name ?? "—";
-                  const teacher    = enr.teacherName ?? enr.module?.teacherName ?? "—";
-                  const invStatus  = invoiceMap[student.fullName]?.status;
+                : enrollments.map((enr) => {
+                  const mc = levelColorByName(student.level, allLevels);
                   return (
-                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, border: "1px solid #E2E8F0", background: "#fff", marginBottom: 8 }}>
+                    <div key={enr.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, border: "1px solid #E2E8F0", background: "#fff", marginBottom: 8 }}>
                       <div style={{ width: 34, height: 34, borderRadius: 8, background: mc.light, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: mc.color, flexShrink: 0 }}>
-                        {(enr.level ?? enr.module?.level ?? "—").slice(0, 3)}
+                        {(student.level ?? "—").slice(0, 3)}
                       </div>
-                      <div style={{ flex: 1 }}>
-                        <p style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", margin: 0 }}>{moduleName}</p>
-                        <p style={{ fontSize: 11, color: "#94A3B8", margin: "2px 0 0" }}>👨‍🏫 {teacher}</p>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", margin: 0 }}>{enr.subjectName ?? enr.moduleName ?? "—"}</p>
+                        <p style={{ fontSize: 11, color: "#94A3B8", margin: "2px 0 0" }}>👨‍🏫 {enr.teacherName ?? "—"} · {money(enr.monthlyPrice)} دج/شهر</p>
                       </div>
-                      {invStatus && statusBadge(invStatus)}
+                    
                     </div>
                   );
                 })
@@ -425,9 +800,9 @@ function LevelTab({ levelKey, count, color, light, active, onClick }) {
 }
 
 // ── Module accordion ──────────────────────────────────────
-function ModuleSection({ module, students, invoiceMap, color, light, allLevels, onStudentClick }) {
+function ModuleSection({ module, students, invoiceByStudentId, color, light, schoolName, onStudentClick }) {
   const [open, setOpen] = useState(true);
-  const paid   = students.filter((s) => invoiceMap[s.fullName]?.status === "PAID").length;
+  const paid   = students.filter((s) => currentMonthInvoice(invoiceByStudentId[s.id])?.status === "PAID").length;
   const unpaid = students.length - paid;
 
   return (
@@ -456,24 +831,25 @@ function ModuleSection({ module, students, invoiceMap, color, light, allLevels, 
             ? <div style={{ padding: "1.5rem", textAlign: "center", color: "#94A3B8", fontSize: 13 }}>لا يوجد تلاميذ في هذه الوحدة</div>
             : (
               <>
-                <div style={{ display: "grid", gridTemplateColumns: "28px 36px 1fr 140px 100px 80px", gap: 8, padding: "8px 16px", background: "#F8FAFC", borderBottom: "1px solid #F1F5F9" }}>
-                  {["", "", "الاسم", "البريد الإلكتروني", "ولي الأمر", "الدفع"].map((h, i) => <span key={i} style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8" }}>{h}</span>)}
+                <div style={{ display: "grid", gridTemplateColumns: "28px 36px 1fr 140px 100px 80px 30px", gap: 8, padding: "8px 16px", background: "#F8FAFC", borderBottom: "1px solid #F1F5F9" }}>
+                  {["", "", "الاسم", "البريد الإلكتروني", "ولي الأمر", "الدفع", ""].map((h, i) => <span key={i} style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8" }}>{h}</span>)}
                 </div>
                 {students.map((s, i) => {
-                  const isPaid = invoiceMap[s.fullName]?.status === "PAID";
+                  const inv = currentMonthInvoice(invoiceByStudentId[s.id]);
                   return (
                     <div key={s.id} onClick={() => onStudentClick(s)}
                       onMouseEnter={(e) => e.currentTarget.style.background = "#FAFBFF"}
                       onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                      style={{ display: "grid", gridTemplateColumns: "28px 36px 1fr 140px 100px 80px", gap: 8, padding: "10px 16px", alignItems: "center", borderBottom: i < students.length - 1 ? "1px solid #F8FAFC" : "none", cursor: "pointer" }}>
+                      style={{ display: "grid", gridTemplateColumns: "28px 36px 1fr 140px 100px 80px 30px", gap: 8, padding: "10px 16px", alignItems: "center", borderBottom: i < students.length - 1 ? "1px solid #F8FAFC" : "none", cursor: "pointer" }}>
                       <span style={{ fontSize: 11, color: "#CBD5E1", fontFamily: "monospace", textAlign: "center" }}>{i + 1}</span>
                       <div style={{ width: 30, height: 30, borderRadius: "50%", background: color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff" }}>{initials(s.fullName)}</div>
                       <div><p style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", margin: 0 }}>{s.fullName}</p>{s.level && <p style={{ fontSize: 10, color: "#94A3B8", margin: 0, marginTop: 1 }}>{s.level}</p>}</div>
                       <span style={{ fontSize: 11, color: "#64748B", direction: "ltr", textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.email || "—"}</span>
                       <span style={{ fontSize: 11, color: "#64748B" }}>{s.parentPhone || "—"}</span>
-                      <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 20, display: "inline-flex", alignItems: "center", gap: 4, background: isPaid ? "#ECFDF5" : "#FEF9C3", color: isPaid ? "#065F46" : "#854D0E" }}>
-                        {isPaid ? <><CheckCircle size={10} />مدفوع</> : <><XCircle size={10} />معلق</>}
-                      </span>
+                      {inv ? <StatusBadge status={inv.status} /> : <span style={{ fontSize: 10, color: "#CBD5E1" }}>—</span>}
+                      {inv?.status === "PAID"
+                        ? <PrintButton compact onClick={() => printInvoice({ invoice: inv, student: s, schoolName })} />
+                        : <span />}
                     </div>
                   );
                 })}
@@ -491,30 +867,31 @@ function ModuleSection({ module, students, invoiceMap, color, light, allLevels, 
 }
 
 // ── All-students flat list ────────────────────────────────
-function AllStudentsList({ students, invoiceMap, allLevels, onStudentClick }) {
+function AllStudentsList({ students, invoiceByStudentId, allLevels, schoolName, onStudentClick }) {
   return (
     <div style={{ background: "#fff", borderRadius: 12, border: "1.5px solid #E8EEF6", overflow: "hidden" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "28px 36px 1fr 100px 140px 80px 28px", gap: 8, padding: "8px 16px", background: "#F8FAFC", borderBottom: "1px solid #F1F5F9" }}>
-        {["", "", "الاسم", "المستوى", "البريد", "الدفع", ""].map((h, i) => <span key={i} style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8" }}>{h}</span>)}
+      <div style={{ display: "grid", gridTemplateColumns: "28px 36px 1fr 100px 140px 80px 30px 20px", gap: 8, padding: "8px 16px", background: "#F8FAFC", borderBottom: "1px solid #F1F5F9" }}>
+        {["", "", "الاسم", "المستوى", "البريد", "الدفع", "", ""].map((h, i) => <span key={i} style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8" }}>{h}</span>)}
       </div>
       {students.length === 0
         ? <div style={{ textAlign: "center", color: "#94A3B8", padding: "2rem", fontSize: 13 }}>لا توجد نتائج</div>
         : students.map((s, i) => {
-          const c      = levelColorByName(s.level, allLevels);
-          const isPaid = invoiceMap[s.fullName]?.status === "PAID";
+          const c   = levelColorByName(s.level, allLevels);
+          const inv = currentMonthInvoice(invoiceByStudentId[s.id]);
           return (
             <div key={s.id} onClick={() => onStudentClick(s)}
               onMouseEnter={(e) => e.currentTarget.style.background = "#FAFBFF"}
               onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-              style={{ display: "grid", gridTemplateColumns: "28px 36px 1fr 100px 140px 80px 28px", gap: 8, padding: "10px 16px", alignItems: "center", borderBottom: i < students.length - 1 ? "1px solid #F8FAFC" : "none", cursor: "pointer" }}>
+              style={{ display: "grid", gridTemplateColumns: "28px 36px 1fr 100px 140px 80px 30px 20px", gap: 8, padding: "10px 16px", alignItems: "center", borderBottom: i < students.length - 1 ? "1px solid #F8FAFC" : "none", cursor: "pointer" }}>
               <span style={{ fontSize: 11, color: "#CBD5E1", textAlign: "center" }}>{i + 1}</span>
               <div style={{ width: 30, height: 30, borderRadius: "50%", background: c.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff" }}>{initials(s.fullName)}</div>
               <div><p style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", margin: 0 }}>{s.fullName}</p><p style={{ fontSize: 10, color: "#94A3B8", margin: 0 }}>{s.parentPhone || "—"}</p></div>
               <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 10px", borderRadius: 20, background: c.light, color: c.color }}>{s.level || "—"}</span>
               <span style={{ fontSize: 11, color: "#64748B", direction: "ltr", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.email || "—"}</span>
-              <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 20, display: "inline-flex", alignItems: "center", gap: 4, background: isPaid ? "#ECFDF5" : "#FEF9C3", color: isPaid ? "#065F46" : "#854D0E" }}>
-                {isPaid ? <><CheckCircle size={10} />مدفوع</> : <><XCircle size={10} />معلق</>}
-              </span>
+              {inv ? <StatusBadge status={inv.status} /> : <span style={{ fontSize: 10, color: "#CBD5E1" }}>—</span>}
+              {inv?.status === "PAID"
+                ? <PrintButton compact onClick={() => printInvoice({ invoice: inv, student: s, schoolName })} />
+                : <span />}
               <ChevronRight size={14} color="#CBD5E1" />
             </div>
           );
@@ -526,13 +903,18 @@ function AllStudentsList({ students, invoiceMap, allLevels, onStudentClick }) {
 
 // ── Main ──────────────────────────────────────────────────
 export default function Students() {
-  const { user }  = useAuth();
-  const schoolId  = user?.schoolId ?? user?.id;
+  const { school, error: schoolError, refetchSchool } = useSchool();
+  const schoolId    = school?.id;
+  const schoolName  = school?.schoolName ?? "المؤسسة التعليمية";
 
   const [modules,       setModules]      = useState([]);
   const [studentMap,    setStudentMap]   = useState({});
   const [allStudents,   setAllStudents]  = useState([]);
-  const [invoiceMap,    setInvoiceMap]   = useState({});
+  // Per-student invoice lists, keyed by student.id — replaces the old global,
+  // studentName-keyed, current-month-only invoiceMap. Built from
+  // getStudentInvoices(studentId) for every visible student, since list badges need
+  // full accuracy (not just whichever names happened to show up in this month's revenue).
+  const [invoiceByStudentId, setInvoiceByStudentId] = useState({});
   const [loading,       setLoading]      = useState(true);
   const [error,         setError]        = useState(null);
   const [activeLevel,   setActiveLevel]  = useState(null);
@@ -548,21 +930,34 @@ export default function Students() {
     try {
       const [modRes, allRes] = await Promise.all([schoolApi.getModules(), schoolApi.getAllStudents()]);
       const mods = modRes.data?.content ?? modRes.data ?? [];
+      const students = allRes.data?.content ?? allRes.data ?? [];
       setModules(mods);
-      setAllStudents(allRes.data?.content ?? allRes.data ?? []);
+      setAllStudents(students);
 
       if (mods.length > 0) {
-        const results = await Promise.all(mods.map((m) => schoolApi.getStudents(m.id).then((r) => ({ moduleId: m.id, students: r.data?.content ?? r.data ?? [] }))));
+        const results = await Promise.all(mods.map((m) => schoolApi.getStudentsByModule(m.id).then((r) => ({ moduleId: m.id, students: r.data?.content ?? r.data ?? [] }))));
         const sMap = {};
         results.forEach(({ moduleId, students }) => { sMap[moduleId] = students; });
         setStudentMap(sMap);
       }
 
-      const revRes   = await schoolApi.getRevenue(todayYearMonth());
-      const invoices = revRes.data?.invoices ?? [];
-      const iMap     = {};
-      invoices.forEach((inv) => { if (inv.studentName) iMap[inv.studentName] = inv; });
-      setInvoiceMap(iMap);
+      // Fetch every visible student's full invoice history (List<StudentInvoiceResponseDto>)
+      // in parallel, keyed by student.id, so both list views and the drawer read from the
+      // same accurate per-student source instead of the old school-wide revenue snapshot.
+      if (students.length > 0) {
+        const invResults = await Promise.all(
+          students.map((s) =>
+            schoolApi.getStudentInvoices(s.id)
+              .then((r) => ({ studentId: s.id, invoices: r.data?.content ?? r.data ?? [] }))
+              .catch(() => ({ studentId: s.id, invoices: [] }))
+          )
+        );
+        const iMap = {};
+        invResults.forEach(({ studentId, invoices }) => { iMap[studentId] = invoices; });
+        setInvoiceByStudentId(iMap);
+      } else {
+        setInvoiceByStudentId({});
+      }
 
       const levels = [...new Set(mods.map((m) => m.level).filter(Boolean))];
       if (levels.length > 0) setActiveLevel((prev) => prev ?? levels[0]);
@@ -573,6 +968,7 @@ export default function Students() {
 
   useEffect(() => { load(); }, [load]);
 
+  if (schoolError) return <div style={{ padding: "1.5rem", fontFamily: "'Cairo',sans-serif" }} dir="rtl"><ErrorBlock message={schoolError} onRetry={refetchSchool} /></div>;
   if (loading) return <div style={{ padding: "1.5rem", fontFamily: "'Cairo',sans-serif" }} dir="rtl"><LoadingBlock /></div>;
   if (error)   return <div style={{ padding: "1.5rem", fontFamily: "'Cairo',sans-serif" }} dir="rtl"><ErrorBlock message={error} onRetry={load} /></div>;
 
@@ -598,22 +994,33 @@ export default function Students() {
   const displayList  = filtered ?? (viewMode === "all" ? allStudents : null);
 
   const totalCount = viewMode === "all" ? allStudents.length : uniqueInLevel.length;
-  const paidCount  = (viewMode === "all" ? allStudents : uniqueInLevel).filter((s) => invoiceMap[s.fullName]?.status === "PAID").length;
+  const paidCount  = (viewMode === "all" ? allStudents : uniqueInLevel).filter((s) => currentMonthInvoice(invoiceByStudentId[s.id])?.status === "PAID").length;
 
   const handleSuccess = (msg) => {
     setShowModal(false);
-    setDrawerStudent(null);
-    setToast(msg ?? "تمت العملية بنجاح ✓");
+    setToast({ message: msg ?? "تمت العملية بنجاح ✓", tone: "success" });
     load();
   };
+  const handleError = (msg) => setToast({ message: msg ?? "حدث خطأ ما", tone: "error" });
 
   return (
     <div dir="rtl" style={{ padding: "1.25rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
 
-      {showModal && <AddStudentModal modules={modules} allLevels={allLevels} onClose={() => setShowModal(false)} onSuccess={handleSuccess} />}
-      {drawerStudent && <StudentDrawer student={drawerStudent} modules={modules} allLevels={allLevels} invoiceMap={invoiceMap} onClose={() => setDrawerStudent(null)} onSuccess={handleSuccess} />}
-      {toast && <Toast message={toast} onDone={() => setToast(null)} />}
+      {showModal && <AddStudentModal modules={modules} allLevels={allLevels} onClose={() => setShowModal(false)} onSuccess={handleSuccess} onError={handleError} />}
+      {drawerStudent && (
+        <StudentDrawer
+          student={drawerStudent}
+          modules={modules}
+          allLevels={allLevels}
+          schoolId={schoolId}
+          schoolName={schoolName}
+          onClose={() => setDrawerStudent(null)}
+          onSuccess={handleSuccess}
+          onError={handleError}
+        />
+      )}
+      {toast && <Toast message={toast.message} tone={toast.tone} onDone={() => setToast(null)} />}
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.25rem" }}>
@@ -665,10 +1072,10 @@ export default function Students() {
       {levels.length === 0
         ? <div style={{ textAlign: "center", color: "#94A3B8", padding: "3rem", fontSize: 13 }}>لا توجد وحدات دراسية مسجلة</div>
         : displayList !== null
-          ? <AllStudentsList students={displayList} invoiceMap={invoiceMap} allLevels={allLevels} onStudentClick={setDrawerStudent} />
+          ? <AllStudentsList students={displayList} invoiceByStudentId={invoiceByStudentId} allLevels={allLevels} schoolName={schoolName} onStudentClick={setDrawerStudent} />
           : activeMods.map((m) => {
             const c = levelColor(m._idx);
-            return <ModuleSection key={m.id} module={m} students={studentMap[m.id] ?? []} invoiceMap={invoiceMap} color={c.color} light={c.light} allLevels={allLevels} onStudentClick={setDrawerStudent} />;
+            return <ModuleSection key={m.id} module={m} students={studentMap[m.id] ?? []} invoiceByStudentId={invoiceByStudentId} color={c.color} light={c.light} schoolName={schoolName} onStudentClick={setDrawerStudent} />;
           })
       }
     </div>

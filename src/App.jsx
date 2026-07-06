@@ -31,12 +31,13 @@ import Settings from "./pages/Settings";
 import StudentDashboard from "./pages/StudentDashboard";
 import Requests from "./pages/Requests";
 import SubjectsAndClassrooms from "./pages/SubjectAndClassRoom";
-import CreateModule from "./pages/CreateModule";
+
 // teacherdashboard
 import TeacherDashboard from "./pages/teacherDashboard";
 import MyStudents from "./pages/MyStudent";
 import TeacherProfile from "./pages/teacherprofile";
 import ProtectedRoute from "./auth/ProtectedRoutes";
+import CreateModule from "./pages/CreateModule";
 
 //
  import SuperAdminDashboard from "./pages/SuperAdminDashborad";
@@ -63,7 +64,7 @@ export default function App() {
    
         <Toaster position="top-center" richColors />
 
-       <Routes>
+     <Routes>
 
   <Route path="/" element={<Navigate to="/home" replace />} />
 
@@ -88,26 +89,32 @@ export default function App() {
       <Route path="/teachers" element={<Teachers />} />
       <Route path="/schedule" element={<Schedule />} />
       <Route path="/createmodule" element={<CreateModule/>} />
-      <Route path="/subjectandclassroom" element={<SubjectsAndClassrooms />} />
+      <Route path="/SubjectAndClassRoom" element={<SubjectsAndClassrooms />} />
       <Route path="/settings" element={<Settings />} />
       <Route path="/requests" element={<Requests />} />
     </Route>
   </Route>
 
-          {/* Dashboard Layout */}
-          <Route element={<DashboardLayout />}>
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/students" element={<Students />} />
-            <Route path="/teachers" element={<Teachers />} />
-            <Route path="/schedule" element={<Schedule />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/requests" element={<Requests />} />
-            <Route path="/subjectandclassroom" element={<SubjectsAndClassrooms/>} />
-            <Route path="/createmodule" element={<CreateModule/>} />
-          </Route>
-            {/* superadmin*/}
-         <Route path="/superadmindashboard" element={<SuperAdminDashboard/>} />
-        </Routes>
+  {/* STUDENT */}
+  <Route element={<ProtectedRoute role="STUDENT" />}>
+    <Route path="/studentdashboard" element={<StudentDashboard />} />
+  </Route>
+
+  {/* TEACHER */}
+  <Route element={<ProtectedRoute role="TEACHER" />}>
+    <Route element={<TeacherLayout />}>
+      <Route path="/teacherdashboard" element={<TeacherDashboard />} />
+      <Route path="/teacherprofile" element={<TeacherProfile />} />
+      <Route path="/mystudent" element={<MyStudents />} />
+    </Route>
+  </Route>
+
+  {/* SUPER ADMIN */}
+  <Route element={<ProtectedRoute role="SUPER_ADMIN" />}>
+    <Route path="/superadmindashboard" element={<SuperAdminDashboard />} />
+  </Route>
+
+</Routes>
       
         
   

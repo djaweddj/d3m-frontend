@@ -11,15 +11,20 @@ export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [school,setSchool]=useState(null);
    const API_URL = import.meta.env.VITE_API_URL;
     // ── fetch current user info ──────────────────────────────────────
+          const updateSchool = (patch) => {
+           setSchool((prev) => (prev ? { ...prev, ...patch } : prev));
+        };
     const fetchMe = async () => {
         try {
             const res = await api.get(`${API_URL}/auth/me`);
             setUser(res.data);
             setIsAuthenticated(true);
+      
               return res.data;
-        } catch {
+        } catch (err){
             setUser(null);
             setIsAuthenticated(false);
              throw err;
@@ -85,7 +90,7 @@ export function AuthProvider({ children }) {
 
     return (
         <AuthContext.Provider
-            value={{ user, isAuthenticated, login, logout, loading }}
+            value={{ school,updateSchool,user, isAuthenticated, login, logout, loading }}
         >
             {children}
         </AuthContext.Provider>

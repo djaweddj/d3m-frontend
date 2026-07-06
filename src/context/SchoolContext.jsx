@@ -1,69 +1,54 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import api from "../api";
 
-const SchoolContext = createContext(null);
-
-const DEFAULT_SCHOOL = {
-  name: "مدرسة الأمل",
-  primaryColor: "#2563EB",
-  logoUrl: null,
-  academicYear: "2025–2026",
+// ── API ───────────────────────────────────────────────────
+const schoolInfoApi = {
+  getMine: () => api.get("api/schools/one"),
 };
 
+const SchoolContext = createContext(undefined);
+
+/**
+ * Wrap the SCHOOL_ADMIN dashboard tree (DashboardLayout) with this provider.
+ * Fetches SchoolResponseDto ONCE and exposes it + a refetch() to every child page
+ * (Students, Teachers, Schedule, CreateModule, Settings, Requests, Dashboard, ...).
+ *
+ * Usage in any child page:
+ *   const { school, loading, error, refetchSchool } = useSchool();
+ *   school?.schoolName, school?.id, school?.logoUrl, school?.subscriptionStatus, etc.
+ */
 export function SchoolProvider({ children }) {
-  const [school, setSchool] = useState(() => {
+  const [school, setSchool]   = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
-      const saved = localStorage.getItem("schoolSettings");
-      return saved ? { ...DEFAULT_SCHOOL, ...JSON.parse(saved) } : DEFAULT_SCHOOL;
-    } catch {
-      return DEFAULT_SCHOOL;
+      const res = await schoolInfoApi.getMine();
+      setSchool(res.data);
+    } catch (err) {
+      setError(err?.response?.data?.message || "تعذر تحميل بيانات المؤسسة");
+    } finally {
+      setLoading(false);
     }
-  });
+  }, []);
 
-  useEffect(() => {
-    document.documentElement.style.setProperty("--school-primary", school.primaryColor);
-    document.documentElement.style.setProperty(
-      "--school-primary-dark",
-      darken(school.primaryColor, 15)
-    );
-    document.documentElement.style.setProperty(
-      "--school-primary-light",
-      lighten(school.primaryColor, 92)
-    );
-    localStorage.setItem("schoolSettings", JSON.stringify(school));
-  }, [school]);
-
-  const updateSchool = (patch) => setSchool((s) => ({ ...s, ...patch }));
+  useEffect(() => { load(); }, [load]);
 
   return (
-    <SchoolContext.Provider value={{ school, updateSchool }}>
+    <SchoolContext.Provider value={{ school, loading, error, refetchSchool: load }}>
       {children}
     </SchoolContext.Provider>
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useSchool() {
   const ctx = useContext(SchoolContext);
-  if (!ctx) throw new Error("useSchool must be used inside SchoolProvider");
+  if (ctx === undefined) {
+    throw new Error("useSchool must be used within a <SchoolProvider>");
+  }
   return ctx;
-}
-
-// ── tiny color helpers ──────────────────────────────────────────────────────
-function hexToRgb(hex) {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return [r, g, b];
-}
-function toHex(r, g, b) {
-  return "#" + [r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join("");
-}
-function darken(hex, pct) {
-  const [r, g, b] = hexToRgb(hex);
-  const f = 1 - pct / 100;
-  return toHex(r * f, g * f, b * f);
-}
-function lighten(hex, pct) {
-  const [r, g, b] = hexToRgb(hex);
-  const f = pct / 100;
-  return toHex(r + (255 - r) * f, g + (255 - g) * f, b + (255 - b) * f);
 }

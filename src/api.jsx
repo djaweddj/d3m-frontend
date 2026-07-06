@@ -24,8 +24,10 @@ api.interceptors.response.use(
         const originalRequest = error.config;
 
         // ── Don't retry refresh/login endpoints ──────────────
-        const isAuthEndpoint = originalRequest.url.includes("/auth/");
-        if (isAuthEndpoint) return Promise.reject(error);
+      const isNoRetryEndpoint =
+    originalRequest.url.includes("/auth/refresh") ||
+    originalRequest.url.includes("/auth/login");
+if (isNoRetryEndpoint) return Promise.reject(error);
 
         if (
             (error.response?.status === 401 || error.response?.status === 403) &&
@@ -49,5 +51,19 @@ api.interceptors.response.use(
         return Promise.reject(error);
     }
 );
+export const uploadSchoolLogo = (file, onUploadProgress) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    return api.post("/api/schools/logo", formData, {   // ← was "/schools/logo"
+        headers: { "Content-Type": "multipart/form-data" },
+        onUploadProgress: (progressEvent) => {
+            if (onUploadProgress && progressEvent.total) {
+                const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                onUploadProgress(percent);
+            }
+        },
+    });
+};
 
 export default api;

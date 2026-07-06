@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, MapPin, Star, Building2, AlertCircle } from "lucide-react";
 import { motion } from "framer-motion";
-import api from "../api/axios";
+import api from "../api";
 
 const STATUS_LABELS = {
   ACTIVE: { label: "نشط", color: "#0F6E56", bg: "#e6f4f1" },
@@ -160,7 +160,7 @@ export default function BrowseSchools() {
                     background: "linear-gradient(135deg, #185FA5 0%, #0ea5e9 100%)",
                   }}
                 >
-                  <Building2 className="h-16 w-16 text-white/30" />
+                  <img src={school.logoUrl} className="h-60 w-60 text-white/30" />
                 
                 </div>
 

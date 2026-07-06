@@ -1,6 +1,7 @@
-import { useState, useRef } from "react";
-import { Upload, School, Sun, Moon, Monitor, Save } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Upload, School, Sun, Moon, Monitor, Save, Loader2, X } from "lucide-react";
 import { useAuth } from "../context/authContext";
+import { uploadSchoolLogo } from "../api";
 import { toast } from "sonner";
 
 const PRESETS = [
@@ -9,45 +10,110 @@ const PRESETS = [
 ];
 
 const LS_COLOR_KEY = "school_primary_color";
-const LS_LOGO_KEY  = "school_logo_url";
+
+// Keep these in sync with the backend's FileValidator
+const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
+const ALLOWED_TYPES = ["image/png", "image/svg+xml"];
+
+
 
 export default function Settings() {
-  // useAuth gives: { user, school, logout }
+  // useAuth gives: { user, school, updateSchool }
   // school shape matches SchoolDto / SchoolResponseDto:
   //   schoolName, ownerName, email, phone, wilaya, commune,
-  //   subscriptionStatus, subscriptionExpiresAt
-  const { user, school } = useAuth();
+  //   subscriptionStatus, subscriptionExpiresAt, logoUrl
+  const { user, school, updateSchool } = useAuth();
 
-  // Color + logo are UI-only preferences stored in localStorage
-  // (backend has no endpoint for these yet)
   const [color, setColor] = useState(
     () => localStorage.getItem(LS_COLOR_KEY) ?? school?.primaryColor ?? "#185FA5"
   );
-  const [previewLogo, setPreviewLogo] = useState(
-    () => localStorage.getItem(LS_LOGO_KEY) ?? school?.logoUrl ?? null
-  );
-  const [theme,    setTheme]    = useState("light"); // UI-only
+  const [theme, setTheme] = useState("light"); // UI-only, unrelated to logo
+
+  // Logo upload state — driven by the backend, not localStorage
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [localPreview, setLocalPreview] = useState(null); // temp blob preview while uploading
   const fileRef = useRef(null);
 
-  const handleFile = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error("حجم الملف يتجاوز 2 ميغابايت");
-      return;
+  // The logo actually persisted on the school (source of truth once upload succeeds)
+  const logoUrl = localPreview ?? school?.logoUrl ?? null;
+
+  // Clean up the object URL when it's no longer needed, to avoid leaking memory
+  useEffect(() => {
+    return () => {
+      if (localPreview) URL.revokeObjectURL(localPreview);
+    };
+  }, [localPreview]);
+
+  const validateFile = (file) => {
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      toast.error("صيغة الملف غير مدعومة — PNG أو SVG فقط");
+      return false;
     }
-    const url = URL.createObjectURL(file);
-    setPreviewLogo(url);
-    toast.success("تم رفع الشعار مؤقتاً — احفظ لتثبيته");
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error("حجم الملف يتجاوز 2 ميغابايت");
+      return false;
+    }
+    return true;
+  };
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0];
+    // reset the input so selecting the same file again still fires onChange
+    e.target.value = "";
+    if (!file) return;
+    if (!validateFile(file)) return;
+
+    // Optimistic local preview while the real upload is in flight
+    const objectUrl = URL.createObjectURL(file);
+    setLocalPreview(objectUrl);
+    setUploading(true);
+    setUploadProgress(0);
+
+    try {
+      const res = await uploadSchoolLogo(file, setUploadProgress);
+      const updatedLogoUrl = res.data.logoUrl;
+
+      // Backend is now the source of truth — drop the temp blob preview
+      URL.revokeObjectURL(objectUrl);
+      setLocalPreview(null);
+      updateSchool?.({ logoUrl: updatedLogoUrl });
+
+      toast.success("تم تحديث شعار المدرسة بنجاح");
+    } catch (err) {
+      URL.revokeObjectURL(objectUrl);
+      setLocalPreview(null);
+
+      const status = err?.response?.status;
+      const serverMessage = err?.response?.data?.error;
+
+      if (status === 413) {
+        toast.error("حجم الملف يتجاوز الحد المسموح به");
+      } else if (status === 400) {
+        toast.error(serverMessage || "الملف غير صالح");
+      } else if (status === 401 || status === 403) {
+        toast.error("غير مصرح لك برفع الشعار");
+      } else {
+        toast.error("تعذر رفع الشعار — حاول مرة أخرى");
+      }
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+    }
+  };
+
+  const removeLogo = () => {
+    // NOTE: this only clears the local UI state. If you want actual deletion
+    // on the backend (removing the Cloudinary asset + clearing logoUrl),
+    // wire this to a DELETE /schools/logo endpoint instead.
+    toast.info("للحذف الفعلي يرجى التواصل مع الدعم");
   };
 
   const save = () => {
     localStorage.setItem(LS_COLOR_KEY, color);
-    if (previewLogo) localStorage.setItem(LS_LOGO_KEY, previewLogo);
     toast.success("تم حفظ إعدادات العرض");
   };
 
-  // Card shell
   const Card = ({ title, sub, children }) => (
     <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #E8EEF6", padding: "1.1rem" }}>
       <p style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", margin: "0 0 3px" }}>{title}</p>
@@ -106,7 +172,6 @@ export default function Settings() {
 
         {/* ── Primary color ── */}
         <Card title="لون المدرسة الرئيسي" sub="يُطبَّق على الشريط الجانبي والأزرار">
-          {/* Preset swatches */}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
             {PRESETS.map((c) => (
               <button
@@ -124,7 +189,6 @@ export default function Settings() {
             ))}
           </div>
 
-          {/* Custom color */}
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <label style={{ fontSize: 11, color: "#64748B" }}>مخصص:</label>
             <input
@@ -136,7 +200,6 @@ export default function Settings() {
             <span style={{ fontSize: 11, fontFamily: "monospace", color: "#94A3B8" }}>{color}</span>
           </div>
 
-          {/* Live preview */}
           <div style={{ marginTop: 14, borderRadius: 10, padding: "10px 14px", background: color, display: "flex", alignItems: "center", gap: 8 }}>
             <School size={16} color="#fff" />
             <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>{schoolName}</span>
@@ -144,26 +207,57 @@ export default function Settings() {
         </Card>
 
         {/* ── Logo upload ── */}
-        <Card title="شعار المدرسة" sub="رفع صورة الشعار (PNG أو SVG · max 2MB)">
+        <Card title="شعار المدرسة" sub="رفع صورة الشعار (PNG أو SVG · حد أقصى 2 ميغابايت)">
           <button
-            onClick={() => fileRef.current?.click()}
+            onClick={() => !uploading && fileRef.current?.click()}
+            disabled={uploading}
             style={{
               width: "100%", borderRadius: 12, padding: "1.25rem 0",
               border: "2px dashed #E2E8F0", background: "transparent",
-              cursor: "pointer", textAlign: "center", transition: "border-color .15s, background .15s",
+              cursor: uploading ? "not-allowed" : "pointer", textAlign: "center",
+              transition: "border-color .15s, background .15s",
+              opacity: uploading ? 0.6 : 1,
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#185FA5"; e.currentTarget.style.background = "#EBF4FE"; }}
+            onMouseEnter={(e) => { if (!uploading) { e.currentTarget.style.borderColor = "#185FA5"; e.currentTarget.style.background = "#EBF4FE"; } }}
             onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.background = "transparent"; }}
           >
-            <Upload size={22} color="#CBD5E1" style={{ margin: "0 auto 5px" }} />
-            <p style={{ fontSize: 11, color: "#94A3B8", margin: 0 }}>اضغط لرفع الشعار</p>
+            {uploading ? (
+              <>
+                <Loader2 size={22} color="#185FA5" style={{ margin: "0 auto 5px", animation: "spin 1s linear infinite" }} />
+                <p style={{ fontSize: 11, color: "#185FA5", margin: 0, fontWeight: 600 }}>
+                  جاري الرفع... {uploadProgress}%
+                </p>
+              </>
+            ) : (
+              <>
+                <Upload size={22} color="#CBD5E1" style={{ margin: "0 auto 5px" }} />
+                <p style={{ fontSize: 11, color: "#94A3B8", margin: 0 }}>اضغط لرفع الشعار</p>
+              </>
+            )}
           </button>
-          <input ref={fileRef} type="file" accept="image/png,image/svg+xml" style={{ display: "none" }} onChange={handleFile} />
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/svg+xml"
+            style={{ display: "none" }}
+            onChange={handleFile}
+            disabled={uploading}
+          />
+
+          {/* Upload progress bar */}
+          {uploading && (
+            <div style={{ marginTop: 10, height: 4, borderRadius: 4, background: "#E8EEF6", overflow: "hidden" }}>
+              <div style={{
+                height: "100%", width: `${uploadProgress}%`,
+                background: "#185FA5", transition: "width .2s ease",
+              }} />
+            </div>
+          )}
 
           {/* Preview */}
           <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10, background: "#F8FAFC", borderRadius: 10, padding: "10px 12px", border: "1px solid #E8EEF6" }}>
-            {previewLogo ? (
-              <img src={previewLogo} alt="الشعار" style={{ width: 40, height: 40, borderRadius: 10, objectFit: "cover" }} />
+            {logoUrl ? (
+              <img src={logoUrl} alt="الشعار" style={{ width: 40, height: 40, borderRadius: 10, objectFit: "cover" }} />
             ) : (
               <div style={{ width: 40, height: 40, borderRadius: 10, background: color, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <School size={18} color="#fff" />
@@ -173,11 +267,12 @@ export default function Settings() {
               <p style={{ fontSize: 12, fontWeight: 700, color: "#0F172A", margin: 0 }}>{schoolName}</p>
               <p style={{ fontSize: 10, color: "#94A3B8", margin: 0 }}>معاينة في الشريط الجانبي</p>
             </div>
-            {previewLogo && (
+            {logoUrl && !uploading && (
               <button
-                onClick={() => { setPreviewLogo(null); localStorage.removeItem(LS_LOGO_KEY); }}
-                style={{ marginRight: "auto", fontSize: 10, color: "#DC2626", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 6, padding: "2px 8px", cursor: "pointer", fontFamily: "inherit" }}
+                onClick={removeLogo}
+                style={{ marginRight: "auto", fontSize: 10, color: "#DC2626", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 6, padding: "2px 8px", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4 }}
               >
+                <X size={11} />
                 حذف
               </button>
             )}
@@ -240,9 +335,16 @@ export default function Settings() {
           حفظ إعدادات العرض
         </button>
         <p style={{ fontSize: 11, color: "#94A3B8", marginTop: 6 }}>
-          بيانات المدرسة لا يمكن تعديلها من هنا — تواصل مع الدعم
+          الشعار محفوظ مباشرة عند الرفع — بيانات المدرسة الأخرى لا يمكن تعديلها من هنا
         </p>
       </div>
+
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }

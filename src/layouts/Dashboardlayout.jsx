@@ -1,9 +1,11 @@
 import { Outlet } from "react-router";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
+import { SchoolProvider } from "../context/SchoolContext";
 
 export default function DashboardLayout() {
   return (
+    <SchoolProvider>
     <div
       className="flex h-screen bg-gray-50 overflow-hidden"
       style={{ fontFamily: "'Cairo', sans-serif" }}
@@ -16,5 +18,6 @@ export default function DashboardLayout() {
         </main>
       </div>
     </div>
+    </SchoolProvider>
   );
 }

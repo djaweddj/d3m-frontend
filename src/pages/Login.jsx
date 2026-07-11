@@ -25,6 +25,21 @@ export default function Login() {
 
   const navigate = useNavigate();
   const {login,user,loading}=useAuth();
+  const [cooldown, setCooldown] = useState(0); // seconds remaining
+
+const startCooldown = (seconds) => {
+  setCooldown(seconds);
+  const interval = setInterval(() => {
+    setCooldown((prev) => {
+      if (prev <= 1) {
+        clearInterval(interval);
+        setError("");
+        return 0;
+      }
+      return prev - 1;
+    });
+  }, 1000);
+};
 
 useEffect(() => {
    console.log("🔥 useEffect fired, user:", user);
@@ -39,32 +54,58 @@ useEffect(() => {
   }
 }, [user, navigate]);
 
-    const handleSubmit = async (e) => {
+ const handleSubmit = async (e) => {
   e.preventDefault();
+  setError("");
 
   try {
     await login(email, password);
-     console.log("user :", user);
   } catch (err) {
-     setError("login failed email or password are incorrect");
+    const status = err?.response?.status;
+
+   if (status === 429) {
+
+  const retryAfter = err?.response?.data?.retryAfter
+    ?? parseInt(err?.response?.headers?.["retry-after"])
+    ?? 60;
+
+  setError("too_many");
+  startCooldown(retryAfter);
+
+    } else if (status === 403 || status === 401) {
+      setError("البريد الإلكتروني أو كلمة المرور غير صحيحة");
+    } else {
+      setError("حدث خطأ في الاتصال، يرجى المحاولة لاحقاً");
+    }
   }
 };
 
   return (
     <div style={styles.container}>
       {/* Alert */}
-      {error && (
-        <div style={styles.alert}>
-          <span>{error}</span>
-
-          <button
-            onClick={() => setError("")}
-            style={styles.alertClose}
-          >
-            ×
-          </button>
-        </div>
+    {error && (
+  <div style={styles.alert}>
+    <span>
+      {error === "too_many" ? (
+        <>
+          ⛔ تجاوزت الحد المسموح به من المحاولات.{" "}
+          {cooldown > 0 && (
+            <strong>
+              انتظر {cooldown} ثانية قبل المحاولة مجدداً.
+            </strong>
+          )}
+        </>
+      ) : (
+        error
       )}
+    </span>
+    {cooldown === 0 && (
+      <button onClick={() => setError("")} style={styles.alertClose}>
+        ×
+      </button>
+    )}
+  </div>
+)}
 
       {/* Left Side */}
       <div style={styles.leftSide}>
@@ -192,25 +233,29 @@ useEffect(() => {
         
 
             {/* Submit */}
-            <button
-              type="submit"
-              disabled={loading}
-              style={styles.submitButton}
-            >
-              {loading ? (
-                <>
-                  <span style={styles.spinner}></span>
-                  Signing in...
-                </>
-              ) : (
-                <>
-                  Sign In
-                  <ArrowForwardOutlinedIcon
-                    style={styles.buttonIcon}
-                  />
-                </>
-              )}
-            </button>
+         <button
+  type="submit"
+  disabled={loading || cooldown > 0}
+  style={{
+    ...styles.submitButton,
+    backgroundColor: cooldown > 0 ? "#94a3b8" : "#2563eb",
+    cursor: cooldown > 0 ? "not-allowed" : "pointer",
+  }}
+>
+  {loading ? (
+    <>
+      <span style={styles.spinner}></span>
+      Signing in...
+    </>
+  ) : cooldown > 0 ? (
+    `انتظر ${cooldown}s`
+  ) : (
+    <>
+      Sign In
+      <ArrowForwardOutlinedIcon style={styles.buttonIcon} />
+    </>
+  )}
+</button>
 
             {/* Signup */}
             <div style={styles.signupContainer}>

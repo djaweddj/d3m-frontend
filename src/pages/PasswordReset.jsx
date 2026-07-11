@@ -204,19 +204,43 @@ function OtpCell({ value, inputRef, onChange, onKeyDown, onPaste }) {
 }
 
 function VerifyOtpPage({ email, onSuccess, onBack }) {
-  const [digits, setDigits] = useState(Array(6).fill(""));
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [digits,         setDigits]         = useState(Array(6).fill(""));
+  const [loading,        setLoading]        = useState(false);
+  const [error,          setError]          = useState("");
+  const [errorType,      setErrorType]      = useState(null);   // "rate_limit" | "invalid" | null
+
+  // Resend cooldown (starts at 60s when page loads, resets after resend)
   const [resendCooldown, setResendCooldown] = useState(60);
-  const [resending, setResending] = useState(false);
+  const [resending,      setResending]      = useState(false);
+
+  // Submit cooldown — triggered when rate-limited on verify attempts
+  const [submitCooldown, setSubmitCooldown] = useState(0);
+
   const inputRefs = useRef([]);
 
-  // Countdown timer
+  // ── Resend countdown ────────────────────────────────────────────
   useEffect(() => {
     if (resendCooldown <= 0) return;
     const t = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
     return () => clearTimeout(t);
   }, [resendCooldown]);
+
+  // ── Submit cooldown (rate limit) ────────────────────────────────
+  useEffect(() => {
+    if (submitCooldown <= 0) return;
+    const t = setTimeout(() => {
+      setSubmitCooldown((c) => {
+        if (c <= 1) {
+          // Auto-clear the rate limit error when cooldown ends
+          setError("");
+          setErrorType(null);
+          return 0;
+        }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [submitCooldown]);
 
   const focusAt = (i) => inputRefs.current[i]?.focus();
 
@@ -225,19 +249,24 @@ function VerifyOtpPage({ email, onSuccess, onBack }) {
     const next = [...digits];
     next[i] = char;
     setDigits(next);
-    setError("");
+    if (errorType !== "rate_limit") {
+      setError("");
+      setErrorType(null);
+    }
     if (char && i < 5) focusAt(i + 1);
   };
 
   const handleKeyDown = (i, e) => {
     if (e.key === "Backspace") {
       if (digits[i]) {
-        const next = [...digits]; next[i] = ""; setDigits(next);
+        const next = [...digits];
+        next[i] = "";
+        setDigits(next);
       } else if (i > 0) {
         focusAt(i - 1);
       }
     }
-    if (e.key === "ArrowLeft" && i > 0) focusAt(i - 1);
+    if (e.key === "ArrowLeft"  && i > 0) focusAt(i - 1);
     if (e.key === "ArrowRight" && i < 5) focusAt(i + 1);
   };
 
@@ -251,64 +280,193 @@ function VerifyOtpPage({ email, onSuccess, onBack }) {
     focusAt(Math.min(pasted.length, 5));
   };
 
+  // ── Verify OTP ──────────────────────────────────────────────────
   const handleSubmit = async () => {
+    if (submitCooldown > 0) return; // blocked by rate limit
+
     const otp = digits.join("");
-    if (otp.length < 6) { setError("Enter all 6 digits of your code."); return; }
+    if (otp.length < 6) {
+      setError("أدخل جميع الأرقام الستة.");
+      return;
+    }
+
     setError("");
+    setErrorType(null);
     setLoading(true);
+
     try {
       const res = await fetch(`${API_BASE}/auth/verify-otp`, {
-        method: "POST",
+        method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, otp }),
+        body:    JSON.stringify({ email, otp }),
       });
+
+      // ── 429: rate limited ──────────────────────────────────────
+      if (res.status === 429) {
+        const data       = await res.json().catch(() => ({}));
+        const retryAfter = data.retryAfter
+          ?? parseInt(res.headers.get("Retry-After"))
+          ?? 120; // default to 2 min (matches your /auth/verify-otp policy)
+
+        setErrorType("rate_limit");
+        setError("rate_limit");
+        setSubmitCooldown(retryAfter);
+
+        // Clear OTP digits so user can't keep retrying the same code
+        setDigits(Array(6).fill(""));
+        focusAt(0);
+        return;
+      }
+
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || "Invalid or expired code.");
+
+      if (!res.ok) {
+        setErrorType("invalid");
+        setError(data.message || "الرمز غير صحيح أو منتهي الصلاحية.");
+        setDigits(Array(6).fill(""));
+        focusAt(0);
+        return;
+      }
+
       onSuccess(data.resetToken);
-    } catch (e) {
-      setError(e.message);
-      setDigits(Array(6).fill(""));
-      focusAt(0);
+
+    } catch {
+      setErrorType("invalid");
+      setError("خطأ في الاتصال، يرجى المحاولة مجدداً.");
     } finally {
       setLoading(false);
     }
   };
 
+  // ── Resend OTP ──────────────────────────────────────────────────
   const handleResend = async () => {
-    if (resendCooldown > 0) return;
+    if (resendCooldown > 0 || resending) return;
+
     setResending(true);
     setError("");
+    setErrorType(null);
+
     try {
-      await fetch(`${API_BASE}/auth/forgot-password`, {
-        method: "POST",
+      const res = await fetch(`${API_BASE}/auth/forgot-password`, {
+        method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body:    JSON.stringify({ email }),
       });
+
+      // ── 429 on resend too ──────────────────────────────────────
+      if (res.status === 429) {
+        const data       = await res.json().catch(() => ({}));
+        const retryAfter = data.retryAfter
+          ?? parseInt(res.headers.get("Retry-After"))
+          ?? 900; // 15 min matches your forgot-password policy
+
+        setErrorType("rate_limit");
+        setError("resend_rate_limit");
+        setResendCooldown(retryAfter);
+        return;
+      }
+
+      // Success — reset resend timer and clear fields
       setResendCooldown(60);
       setDigits(Array(6).fill(""));
+      setSubmitCooldown(0); // allow submitting again with new code
       focusAt(0);
+
     } finally {
       setResending(false);
     }
   };
 
+  // ── Derived values ──────────────────────────────────────────────
+  const isSubmitBlocked = submitCooldown > 0;
+  const otpComplete     = digits.join("").length === 6;
+
+  // ── Render ──────────────────────────────────────────────────────
   return (
     <Card>
       <Logo />
       <StepDots current={2} />
-      <h1 className="text-2xl font-bold text-slate-800 mb-1">Check your inbox</h1>
+
+      <h1 className="text-2xl font-bold text-slate-800 mb-1">
+        تحقق من بريدك الإلكتروني
+      </h1>
       <p className="text-sm text-slate-500 mb-1">
-        We sent a 6-digit code to
+        أرسلنا رمزاً من 6 أرقام إلى
       </p>
-      <p className="text-sm font-semibold text-blue-600 mb-6 break-all">{email} </p>
-        <p className="text-sm text-slate-500 mb-1">
-       check your spam !
+      <p className="text-sm font-semibold text-blue-600 mb-1 break-all">
+        {email}
+      </p>
+      <p className="text-sm text-slate-400 mb-6">
+        تحقق من مجلد الرسائل غير المرغوب فيها (Spam)
       </p>
 
-      <Alert type="error" message={error} />
+      {/* ── Error messages ── */}
+      {error === "rate_limit" && (
+        <div style={{
+          background: "#fef2f2",
+          border: "1px solid #fecaca",
+          borderRadius: 10,
+          padding: "12px 16px",
+          marginBottom: 16,
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 16 }}>⛔</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#991b1b" }}>
+              تجاوزت الحد المسموح به من المحاولات
+            </span>
+          </div>
+          {submitCooldown > 0 && (
+            <p style={{ fontSize: 12, color: "#b91c1c", margin: 0, paddingRight: 24 }}>
+              انتظر{" "}
+              <strong>{submitCooldown} ثانية</strong>{" "}
+              قبل المحاولة مجدداً
+            </p>
+          )}
+        </div>
+      )}
 
-      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Verification code</label>
-      <div className="flex gap-2 justify-between mb-6">
+      {error === "resend_rate_limit" && (
+        <div style={{
+          background: "#fffbeb",
+          border: "1px solid #fde68a",
+          borderRadius: 10,
+          padding: "12px 16px",
+          marginBottom: 16,
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 16 }}>⚠️</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#92400e" }}>
+              تجاوزت الحد المسموح من إعادة الإرسال
+            </span>
+          </div>
+          <p style={{ fontSize: 12, color: "#78350f", margin: 0, paddingRight: 24 }}>
+            يمكنك إعادة الإرسال بعد{" "}
+            <strong>
+              {Math.floor(resendCooldown / 60) > 0
+                ? `${Math.floor(resendCooldown / 60)} دقيقة و${resendCooldown % 60} ثانية`
+                : `${resendCooldown} ثانية`}
+            </strong>
+          </p>
+        </div>
+      )}
+
+      {error && error !== "rate_limit" && error !== "resend_rate_limit" && (
+        <Alert type="error" message={error} />
+      )}
+
+      {/* ── OTP Input ── */}
+      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+        رمز التحقق
+      </label>
+
+      <div className="flex gap-2 justify-between mb-6"
+        style={{ opacity: isSubmitBlocked ? 0.5 : 1, transition: "opacity .3s" }}>
         {digits.map((d, i) => (
           <OtpCell
             key={i}
@@ -317,22 +475,104 @@ function VerifyOtpPage({ email, onSuccess, onBack }) {
             onChange={(e) => handleChange(i, e.target.value)}
             onKeyDown={(e) => handleKeyDown(i, e)}
             onPaste={i === 0 ? handlePaste : undefined}
+            disabled={isSubmitBlocked}
+            style={{
+              borderColor: isSubmitBlocked ? "#fca5a5"
+                : errorType === "invalid" ? "#fca5a5"
+                : undefined,
+            }}
           />
         ))}
       </div>
 
-      <Button loading={loading} onClick={handleSubmit} disabled={digits.join("").length < 6}>Verify code</Button>
+      {/* ── Submit button ── */}
+      <button
+        onClick={handleSubmit}
+        disabled={loading || isSubmitBlocked || !otpComplete}
+        style={{
+          width: "100%",
+          height: 48,
+          borderRadius: 12,
+          border: "none",
+          background: isSubmitBlocked
+            ? "#94a3b8"
+            : !otpComplete
+            ? "#cbd5e1"
+            : "#2563eb",
+          color: "#fff",
+          fontSize: 14,
+          fontWeight: 700,
+          cursor: loading || isSubmitBlocked || !otpComplete
+            ? "not-allowed"
+            : "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
+          transition: "background .2s",
+        }}
+      >
+        {loading ? (
+          <>
+            <span style={{
+              width: 16, height: 16, borderRadius: "50%",
+              border: "2px solid rgba(255,255,255,.4)",
+              borderTopColor: "#fff",
+              animation: "spin 0.8s linear infinite",
+              display: "inline-block",
+            }} />
+            جارٍ التحقق...
+          </>
+        ) : isSubmitBlocked ? (
+          // Live countdown on the button
+          `انتظر ${submitCooldown}s`
+        ) : (
+          "تحقق من الرمز"
+        )}
+      </button>
 
-      <div className="flex items-center justify-between mt-5 text-sm">
-        <button onClick={onBack} className="text-slate-400 hover:text-slate-600 transition-colors">← Change email</button>
+      {/* ── Footer: back + resend ── */}
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginTop: 20,
+        fontSize: 13,
+      }}>
+        <button
+          onClick={onBack}
+          style={{ color: "#94a3b8", background: "none", border: "none", cursor: "pointer" }}
+          onMouseEnter={e => e.currentTarget.style.color = "#475569"}
+          onMouseLeave={e => e.currentTarget.style.color = "#94a3b8"}
+        >
+          ← تغيير البريد الإلكتروني
+        </button>
+
         <button
           onClick={handleResend}
           disabled={resendCooldown > 0 || resending}
-          className="text-blue-600 hover:text-blue-700 disabled:text-slate-400 disabled:cursor-default transition-colors font-medium"
+          style={{
+            background: "none",
+            border: "none",
+            cursor: resendCooldown > 0 || resending ? "default" : "pointer",
+            color: resendCooldown > 0 || resending ? "#94a3b8" : "#2563eb",
+            fontWeight: 600,
+            fontSize: 13,
+            transition: "color .15s",
+          }}
         >
-          {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : resending ? "Sending…" : "Resend code"}
+          {resending
+            ? "جارٍ الإرسال..."
+            : resendCooldown > 0
+            // Show MM:SS format if more than 60s remaining (rate limited)
+            ? resendCooldown > 60
+              ? `إعادة الإرسال بعد ${Math.floor(resendCooldown / 60)}:${String(resendCooldown % 60).padStart(2, "0")}`
+              : `إعادة الإرسال بعد ${resendCooldown}s`
+            : "إعادة إرسال الرمز"}
         </button>
       </div>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </Card>
   );
 }

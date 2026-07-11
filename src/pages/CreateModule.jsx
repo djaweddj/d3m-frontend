@@ -225,6 +225,25 @@ export default function CreateModule() {
   const [saving,         setSaving]         = useState(false);
   const [error,          setError]          = useState(null);
   const [success,        setSuccess]        = useState(false);
+  
+const [customLevel, setCustomLevel] = useState("");
+
+const levels = [
+  "التحضيري",
+  "السنة الأولى ابتدائي",
+  "السنة الثانية ابتدائي",
+  "السنة الثالثة ابتدائي",
+  "السنة الرابعة ابتدائي",
+  "السنة الخامسة ابتدائي",
+  "السنة الأولى متوسط",
+  "السنة الثانية متوسط",
+  "السنة الثالثة متوسط",
+  "السنة الرابعة متوسط",
+  "السنة الأولى ثانوي",
+  "السنة الثانية ثانوي",
+  "السنة الثالثة ثانوي (البكالوريا)",
+  "مستوى آخر...",
+];
 
   useEffect(() => {
     Promise.all([getSubjects(), getTeachers(), getClassrooms()])
@@ -284,7 +303,7 @@ export default function CreateModule() {
         subjectId:      Number(subjectId),
         teacherId:      Number(teacherId),
         classroomId:    Number(classroomId),
-        level:          level.trim(),
+        level:          "مستوى آخر..." ? customLevel : level,
         maxStudents:    Number(maxStudents),
         pricingModel,
         monthlyprice:    pricingModel === "MONTHLY_FLAT" ? Number(monthlyPrice)    : null,
@@ -349,10 +368,40 @@ export default function CreateModule() {
               <Label required>اسم الوحدة</Label>
               <TextInput value={name} onChange={setName} placeholder="مثال: Math 3ème - Group A" />
             </Field>
-            <Field>
-              <Label required>المستوى الدراسي</Label>
-              <TextInput value={level} onChange={setLevel} placeholder="مثال: 3ème, 2AS..." />
-            </Field>
+           <Field>
+  <Label required>المستوى الدراسي</Label>
+
+  <select
+    value={level}
+    onChange={(e) => {
+      setLevel(e.target.value);
+
+      // Clear custom value if another option is selected
+      if (e.target.value !== "مستوى آخر...") {
+        setCustomLevel("");
+      }
+    }}
+    className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+  >
+    <option value="">اختر المستوى الدراسي</option>
+
+    {levels.map((item) => (
+      <option key={item} value={item}>
+        {item}
+      </option>
+    ))}
+  </select>
+
+  {level === "مستوى آخر..." && (
+    <div className="mt-3">
+      <TextInput
+        value={customLevel}
+        onChange={setCustomLevel}
+        placeholder="أدخل المستوى الدراسي"
+      />
+    </div>
+  )}
+</Field>
           </Row>
           <Row cols={1}>
             <Field>

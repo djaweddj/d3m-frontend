@@ -1,22 +1,241 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../api.jsx";
 import { useAuth } from "../context/authContext";
 
-// ── Day ordering & labels ─────────────────────────────────────────
-const DAY_ORDER = ["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"];
-const DAY_LABELS = {
-  SUNDAY:    "الأحد",
-  MONDAY:    "الاثنين",
-  TUESDAY:   "الثلاثاء",
-  WEDNESDAY: "الأربعاء",
-  THURSDAY:  "الخميس",
-  FRIDAY:    "الجمعة",
-  SATURDAY:  "السبت",
+/* ============================================================
+   DESIGN TOKENS
+   Palette: ink blue (institutional), warm paper bg, amber accent
+   (Algerian tile warmth), success green, quiet ink text.
+   ============================================================ */
+const T = {
+  ink:        "#0B3D5C",
+  inkDeep:    "#082C43",
+  paper:      "#FBF8F3",
+  paperDim:   "#F3EEE4",
+  amber:      "#D68C34",
+  amberDeep:  "#B36F1F",
+  green:      "#1F7A5C",
+  greenBg:    "#E9F5EF",
+  red:        "#B93B3B",
+  redBg:      "#FBEDEC",
+  text:       "#1A2332",
+  textMute:   "#5B6472",
+  textFaint:  "#93989E",
+  line:       "#E7E0D2",
+  lineSoft:   "#EFE9DD",
+  white:      "#FFFFFF",
 };
 
-// ── Hooks ─────────────────────────────────────────────────────────
-function useInView(threshold = 0.15) {
+const DAY_ORDER = ["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"];
+const DAY_LABELS = {
+  SUNDAY: "الأحد", MONDAY: "الاثنين", TUESDAY: "الثلاثاء",
+  WEDNESDAY: "الأربعاء", THURSDAY: "الخميس", FRIDAY: "الجمعة", SATURDAY: "السبت",
+};
+const DAY_SHORT = {
+  SUNDAY: "أحد", MONDAY: "اثن", TUESDAY: "ثلا",
+  WEDNESDAY: "أرب", THURSDAY: "خمي", FRIDAY: "جمع", SATURDAY: "سبت",
+};
+
+/* ============================================================
+   GLOBAL KEYFRAMES — injected once
+   ============================================================ */
+function GlobalStyles() {
+  return (
+    <style>{`
+      @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(22px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes fadeIn {
+        from { opacity: 0; } to { opacity: 1; }
+      }
+      @keyframes scaleIn {
+        from { opacity: 0; transform: scale(.92); }
+        to   { opacity: 1; transform: scale(1); }
+      }
+      @keyframes popIn {
+        0%   { opacity: 0; transform: scale(.9) translateY(8px); }
+        60%  { opacity: 1; transform: scale(1.015) translateY(0); }
+        100% { transform: scale(1); }
+      }
+      @keyframes slideUp {
+        from { opacity: 0; transform: translate(-50%, 18px); }
+        to   { opacity: 1; transform: translate(-50%, 0); }
+      }
+      @keyframes shimmer {
+        0%   { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+      }
+      @keyframes drawLine {
+        from { width: 0; } to { width: 100%; }
+      }
+      @keyframes pulseDot {
+        0%, 100% { opacity: 1; } 50% { opacity: .35; }
+      }
+      @keyframes floatSlow {
+        0%, 100% { transform: translateY(0) rotate(0deg); }
+        50%      { transform: translateY(-14px) rotate(2deg); }
+      }
+      @keyframes floatSlower {
+        0%, 100% { transform: translateY(0); }
+        50%      { transform: translateY(12px); }
+      }
+      @keyframes spin {
+        from { transform: rotate(0deg); } to { transform: rotate(360deg); }
+      }
+      @keyframes checkPop {
+        0%   { transform: scale(0) rotate(-20deg); opacity: 0; }
+        70%  { transform: scale(1.2) rotate(4deg); }
+        100% { transform: scale(1) rotate(0deg); opacity: 1; }
+      }
+
+      * { box-sizing: border-box; }
+      .sd-root { font-family: 'Tajawal', 'Segoe UI', system-ui, Arial, sans-serif; }
+      .sd-serif { font-family: 'Georgia', 'Times New Roman', serif; }
+
+      .sd-fade-up { animation: fadeUp .6s cubic-bezier(.22,1,.36,1) both; }
+      .sd-scale-in { animation: scaleIn .35s cubic-bezier(.22,1,.36,1) both; }
+
+      .sd-crumb a { transition: color .15s ease; }
+      .sd-crumb a:hover { color: ${T.amberDeep} !important; }
+
+      .sd-daytab { position: relative; overflow: hidden; }
+      .sd-daytab::after {
+        content: ""; position: absolute; bottom: 0; right: 0; left: 0;
+        height: 2px; background: ${T.amber}; width: 0;
+        transition: width .25s ease;
+      }
+      .sd-daytab:hover::after { width: 100%; }
+      .sd-daytab.active::after { width: 100%; background: rgba(255,255,255,.7); }
+
+      .sd-teacher-card {
+        transition: transform .28s cubic-bezier(.22,1,.36,1), box-shadow .28s ease, border-color .28s ease;
+      }
+      .sd-teacher-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 14px 34px rgba(11,61,92,.12);
+        border-color: ${T.amber}55 !important;
+      }
+      .sd-teacher-avatar {
+        transition: transform .28s cubic-bezier(.22,1,.36,1);
+      }
+      .sd-teacher-card:hover .sd-teacher-avatar { transform: scale(1.08) rotate(-4deg); }
+
+      .sd-module-row {
+        transition: box-shadow .25s ease, border-color .25s ease, transform .25s ease;
+      }
+      .sd-module-row:hover {
+        box-shadow: 0 10px 28px rgba(11,61,92,.10);
+        border-color: ${T.ink}22;
+        transform: translateY(-2px);
+      }
+
+      .sd-btn-primary {
+        transition: transform .15s ease, box-shadow .2s ease, filter .15s ease;
+      }
+      .sd-btn-primary:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 8px 20px rgba(11,61,92,.28);
+        filter: brightness(1.06);
+      }
+      .sd-btn-primary:active:not(:disabled) { transform: translateY(0); }
+
+      .sd-btn-ghost { transition: background .15s ease, border-color .15s ease, color .15s ease; }
+
+      .sd-stat-card {
+        transition: transform .25s cubic-bezier(.22,1,.36,1), box-shadow .25s ease;
+      }
+      .sd-stat-card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(11,61,92,.10); }
+
+      .sd-pill-pending { animation: pulseDot 1.8s ease-in-out infinite; }
+
+      .sd-modal-overlay { animation: fadeIn .2s ease both; }
+      .sd-modal-card { animation: popIn .32s cubic-bezier(.22,1,.36,1) both; }
+
+      .sd-toast { animation: slideUp .35s cubic-bezier(.22,1,.36,1) both; }
+
+      .sd-skel {
+        background: linear-gradient(90deg, ${T.paperDim} 25%, #ece4d3 50%, ${T.paperDim} 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+      }
+
+      .sd-orb1 { animation: floatSlow 9s ease-in-out infinite; }
+      .sd-orb2 { animation: floatSlower 11s ease-in-out infinite; }
+
+      .sd-check-badge { animation: checkPop .4s cubic-bezier(.22,1.6,.36,1) both; }
+
+      .sd-spinner {
+        animation: spin .7s linear infinite;
+      }
+
+      .sd-cap-bar-fill {
+        transition: width 1s cubic-bezier(.22,1,.36,1);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .sd-fade-up, .sd-scale-in, .sd-modal-card, .sd-toast, .sd-check-badge,
+        .sd-orb1, .sd-orb2, .sd-pill-pending, .sd-skel { animation: none !important; }
+      }
+
+      /* ---- Responsive grid ---- */
+      .sd-layout {
+        display: grid;
+        grid-template-columns: 1fr 300px;
+        gap: 28px;
+        align-items: start;
+      }
+      .sd-info-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px 28px;
+      }
+      .sd-stats-row { display: flex; gap: 14px; }
+      .sd-teachers-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+        gap: 14px;
+      }
+      .sd-sidebar-sticky { position: sticky; top: 20px; }
+      .sd-hero-pad { padding: 3rem 1.75rem 3.25rem; }
+      .sd-main-pad { padding: 2rem 1.75rem 4rem; }
+
+      @media (max-width: 860px) {
+        .sd-layout { grid-template-columns: 1fr; gap: 20px; }
+        .sd-sidebar-sticky { position: static; }
+        .sd-info-grid { grid-template-columns: 1fr; }
+        .sd-hero-pad { padding: 2.25rem 1.25rem 2.5rem; }
+        .sd-main-pad { padding: 1.5rem 1.25rem 3rem; }
+        .sd-stats-row { flex-wrap: wrap; }
+        .sd-stats-row > * { min-width: calc(50% - 7px); }
+        .sd-module-row { flex-wrap: wrap; }
+        .sd-module-price-col {
+          flex-direction: row !important;
+          align-items: center !important;
+          justify-content: space-between !important;
+          width: 100%;
+          text-align: right !important;
+          margin-top: 10px;
+          padding-top: 10px;
+          border-top: 1px dashed ${T.line};
+        }
+        .sd-hero-logo { display: none; }
+        .sd-hero-title { font-size: 24px !important; }
+      }
+
+      @media (max-width: 480px) {
+        .sd-stats-row > * { min-width: 100%; }
+        .sd-daytabs-scroll { padding-bottom: 4px; }
+      }
+    `}</style>
+  );
+}
+
+/* ============================================================
+   Hooks
+   ============================================================ */
+function useInView(threshold = 0.12) {
   const ref = useRef(null);
   const [visible, setVisible] = useState(false);
   useEffect(() => {
@@ -31,102 +250,100 @@ function useInView(threshold = 0.15) {
   return [ref, visible];
 }
 
-// ── Fade-in wrapper ───────────────────────────────────────────────
-function Reveal({ children, delay = 0, style = {} }) {
+function Reveal({ children, delay = 0 }) {
   const [ref, visible] = useInView();
   return (
     <div
       ref={ref}
-      style={{
-        opacity: visible ? 1 : 0,
-        transform: visible ? "translateY(0)" : "translateY(18px)",
-        transition: `opacity 0.5s ease ${delay}s, transform 0.5s ease ${delay}s`,
-        ...style,
-      }}
+      className={visible ? "sd-fade-up" : ""}
+      style={{ opacity: visible ? undefined : 0, animationDelay: `${delay}s` }}
     >
       {children}
     </div>
   );
 }
 
-// ── Status badge ──────────────────────────────────────────────────
+/* ============================================================
+   Status badge (subscription)
+   ============================================================ */
 const STATUS = {
-  ACTIVE:    { label: "نشط",     color: "#0F6E56", bg: "#e6f4f1" },
-  TRIAL:     { label: "تجريبي", color: "#BA7517", bg: "#fdf3e3" },
-  EXPIRED:   { label: "منتهي",  color: "#b91c1c", bg: "#fef2f2" },
-  SUSPENDED: { label: "موقوف", color: "#6b7280", bg: "#f3f4f6" },
+  ACTIVE:    { label: "نشط",     color: T.green,  bg: T.greenBg },
+  TRIAL:     { label: "تجريبي",  color: T.amberDeep, bg: "#FCF1E2" },
+  EXPIRED:   { label: "منتهي",   color: T.red,    bg: T.redBg },
+  SUSPENDED: { label: "موقوف",   color: "#6b7280", bg: "#f3f4f6" },
 };
 function StatusBadge({ status }) {
-  const s = STATUS[status] || { label: status, color: "#185FA5", bg: "#eff6ff" };
+  const s = STATUS[status] || { label: status, color: T.ink, bg: "#eef4f8" };
   return (
     <span style={{
       background: s.bg, color: s.color,
-      border: `1px solid ${s.color}33`,
-      borderRadius: 999, padding: "4px 14px",
-      fontSize: 12, fontWeight: 600, display: "inline-block",
+      border: `1px solid ${s.color}35`,
+      borderRadius: 999, padding: "5px 15px",
+      fontSize: 12, fontWeight: 700, display: "inline-flex",
+      alignItems: "center", gap: 6, letterSpacing: ".2px",
     }}>
+      <span style={{
+        width: 6, height: 6, borderRadius: "50%", background: s.color,
+        animation: status === "ACTIVE" ? "pulseDot 2s ease-in-out infinite" : "none",
+      }} />
       {s.label}
     </span>
   );
 }
 
-// ── Stat card ─────────────────────────────────────────────────────
-function StatCard({ icon, value, label }) {
+/* ============================================================
+   Stat card
+   ============================================================ */
+function StatCard({ icon, value, label, delay }) {
   return (
-    <div style={{
-      background: "#fff", border: "0.5px solid #e2e8f0",
-      borderRadius: 12, padding: "1rem 1.25rem",
-      display: "flex", flexDirection: "column", gap: 4,
+    <div className="sd-stat-card sd-scale-in" style={{
+      animationDelay: `${delay}s`,
+      background: T.white, border: `1px solid ${T.line}`,
+      borderRadius: 14, padding: "1.1rem 1.25rem",
+      display: "flex", flexDirection: "column", gap: 5,
       flex: 1, minWidth: 0,
     }}>
       <span style={{ fontSize: 22 }}>{icon}</span>
-      <span style={{ fontSize: 22, fontWeight: 600, color: "#0f172a", lineHeight: 1.2 }}>
+      <span className="sd-serif" style={{ fontSize: 24, fontWeight: 700, color: T.ink, lineHeight: 1.1 }}>
         {value}
       </span>
-      <span style={{ fontSize: 12, color: "#64748b" }}>{label}</span>
+      <span style={{ fontSize: 12, color: T.textMute, fontWeight: 500 }}>{label}</span>
     </div>
   );
 }
 
-// ── Teacher card ──────────────────────────────────────────────────
+/* ============================================================
+   Teacher card
+   ============================================================ */
 function TeacherCard({ teacher, index }) {
   const initials = teacher.fullName
     .split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
-  const colors = ["#185FA5","#0F6E56","#BA7517","#7c3aed","#be185d"];
-  const bg = colors[index % colors.length];
+  const palette = [T.ink, T.green, T.amberDeep, "#6D4AAE", "#B14C7A"];
+  const bg = palette[index % palette.length];
 
   return (
-    <Reveal delay={index * 0.07}>
-      <div style={{
-        background: "#fff", border: "0.5px solid #e2e8f0",
-        borderRadius: 12, padding: "1.25rem",
+    <Reveal delay={index * 0.06}>
+      <div className="sd-teacher-card" style={{
+        background: T.white, border: `1px solid ${T.line}`,
+        borderRadius: 14, padding: "1.25rem",
         display: "flex", flexDirection: "column", gap: "0.75rem",
-        height: "100%", boxSizing: "border-box",
-        transition: "box-shadow 0.2s, transform 0.2s",
-      }}
-        onMouseEnter={e => {
-          e.currentTarget.style.boxShadow = "0 4px 20px rgba(24,95,165,.12)";
-          e.currentTarget.style.transform = "translateY(-2px)";
-        }}
-        onMouseLeave={e => {
-          e.currentTarget.style.boxShadow = "none";
-          e.currentTarget.style.transform = "none";
-        }}
-      >
+        height: "100%",
+      }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: "50%",
-            background: bg, display: "flex",
-            alignItems: "center", justifyContent: "center",
-            color: "#fff", fontWeight: 600, fontSize: 15, flexShrink: 0,
+          <div className="sd-teacher-avatar" style={{
+            width: 46, height: 46, borderRadius: "50%",
+            background: `linear-gradient(135deg, ${bg}, ${bg}cc)`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            color: "#fff", fontWeight: 700, fontSize: 15, flexShrink: 0,
+            boxShadow: `0 4px 12px ${bg}40`,
           }}>
             {initials}
           </div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 500, fontSize: 14, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            <div style={{ fontWeight: 600, fontSize: 14, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {teacher.fullName}
             </div>
-            <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: T.textMute, marginTop: 2 }}>
               {teacher.specialization}
             </div>
           </div>
@@ -134,9 +351,8 @@ function TeacherCard({ teacher, index }) {
 
         {teacher.bio && (
           <p style={{
-            fontSize: 12, color: "#64748b", lineHeight: 1.6,
-            margin: 0, display: "-webkit-box",
-            WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
+            fontSize: 12, color: T.textMute, lineHeight: 1.6, margin: 0,
+            display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
           }}>
             {teacher.bio}
           </p>
@@ -146,9 +362,8 @@ function TeacherCard({ teacher, index }) {
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {teacher.subjectNames.map((s) => (
               <span key={s} style={{
-                background: `${bg}15`, color: bg,
-                border: `1px solid ${bg}30`,
-                borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 500,
+                background: `${bg}14`, color: bg, border: `1px solid ${bg}2e`,
+                borderRadius: 7, padding: "3px 10px", fontSize: 11, fontWeight: 600,
               }}>
                 {s}
               </span>
@@ -160,102 +375,92 @@ function TeacherCard({ teacher, index }) {
   );
 }
 
-// ── Module row in schedule ────────────────────────────────────────
-function ModuleRow({ mod, onEnroll, enrolledIds, pendingId }) {
+/* ============================================================
+   Module row (timetable-style)
+   ============================================================ */
+function ModuleRow({ mod, onEnroll, isEnrolled, isPending }) {
   const isFull = mod.full;
-  const isEnrolled = enrolledIds?.includes(mod.moduleId);
-  const isPending = pendingId === mod.moduleId;
   const pct = Math.min(100, Math.round((mod.enrolledCount / mod.maxStudents) * 100));
 
   return (
-    <div style={{
-      background: "#fff", border: "0.5px solid #e2e8f0",
-      borderRadius: 10, padding: "1rem",
+    <div className="sd-module-row" style={{
+      background: T.white, border: `1px solid ${T.line}`,
+      borderRadius: 12, padding: "1rem",
       display: "flex", alignItems: "center", gap: "1rem",
-      transition: "box-shadow 0.2s",
-    }}
-      onMouseEnter={e => e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,.06)"}
-      onMouseLeave={e => e.currentTarget.style.boxShadow = "none"}
-    >
-      {/* Time block */}
+    }}>
+      {/* Time rail */}
       <div style={{
-        background: "#EBF4FE", borderRadius: 8,
-        padding: "0.5rem 0.75rem", textAlign: "center",
-        flexShrink: 0, minWidth: 72,
+        background: T.inkDeep, borderRadius: 9,
+        padding: "0.55rem 0.7rem", textAlign: "center",
+        flexShrink: 0, minWidth: 68,
+        boxShadow: `0 3px 10px ${T.ink}30`,
       }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#185FA5" }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>
           {mod.startTime?.slice(0, 5)}
         </div>
-        <div style={{ fontSize: 10, color: "#64748b", marginTop: 1 }}>
+        <div style={{ width: 16, height: 1, background: "rgba(255,255,255,.35)", margin: "3px auto" }} />
+        <div style={{ fontSize: 10, color: "rgba(255,255,255,.75)" }}>
           {mod.endTime?.slice(0, 5)}
         </div>
       </div>
 
       {/* Info */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 500, fontSize: 14, color: "#0f172a" }}>
+        <div style={{ fontWeight: 600, fontSize: 14, color: T.text }}>
           {mod.moduleName}
         </div>
-        <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
+        <div style={{ fontSize: 12, color: T.textMute, marginTop: 2 }}>
           {mod.teacherName} · {mod.level}
         </div>
 
-        {/* Capacity bar */}
-        <div style={{ marginTop: 8 }}>
-          <div style={{
-            background: "#f1f5f9", borderRadius: 99,
-            height: 4, overflow: "hidden",
-          }}>
-            <div style={{
+        <div style={{ marginTop: 9 }}>
+          <div style={{ background: T.paperDim, borderRadius: 99, height: 5, overflow: "hidden" }}>
+            <div className="sd-cap-bar-fill" style={{
               width: `${pct}%`, height: "100%",
-              background: isFull ? "#ef4444" : "#185FA5",
+              background: isFull ? T.red : `linear-gradient(90deg, ${T.ink}, ${T.amber})`,
               borderRadius: 99,
-              transition: "width 1s ease",
             }} />
           </div>
-          <div style={{ fontSize: 10, color: "#64748b", marginTop: 3 }}>
+          <div style={{ fontSize: 10.5, color: T.textMute, marginTop: 4 }}>
             {mod.enrolledCount} / {mod.maxStudents} طالب
-            {isFull && (
-              <span style={{ color: "#ef4444", marginRight: 6 }}>· ممتلئ</span>
-            )}
+            {isFull && <span style={{ color: T.red, marginRight: 6, fontWeight: 600 }}>· ممتلئ</span>}
           </div>
         </div>
       </div>
 
       {/* Price + CTA */}
-      <div style={{ textAlign: "left", flexShrink: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: "#185FA5" }}>
+      <div className="sd-module-price-col" style={{ textAlign: "left", flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>
           {mod.monthlyPrice?.toLocaleString()}
         </div>
-        <div style={{ fontSize: 10, color: "#64748b", marginBottom: 8 }}>دج / شهر</div>
+        <div style={{ fontSize: 10, color: T.textMute, marginBottom: 8 }}>دج / شهر</div>
 
         {isEnrolled ? (
-          <span style={{
-            background: "#e6f4f1", color: "#0F6E56",
-            border: "1px solid #5DCAA530", borderRadius: 6,
-            padding: "5px 10px", fontSize: 11, fontWeight: 600,
+          <span className="sd-check-badge" style={{
+            background: T.greenBg, color: T.green,
+            border: `1px solid ${T.green}30`, borderRadius: 7,
+            padding: "5px 11px", fontSize: 11, fontWeight: 700,
+            display: "inline-flex", alignItems: "center", gap: 5,
           }}>✓ مسجّل</span>
         ) : isPending ? (
-          <span style={{
-            background: "#fdf3e3", color: "#BA7517",
-            border: "1px solid #BA751730", borderRadius: 6,
-            padding: "5px 10px", fontSize: 11, fontWeight: 600,
+          <span className="sd-pill-pending" style={{
+            background: "#FCF1E2", color: T.amberDeep,
+            border: `1px solid ${T.amberDeep}30`, borderRadius: 7,
+            padding: "5px 11px", fontSize: 11, fontWeight: 700,
           }}>⏳ قيد المراجعة</span>
         ) : (
           <button
+            className="sd-btn-primary"
             disabled={isFull}
             onClick={() => onEnroll(mod)}
             style={{
-              background: isFull ? "#f1f5f9" : "#185FA5",
-              color: isFull ? "#94a3b8" : "#fff",
-              border: "none", borderRadius: 6,
-              padding: "5px 14px", fontSize: 12,
-              fontWeight: 600, cursor: isFull ? "not-allowed" : "pointer",
+              background: isFull ? T.paperDim : T.ink,
+              color: isFull ? T.textFaint : "#fff",
+              border: "none", borderRadius: 7,
+              padding: "6px 16px", fontSize: 12, fontWeight: 700,
+              cursor: isFull ? "not-allowed" : "pointer",
               fontFamily: "inherit",
-              transition: "opacity .15s",
             }}
-            onMouseEnter={e => !isFull && (e.currentTarget.style.opacity = ".85")}
-            onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
           >
             {isFull ? "ممتلئ" : "التسجيل"}
           </button>
@@ -265,61 +470,49 @@ function ModuleRow({ mod, onEnroll, enrolledIds, pendingId }) {
   );
 }
 
-// ── Enroll modal ──────────────────────────────────────────────────
+/* ============================================================
+   Enroll modal
+   ============================================================ */
 function EnrollModal({ mod, schoolName, onConfirm, onCancel, loading }) {
   return (
-    <div style={{
-      position: "fixed", inset: 0,
-      background: "rgba(15,23,42,.45)",
+    <div className="sd-modal-overlay" style={{
+      position: "fixed", inset: 0, background: "rgba(8,44,67,.5)",
+      backdropFilter: "blur(2px)",
       display: "flex", alignItems: "center", justifyContent: "center",
       zIndex: 300, padding: "1rem",
     }}>
-      <div style={{
-        background: "#fff", borderRadius: 16,
-        padding: "2rem", maxWidth: 400, width: "100%",
-        border: "0.5px solid #e2e8f0",
-        animation: "popIn .25s ease",
+      <div className="sd-modal-card" style={{
+        background: T.white, borderRadius: 18, padding: "2rem",
+        maxWidth: 400, width: "100%", border: `1px solid ${T.line}`,
       }}>
-        <style>{`@keyframes popIn{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}`}</style>
-
-        <div style={{ fontSize: 28, marginBottom: "0.75rem", textAlign: "center" }}>📋</div>
-        <h2 style={{
-          fontSize: 17, fontWeight: 600, color: "#0f172a",
-          margin: "0 0 6px", textAlign: "center",
-        }}>
+        <div style={{
+          width: 52, height: 52, borderRadius: 14, margin: "0 auto 1rem",
+          background: `linear-gradient(135deg, ${T.ink}, ${T.amber})`,
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24,
+        }}>📋</div>
+        <h2 className="sd-serif" style={{ fontSize: 18, fontWeight: 700, color: T.text, margin: "0 0 6px", textAlign: "center" }}>
           تأكيد طلب التسجيل
         </h2>
-        <p style={{
-          fontSize: 13, color: "#64748b", textAlign: "center",
-          margin: "0 0 1.5rem", lineHeight: 1.6,
-        }}>
-          هل تريد إرسال طلب التسجيل في <strong style={{ color: "#0f172a" }}>{mod?.moduleName}</strong>؟<br />
-          ستنتظر موافقة إدارة <strong style={{ color: "#0f172a" }}>{schoolName}</strong>.
+        <p style={{ fontSize: 13, color: T.textMute, textAlign: "center", margin: "0 0 1.5rem", lineHeight: 1.7 }}>
+          هل تريد إرسال طلب التسجيل في <strong style={{ color: T.text }}>{mod?.moduleName}</strong>؟<br />
+          ستنتظر موافقة إدارة <strong style={{ color: T.text }}>{schoolName}</strong>.
         </p>
 
         {mod && (
-          <div style={{
-            background: "#f8fafc", borderRadius: 10,
-            border: "0.5px solid #e2e8f0",
-            padding: "0.75rem 1rem", marginBottom: "1.5rem",
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ fontSize: 12, color: "#64748b" }}>المادة</span>
-              <span style={{ fontSize: 12, fontWeight: 500 }}>{mod.subjectName}</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ fontSize: 12, color: "#64748b" }}>الأستاذ</span>
-              <span style={{ fontSize: 12, fontWeight: 500 }}>{mod.teacherName}</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ fontSize: 12, color: "#64748b" }}>الوقت</span>
-              <span style={{ fontSize: 12, fontWeight: 500 }}>
-                {mod.startTime?.slice(0, 5)} – {mod.endTime?.slice(0, 5)}
-              </span>
-            </div>
+          <div style={{ background: T.paper, borderRadius: 12, border: `1px solid ${T.line}`, padding: "0.85rem 1rem", marginBottom: "1.5rem" }}>
+            {[
+              ["المادة", mod.subjectName],
+              ["الأستاذ", mod.teacherName],
+              ["الوقت", `${mod.startTime?.slice(0,5)} – ${mod.endTime?.slice(0,5)}`],
+            ].map(([k,v]) => (
+              <div key={k} style={{ display: "flex", justifyContent: "space-between", marginBottom: 7 }}>
+                <span style={{ fontSize: 12, color: T.textMute }}>{k}</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: T.text }}>{v}</span>
+              </div>
+            ))}
             <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 12, color: "#64748b" }}>السعر</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "#185FA5" }}>
+              <span style={{ fontSize: 12, color: T.textMute }}>السعر</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: T.ink }}>
                 {mod.monthlyPrice?.toLocaleString()} دج / شهر
               </span>
             </div>
@@ -327,28 +520,28 @@ function EnrollModal({ mod, schoolName, onConfirm, onCancel, loading }) {
         )}
 
         <div style={{ display: "flex", gap: 10 }}>
-          <button
-            onClick={onCancel}
-            style={{
-              flex: 1, padding: "10px 0", borderRadius: 8,
-              background: "#f8fafc", color: "#475569",
-              border: "0.5px solid #e2e8f0", fontSize: 13,
-              fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-            }}
-          >
+          <button className="sd-btn-ghost" onClick={onCancel} style={{
+            flex: 1, padding: "11px 0", borderRadius: 9,
+            background: T.paper, color: T.textMute,
+            border: `1px solid ${T.line}`, fontSize: 13, fontWeight: 700,
+            cursor: "pointer", fontFamily: "inherit",
+          }}>
             إلغاء
           </button>
-          <button
-            onClick={onConfirm}
-            disabled={loading}
-            style={{
-              flex: 1, padding: "10px 0", borderRadius: 8,
-              background: loading ? "#93c5fd" : "#185FA5",
-              color: "#fff", border: "none", fontSize: 13,
-              fontWeight: 600, cursor: loading ? "not-allowed" : "pointer",
-              fontFamily: "inherit", transition: "background .15s",
-            }}
-          >
+          <button className="sd-btn-primary" onClick={onConfirm} disabled={loading} style={{
+            flex: 1, padding: "11px 0", borderRadius: 9,
+            background: loading ? `${T.ink}99` : T.ink,
+            color: "#fff", border: "none", fontSize: 13, fontWeight: 700,
+            cursor: loading ? "not-allowed" : "pointer", fontFamily: "inherit",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+          }}>
+            {loading && (
+              <span className="sd-spinner" style={{
+                width: 13, height: 13, borderRadius: "50%",
+                border: "2px solid rgba(255,255,255,.4)", borderTopColor: "#fff",
+                display: "inline-block",
+              }} />
+            )}
             {loading ? "جارٍ الإرسال..." : "تأكيد الطلب"}
           </button>
         </div>
@@ -357,25 +550,24 @@ function EnrollModal({ mod, schoolName, onConfirm, onCancel, loading }) {
   );
 }
 
-// ── Toast ─────────────────────────────────────────────────────────
+/* ============================================================
+   Toast
+   ============================================================ */
 function Toast({ message, type = "success" }) {
   const isSuccess = type === "success";
   return (
-    <div style={{
+    <div className="sd-toast" style={{
       position: "fixed", bottom: 28, left: "50%",
-      transform: "translateX(-50%)",
-      background: isSuccess ? "#0f172a" : "#7f1d1d",
-      color: "#fff", padding: "12px 22px",
-      borderRadius: 12, fontSize: 13,
+      background: isSuccess ? T.inkDeep : "#7f1d1d",
+      color: "#fff", padding: "13px 22px",
+      borderRadius: 13, fontSize: 13,
       display: "flex", alignItems: "center", gap: 10,
-      zIndex: 400, boxShadow: "0 8px 24px rgba(0,0,0,.2)",
-      animation: "slideUp .3s ease",
-      whiteSpace: "nowrap",
+      zIndex: 400, boxShadow: "0 10px 30px rgba(0,0,0,.25)",
+      maxWidth: "calc(100vw - 40px)",
     }}>
-      <style>{`@keyframes slideUp{from{opacity:0;transform:translate(-50%,14px)}to{opacity:1;transform:translate(-50%,0)}}`}</style>
       <span style={{
         width: 22, height: 22, borderRadius: "50%",
-        background: isSuccess ? "#1D9E75" : "#ef4444",
+        background: isSuccess ? T.green : "#ef4444",
         display: "flex", alignItems: "center", justifyContent: "center",
         fontSize: 12, flexShrink: 0,
       }}>
@@ -386,39 +578,33 @@ function Toast({ message, type = "success" }) {
   );
 }
 
-// ── Skeleton loader ───────────────────────────────────────────────
-function Skeleton({ w = "100%", h = 16, r = 6, mb = 0 }) {
-  return (
-    <div style={{
-      width: w, height: h, borderRadius: r,
-      background: "linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%)",
-      backgroundSize: "200% 100%",
-      animation: "shimmer 1.4s infinite",
-      marginBottom: mb,
-    }}>
-      <style>{`@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
-    </div>
-  );
+/* ============================================================
+   Skeleton
+   ============================================================ */
+function Skeleton({ w = "100%", h = 16, r = 8, mb = 0 }) {
+  return <div className="sd-skel" style={{ width: w, height: h, borderRadius: r, marginBottom: mb }} />;
 }
 
-// ── Main component ────────────────────────────────────────────────
+/* ============================================================
+   Main component
+   ============================================================ */
 export default function SchoolDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const [school, setSchool]           = useState(null);
-  const [loading, setLoading]         = useState(true);
-  const [notFound, setNotFound]       = useState(false);
+  const [school, setSchool]     = useState(null);
+  const [loading, setLoading]   = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
-  const [enrollModal, setEnrollModal] = useState(null);
+  const [enrollModal, setEnrollModal]     = useState(null);
   const [enrollLoading, setEnrollLoading] = useState(false);
 
-  const [pendingIds, setPendingIds]   = useState([]);
+  const [pendingIds, setPendingIds] = useState([]);
   const [enrolledIds, setEnrolledIds] = useState([]);
-  const [toast, setToast]             = useState(null);
 
-  const [activeDay, setActiveDay]     = useState(null);
+  const [toast, setToast] = useState(null);
+  const [activeDay, setActiveDay] = useState(null);
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -429,7 +615,6 @@ export default function SchoolDetails() {
     api.get(`/api/schools/${id}/detail`)
       .then((res) => {
         setSchool(res.data);
-        console.log(res.data);
         const days = Object.keys(res.data.modulesByDay || {});
         const today = new Date().toLocaleString("en-US", { weekday: "long" }).toUpperCase();
         setActiveDay(days.includes(today) ? today : (days[0] || null));
@@ -438,14 +623,20 @@ export default function SchoolDetails() {
       .finally(() => setLoading(false));
 
     if (user?.role === "STUDENT") {
-      api.get("/api/enrollments/mine").then((res) => {
+      api.get(`/api/enrollments/accepted/${id}`).then((res) => {
         setEnrolledIds(res.data.map((e) => e.moduleId));
+        console.log("accepted : ",res.data);
+      }).catch(() => {});
+      api.get(`/api/enrollments/pending/${id}`).then((res) => {
+        setPendingIds(res.data.map((e) => e.moduleId));
       }).catch(() => {});
     }
   }, [id, user]);
 
-  const sortedDays = Object.keys(school?.modulesByDay || {})
-    .sort((a, b) => DAY_ORDER.indexOf(a) - DAY_ORDER.indexOf(b));
+  const sortedDays = useMemo(
+    () => Object.keys(school?.modulesByDay || {}).sort((a, b) => DAY_ORDER.indexOf(a) - DAY_ORDER.indexOf(b)),
+    [school]
+  );
 
   const handleEnrollConfirm = async () => {
     if (!enrollModal) return;
@@ -463,57 +654,47 @@ export default function SchoolDetails() {
     }
   };
 
-  // ── Loading skeleton ──
+  /* ---- Loading ---- */
   if (loading) return (
-    <div dir="rtl" style={{
-      minHeight: "100vh", background: "#f8fafc",
-      fontFamily: "system-ui,Arial,sans-serif", paddingBottom: "3rem",
-    }}>
-      <div style={{ background: "#fff", borderBottom: "0.5px solid #e2e8f0", padding: "0.6rem 1.5rem" }}>
+    <div dir="rtl" className="sd-root" style={{ minHeight: "100vh", background: T.paper, paddingBottom: "3rem" }}>
+      <GlobalStyles />
+      <div style={{ background: T.white, borderBottom: `1px solid ${T.line}`, padding: "0.6rem 1.5rem" }}>
         <Skeleton w={240} h={14} />
       </div>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "2rem 1.5rem" }}>
-        <Skeleton h={260} r={12} mb={24} />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 24 }}>
-          <Skeleton h={90} r={12} />
-          <Skeleton h={90} r={12} />
-          <Skeleton h={90} r={12} />
+        <Skeleton h={230} r={16} mb={24} />
+        <div style={{ display: "flex", gap: 14, marginBottom: 24 }}>
+          <Skeleton h={90} r={14} /><Skeleton h={90} r={14} /><Skeleton h={90} r={14} />
         </div>
-        <Skeleton h={180} r={12} mb={16} />
-        <Skeleton h={180} r={12} />
+        <Skeleton h={180} r={14} mb={16} />
+        <Skeleton h={180} r={14} />
       </div>
     </div>
   );
 
-  // ── Not found ──
+  /* ---- Not found ---- */
   if (notFound || !school) return (
-    <div dir="rtl" style={{
-      minHeight: "100vh", background: "#f8fafc",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      fontFamily: "system-ui,Arial,sans-serif",
+    <div dir="rtl" className="sd-root" style={{
+      minHeight: "100vh", background: T.paper,
+      display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem",
     }}>
-      <div style={{
-        background: "#fff", borderRadius: 16,
-        border: "0.5px solid #e2e8f0", padding: "2.5rem",
-        maxWidth: 360, textAlign: "center",
+      <GlobalStyles />
+      <div className="sd-scale-in" style={{
+        background: T.white, borderRadius: 18, border: `1px solid ${T.line}`,
+        padding: "2.5rem", maxWidth: 360, textAlign: "center",
       }}>
         <div style={{ fontSize: 48, marginBottom: "1rem" }}>🏫</div>
-        <h2 style={{ fontSize: 18, fontWeight: 500, color: "#0f172a", margin: "0 0 8px" }}>
+        <h2 className="sd-serif" style={{ fontSize: 19, fontWeight: 700, color: T.text, margin: "0 0 8px" }}>
           المدرسة غير موجودة
         </h2>
-        <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 1.5rem" }}>
+        <p style={{ fontSize: 13, color: T.textMute, margin: "0 0 1.5rem" }}>
           تحقق من الرابط أو عد للتصفح.
         </p>
-        <button
-          onClick={() => navigate("/schools")}
-          style={{
-            width: "100%", padding: "10px 0",
-            borderRadius: 8, background: "#185FA5",
-            color: "#fff", border: "none",
-            fontSize: 14, fontWeight: 600,
-            cursor: "pointer", fontFamily: "inherit",
-          }}
-        >
+        <button className="sd-btn-primary" onClick={() => navigate("/schools")} style={{
+          width: "100%", padding: "11px 0", borderRadius: 10, background: T.ink,
+          color: "#fff", border: "none", fontSize: 14, fontWeight: 700,
+          cursor: "pointer", fontFamily: "inherit",
+        }}>
           العودة للتصفح
         </button>
       </div>
@@ -524,10 +705,9 @@ export default function SchoolDetails() {
   const modulesForDay = activeDay ? (school.modulesByDay[activeDay] || []) : [];
 
   return (
-    <div dir="rtl" style={{
-      minHeight: "100vh", background: "#f8fafc",
-      fontFamily: "system-ui,Arial,sans-serif", paddingBottom: "4rem",
-    }}>
+    <div dir="rtl" className="sd-root" style={{ minHeight: "100vh", background: T.paper, paddingBottom: "3rem" }}>
+      <GlobalStyles />
+
       {toast && <Toast message={toast.message} type={toast.type} />}
       {enrollModal && (
         <EnrollModal
@@ -539,117 +719,102 @@ export default function SchoolDetails() {
         />
       )}
 
-      {/* ── Breadcrumb ── */}
-      <div style={{
-        background: "#fff", borderBottom: "0.5px solid #e2e8f0",
-        padding: "0.55rem 1.5rem",
-        display: "flex", alignItems: "center", gap: 6,
-        fontSize: 13, color: "#64748b",
+      {/* Breadcrumb */}
+      <div className="sd-crumb" style={{
+        background: T.white, borderBottom: `1px solid ${T.line}`,
+        padding: "0.6rem 1.5rem", display: "flex", alignItems: "center", gap: 6,
+        fontSize: 12.5, color: T.textMute, overflowX: "auto", whiteSpace: "nowrap",
       }}>
-        <span style={{ color: "#185FA5", cursor: "pointer" }} onClick={() => navigate("/")}>الرئيسية</span>
+        <a onClick={() => navigate("/")} style={{ color: T.ink, cursor: "pointer", fontWeight: 600 }}>الرئيسية</a>
         <span>›</span>
-        <span style={{ color: "#185FA5", cursor: "pointer" }} onClick={() => navigate("/schools")}>تصفح المدارس</span>
+        <a onClick={() => navigate("/schools")} style={{ color: T.ink, cursor: "pointer", fontWeight: 600 }}>تصفح المدارس</a>
         <span>›</span>
-        <span style={{ color: "#0f172a" }}>{school.schoolName}</span>
+        <span style={{ color: T.text }}>{school.schoolName}</span>
       </div>
 
-      {/* ── Hero ── */}
-      <div style={{
-        background: "linear-gradient(135deg, #0c447c 0%, #185FA5 55%, #0ea5e9 100%)",
-        minHeight: 220, position: "relative",
-        display: "flex", alignItems: "flex-end",
-        padding: "0 0 0 0", overflow: "hidden",
+      {/* Hero */}
+      <div className="sd-hero-pad" style={{
+        background: `linear-gradient(135deg, ${T.inkDeep} 0%, ${T.ink} 55%, #14608f 100%)`,
+        position: "relative", overflow: "hidden",
       }}>
-        {/* Decorative circles */}
-        <div style={{
-          position: "absolute", top: -60, left: -60,
-          width: 260, height: 260, borderRadius: "50%",
-          background: "rgba(255,255,255,.05)",
+        <div className="sd-orb1" style={{
+          position: "absolute", top: -70, left: -60, width: 240, height: 240,
+          borderRadius: "50%", background: "rgba(255,255,255,.05)",
+        }} />
+        <div className="sd-orb2" style={{
+          position: "absolute", bottom: -50, right: 40, width: 190, height: 190,
+          borderRadius: "50%", background: `${T.amber}22`,
         }} />
         <div style={{
-          position: "absolute", top: 30, left: 160,
-          width: 140, height: 140, borderRadius: "50%",
-          background: "rgba(255,255,255,.04)",
-        }} />
-        <div style={{
-          position: "absolute", bottom: -40, right: 80,
-          width: 200, height: 200, borderRadius: "50%",
-          background: "rgba(255,255,255,.05)",
+          position: "absolute", top: "30%", left: "42%", width: 90, height: 90,
+          borderRadius: "50%", background: "rgba(255,255,255,.04)",
         }} />
 
         <div style={{
-          maxWidth: 1100, margin: "0 auto",
-          padding: "2.5rem 1.5rem 2rem",
-          width: "100%", position: "relative", zIndex: 1,
+          maxWidth: 1100, margin: "0 auto", position: "relative", zIndex: 1,
+          display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 20,
         }}>
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-            <div>
-              <div style={{ marginBottom: 10 }}>
-                <StatusBadge status={school.subscriptionStatus} />
-              </div>
-              <h1 style={{
-                fontSize: 28, fontWeight: 600, color: "#fff",
-                margin: "0 0 6px", lineHeight: 1.2,
-              }}>
-                {school.schoolName}
-              </h1>
-              <p style={{ fontSize: 14, color: "rgba(255,255,255,.75)", margin: 0 }}>
-                📍 {school.wilaya} — {school.commune}
-              </p>
+          <div className="sd-fade-up">
+            <div style={{ marginBottom: 12 }}>
+              <StatusBadge status={school.subscriptionStatus} />
             </div>
+            <h1 className="sd-serif sd-hero-title" style={{
+              fontSize: 30, fontWeight: 700, color: "#fff", margin: "0 0 8px", lineHeight: 1.25,
+            }}>
+              {school.schoolName}
+            </h1>
+            <p style={{ fontSize: 14, color: "rgba(255,255,255,.78)", margin: 0, display: "flex", alignItems: "center", gap: 6 }}>
+              <span>📍</span> {school.wilaya} — {school.commune}
+            </p>
           </div>
+
+          {school.logoUrl && (
+            <img
+              src={school.logoUrl}
+              className="sd-hero-logo sd-scale-in"
+              alt={school.schoolName}
+              style={{
+                height: 96, width: 96, borderRadius: 18, objectFit: "cover",
+                border: "3px solid rgba(255,255,255,.85)",
+                boxShadow: "0 12px 30px rgba(0,0,0,.25)", flexShrink: 0,
+              }}
+            />
+          )}
         </div>
       </div>
 
-      {/* ── Main content ── */}
-      <div style={{
-        maxWidth: 1100, margin: "0 auto",
-        padding: "1.75rem 1.5rem",
-        display: "grid",
-        gridTemplateColumns: "1fr 300px",
-        gap: "2rem",
-        alignItems: "start",
-      }}>
+      {/* Main content */}
+      <div className="sd-layout sd-main-pad" style={{ maxWidth: 1100, margin: "0 auto" }}>
 
-        {/* ── Left column ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.75rem" }}>
+        {/* Left column */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.75rem", minWidth: 0 }}>
 
-          {/* Stats row */}
-          <Reveal>
-            <div style={{ display: "flex", gap: 14 }}>
-              <StatCard icon="👩‍🏫" value={school.totalTeachers} label="أستاذ" />
-              <StatCard icon="📚" value={school.totalModules}  label="وحدة تعليمية" />
-              <StatCard icon="🎓" value={school.totalStudents} label="طالب مسجّل" />
-            </div>
-          </Reveal>
+          <div className="sd-stats-row">
+            <StatCard icon="👩‍🏫" value={school.totalTeachers} label="أستاذ" delay={0} />
+            <StatCard icon="📚" value={school.totalModules} label="وحدة تعليمية" delay={0.08} />
+            <StatCard icon="🎓" value={school.totalStudents} label="طالب مسجّل" delay={0.16} />
+          </div>
 
           {/* School info */}
           <Reveal delay={0.05}>
-            <div style={{
-              background: "#fff", border: "0.5px solid #e2e8f0",
-              borderRadius: 12, padding: "1.5rem",
-            }}>
-              <h2 style={{ fontSize: 16, fontWeight: 500, color: "#0f172a", margin: "0 0 1.25rem" }}>
+            <div style={{ background: T.white, border: `1px solid ${T.line}`, borderRadius: 14, padding: "1.5rem" }}>
+              <h2 className="sd-serif" style={{ fontSize: 17, fontWeight: 700, color: T.text, margin: "0 0 1.25rem" }}>
                 معلومات المدرسة
               </h2>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem 2rem" }}>
+              <div className="sd-info-grid">
                 {[
                   { label: "صاحب المدرسة", value: school.ownerName, icon: "👤" },
                   { label: "البريد الإلكتروني", value: school.email, icon: "📧" },
                   { label: "رقم الهاتف", value: school.phone, icon: "📞" },
                   { label: "العنوان", value: school.address, icon: "🏠" },
-                  {
-                    label: "انتهاء الاشتراك",
-                    value: school.subscriptionExpiresAt,
-                    icon: "📅",
-                  },
+                  { label: "انتهاء الاشتراك", value: school.subscriptionExpiresAt, icon: "📅" },
                   { label: "الولاية", value: `${school.wilaya} — ${school.commune}`, icon: "📍" },
                 ].map(({ label, value, icon }) => (
                   <div key={label}>
-                    <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 3, display: "flex", alignItems: "center", gap: 5 }}>
+                    <div style={{ fontSize: 11, color: T.textFaint, marginBottom: 3, display: "flex", alignItems: "center", gap: 5 }}>
                       <span>{icon}</span> {label}
                     </div>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: "#0f172a" }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: T.text, wordBreak: "break-word" }}>
                       {value || "—"}
                     </div>
                   </div>
@@ -663,21 +828,14 @@ export default function SchoolDetails() {
             <Reveal delay={0.08}>
               <div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
-                  <h2 style={{ fontSize: 16, fontWeight: 500, color: "#0f172a", margin: 0 }}>
+                  <h2 className="sd-serif" style={{ fontSize: 17, fontWeight: 700, color: T.text, margin: 0 }}>
                     الأساتذة
                   </h2>
-                  <span style={{
-                    background: "#EBF4FE", color: "#185FA5",
-                    borderRadius: 99, padding: "3px 12px", fontSize: 12,
-                  }}>
+                  <span style={{ background: "#EAF2F8", color: T.ink, borderRadius: 99, padding: "3px 13px", fontSize: 12, fontWeight: 600 }}>
                     {school.teachers.length} أستاذ
                   </span>
                 </div>
-                <div style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))",
-                  gap: 14,
-                }}>
+                <div className="sd-teachers-grid">
                   {school.teachers.map((t, i) => (
                     <TeacherCard key={t.teacherId} teacher={t} index={i} />
                   ))}
@@ -691,19 +849,13 @@ export default function SchoolDetails() {
             <Reveal delay={0.1}>
               <div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
-                  <h2 style={{ fontSize: 16, fontWeight: 500, color: "#0f172a", margin: 0 }}>
+                  <h2 className="sd-serif" style={{ fontSize: 17, fontWeight: 700, color: T.text, margin: 0 }}>
                     الجدول الأسبوعي
                   </h2>
-                  <span style={{ fontSize: 12, color: "#64748b" }}>
-                    {school.totalModules} وحدة تعليمية
-                  </span>
+                  <span style={{ fontSize: 12, color: T.textMute }}>{school.totalModules} وحدة تعليمية</span>
                 </div>
 
-                {/* Day tabs */}
-                <div style={{
-                  display: "flex", gap: 8,
-                  marginBottom: "1rem", flexWrap: "wrap",
-                }}>
+                <div className="sd-daytabs-scroll" style={{ display: "flex", gap: 8, marginBottom: "1rem", overflowX: "auto" }}>
                   {sortedDays.map((day) => {
                     const isActive = activeDay === day;
                     const count = school.modulesByDay[day]?.length || 0;
@@ -711,23 +863,22 @@ export default function SchoolDetails() {
                       <button
                         key={day}
                         onClick={() => setActiveDay(day)}
+                        className={`sd-daytab${isActive ? " active" : ""}`}
                         style={{
-                          padding: "7px 16px",
-                          borderRadius: 8,
-                          border: isActive ? "1.5px solid #185FA5" : "0.5px solid #e2e8f0",
-                          background: isActive ? "#185FA5" : "#fff",
-                          color: isActive ? "#fff" : "#475569",
-                          fontSize: 13, fontWeight: isActive ? 600 : 400,
+                          padding: "8px 16px", borderRadius: 9, flexShrink: 0,
+                          border: isActive ? `1.5px solid ${T.ink}` : `1px solid ${T.line}`,
+                          background: isActive ? T.ink : T.white,
+                          color: isActive ? "#fff" : T.textMute,
+                          fontSize: 13, fontWeight: isActive ? 700 : 500,
                           cursor: "pointer", fontFamily: "inherit",
                           display: "flex", alignItems: "center", gap: 6,
-                          transition: "all .15s",
                         }}
                       >
-                        {DAY_LABELS[day]}
+                        <span className="sd-day-full" style={{ display: "inline" }}>{DAY_LABELS[day]}</span>
                         <span style={{
-                          background: isActive ? "rgba(255,255,255,.25)" : "#f1f5f9",
-                          color: isActive ? "#fff" : "#64748b",
-                          borderRadius: 99, padding: "1px 7px", fontSize: 11,
+                          background: isActive ? "rgba(255,255,255,.25)" : T.paperDim,
+                          color: isActive ? "#fff" : T.textMute,
+                          borderRadius: 99, padding: "1px 7px", fontSize: 11, fontWeight: 700,
                         }}>
                           {count}
                         </span>
@@ -736,26 +887,24 @@ export default function SchoolDetails() {
                   })}
                 </div>
 
-                {/* Modules for active day */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {modulesForDay.map((mod) => (
-                    <ModuleRow
-                      key={`${mod.moduleId}-${mod.day}`}
-                      mod={mod}
-                      enrolledIds={enrolledIds}
-                      pendingId={pendingIds.find(id => id === mod.moduleId)}
-                      onEnroll={(m) => {
-                        if (!isStudent) { navigate("/login"); return; }
-                        setEnrollModal(m);
-                      }}
-                    />
+                  {modulesForDay.map((mod, i) => (
+                    <div key={`${mod.moduleId}-${mod.day}`} className="sd-fade-up" style={{ animationDelay: `${i * 0.05}s` }}>
+                      <ModuleRow
+                        mod={mod}
+                        isEnrolled={enrolledIds.includes(mod.moduleId)}
+                        isPending={pendingIds.includes(mod.moduleId)}
+                        onEnroll={(m) => {
+                          if (!isStudent) { navigate("/login"); return; }
+                          setEnrollModal(m);
+                        }}
+                      />
+                    </div>
                   ))}
                   {modulesForDay.length === 0 && (
                     <div style={{
-                      background: "#fff", borderRadius: 10,
-                      border: "0.5px solid #e2e8f0",
-                      padding: "2rem", textAlign: "center",
-                      color: "#64748b", fontSize: 13,
+                      background: T.white, borderRadius: 12, border: `1px dashed ${T.line}`,
+                      padding: "2rem", textAlign: "center", color: T.textMute, fontSize: 13,
                     }}>
                       لا توجد حصص يوم {DAY_LABELS[activeDay]}
                     </div>
@@ -766,143 +915,115 @@ export default function SchoolDetails() {
           )}
         </div>
 
-        {/* ── Sidebar ── */}
-        <div>
-          <div style={{
-            background: "#fff", borderRadius: 12,
-            border: "0.5px solid #e2e8f0",
-            padding: "1.5rem",
-            position: "sticky", top: 80,
-          }}>
-            {isStudent ? (
-              <>
-                <h2 style={{ fontSize: 16, fontWeight: 500, color: "#0f172a", margin: "0 0 4px" }}>
-                  اختر وحدة وسجّل
-                </h2>
-                <p style={{ fontSize: 12, color: "#64748b", margin: "0 0 1.25rem", lineHeight: 1.6 }}>
-                  اختر يوماً من الجدول ثم اضغط "التسجيل" في الوحدة التي تريدها.
-                </p>
-
-                {/* Quick stats */}
-                <div style={{
-                  background: "#f8fafc", borderRadius: 10,
-                  border: "0.5px solid #e2e8f0",
-                  padding: "0.75rem 1rem", marginBottom: "1.25rem",
-                }}>
-                  {[
-                    ["الأيام المتاحة", `${sortedDays.length} أيام`],
-                    ["الوحدات التعليمية", `${school.totalModules} وحدة`],
-                    ["الطلاب المسجلون", `${school.totalStudents} طالب`],
-                  ].map(([k, v]) => (
-                    <div key={k} style={{
-                      display: "flex", justifyContent: "space-between",
-                      padding: "5px 0",
-                      borderBottom: "0.5px solid #f1f5f9",
-                    }}>
-                      <span style={{ fontSize: 12, color: "#64748b" }}>{k}</span>
-                      <span style={{ fontSize: 12, fontWeight: 500, color: "#0f172a" }}>{v}</span>
-                    </div>
-                  ))}
-                </div>
-
-                {pendingIds.length > 0 && (
-                  <div style={{
-                    background: "#fdf3e3", border: "1px solid #BA751730",
-                    borderRadius: 8, padding: "10px 12px",
-                    fontSize: 12, color: "#BA7517",
-                    display: "flex", alignItems: "center", gap: 8,
-                    marginBottom: "1rem",
-                  }}>
-                    <span>⏳</span>
-                    لديك {pendingIds.length} طلب قيد المراجعة
-                  </div>
-                )}
-
-                {enrolledIds.length > 0 && (
-                  <div style={{
-                    background: "#e6f4f1", border: "1px solid #1D9E7530",
-                    borderRadius: 8, padding: "10px 12px",
-                    fontSize: 12, color: "#0F6E56",
-                    display: "flex", alignItems: "center", gap: 8,
-                    marginBottom: "1rem",
-                  }}>
-                    <span>✓</span>
-                    مسجّل في {enrolledIds.length} وحدة
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                <h2 style={{ fontSize: 16, fontWeight: 500, color: "#0f172a", margin: "0 0 4px" }}>
-                  سجّل كطالب
-                </h2>
-                <p style={{ fontSize: 12, color: "#64748b", margin: "0 0 1.25rem", lineHeight: 1.6 }}>
-                  تحتاج حساب طالب للتسجيل في وحدات هذه المدرسة.
-                </p>
-                <div style={{
-                  background: "#f8fafc", border: "1.5px dashed #cbd5e1",
-                  borderRadius: 10, padding: "1.25rem",
-                  textAlign: "center", marginBottom: "1.25rem",
-                }}>
-                  <div style={{
-                    width: 44, height: 44, borderRadius: 12,
-                    background: "#EBF4FE",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    margin: "0 auto 10px", fontSize: 22,
-                  }}>
-                    🔒
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#0f172a", marginBottom: 4 }}>
-                    تسجيل الدخول مطلوب
-                  </div>
-                  <p style={{ fontSize: 12, color: "#64748b", margin: "0 0 14px", lineHeight: 1.6 }}>
-                    أنشئ حساباً أو سجّل دخولك لتتمكن من الانضمام.
+        {/* Sidebar */}
+        <div className="sd-sidebar-sticky">
+          <Reveal delay={0.05}>
+            <div style={{ background: T.white, borderRadius: 14, border: `1px solid ${T.line}`, padding: "1.5rem" }}>
+              {isStudent ? (
+                <>
+                  <h2 className="sd-serif" style={{ fontSize: 16.5, fontWeight: 700, color: T.text, margin: "0 0 4px" }}>
+                    اختر وحدة وسجّل
+                  </h2>
+                  <p style={{ fontSize: 12.5, color: T.textMute, margin: "0 0 1.25rem", lineHeight: 1.7 }}>
+                    اختر يوماً من الجدول ثم اضغط "التسجيل" في الوحدة التي تريدها.
                   </p>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <button
-                      onClick={() => navigate("/login")}
-                      style={{
-                        width: "100%", padding: "10px 0",
-                        borderRadius: 8, background: "#185FA5",
-                        color: "#fff", border: "none",
-                        fontSize: 13, fontWeight: 600,
-                        cursor: "pointer", fontFamily: "inherit",
-                      }}
-                    >
-                      تسجيل الدخول
-                    </button>
-                    <button
-                      onClick={() => navigate("/signup")}
-                      style={{
-                        width: "100%", padding: "10px 0",
-                        borderRadius: 8, background: "#fff",
-                        color: "#185FA5", border: "1.5px solid #185FA5",
-                        fontSize: 13, fontWeight: 600,
-                        cursor: "pointer", fontFamily: "inherit",
-                      }}
-                    >
-                      إنشاء حساب طالب
-                    </button>
+
+                  <div style={{ background: T.paper, borderRadius: 11, border: `1px solid ${T.line}`, padding: "0.8rem 1rem", marginBottom: "1.25rem" }}>
+                    {[
+                      ["الأيام المتاحة", `${sortedDays.length} أيام`],
+                      ["الوحدات التعليمية", `${school.totalModules} وحدة`],
+                      ["الطلاب المسجلون", `${school.totalStudents} طالب`],
+                    ].map(([k, v], i, arr) => (
+                      <div key={k} style={{
+                        display: "flex", justifyContent: "space-between", padding: "6px 0",
+                        borderBottom: i < arr.length - 1 ? `1px solid ${T.lineSoft}` : "none",
+                      }}>
+                        <span style={{ fontSize: 12, color: T.textMute }}>{k}</span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: T.text }}>{v}</span>
+                      </div>
+                    ))}
                   </div>
-                </div>
-              </>
-            )}
 
-            <hr style={{ border: "none", borderTop: "0.5px solid #e2e8f0", margin: "0 0 1rem" }} />
+                  {pendingIds.length > 0 && (
+                    <div style={{
+                      background: "#FCF1E2", border: `1px solid ${T.amberDeep}30`, borderRadius: 9,
+                      padding: "10px 12px", fontSize: 12, color: T.amberDeep,
+                      display: "flex", alignItems: "center", gap: 8, marginBottom: "1rem", fontWeight: 600,
+                    }}>
+                      <span className="sd-pill-pending">⏳</span>
+                      لديك {pendingIds.length} طلب قيد المراجعة
+                    </div>
+                  )}
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {[
-                { dot: "#1D9E75", text: "مدرسة معتمدة على المنصة" },
-                { dot: "#185FA5", text: "أساتذة مؤهلون ومعتمدون" },
-                { dot: "#BA7517", text: "متابعة مستمرة للطلاب" },
-              ].map(({ dot, text }) => (
-                <div key={text} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ width: 7, height: 7, borderRadius: "50%", background: dot, flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, color: "#475569" }}>{text}</span>
-                </div>
-              ))}
+                  {enrolledIds.length > 0 && (
+                    <div style={{
+                      background: T.greenBg, border: `1px solid ${T.green}30`, borderRadius: 9,
+                      padding: "10px 12px", fontSize: 12, color: T.green,
+                      display: "flex", alignItems: "center", gap: 8, marginBottom: "1rem", fontWeight: 600,
+                    }}>
+                      <span>✓</span> مسجّل في {enrolledIds.length} وحدة
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <h2 className="sd-serif" style={{ fontSize: 16.5, fontWeight: 700, color: T.text, margin: "0 0 4px" }}>
+                    سجّل كطالب
+                  </h2>
+                  <p style={{ fontSize: 12.5, color: T.textMute, margin: "0 0 1.25rem", lineHeight: 1.7 }}>
+                    تحتاج حساب طالب للتسجيل في وحدات هذه المدرسة.
+                  </p>
+                  <div style={{
+                    background: T.paper, border: `1.5px dashed ${T.line}`, borderRadius: 12,
+                    padding: "1.25rem", textAlign: "center", marginBottom: "1.25rem",
+                  }}>
+                    <div style={{
+                      width: 46, height: 46, borderRadius: 13, background: "#EAF2F8",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      margin: "0 auto 10px", fontSize: 22,
+                    }}>🔒</div>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: T.text, marginBottom: 4 }}>
+                      تسجيل الدخول مطلوب
+                    </div>
+                    <p style={{ fontSize: 12, color: T.textMute, margin: "0 0 14px", lineHeight: 1.7 }}>
+                      أنشئ حساباً أو سجّل دخولك لتتمكن من الانضمام.
+                    </p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <button className="sd-btn-primary" onClick={() => navigate("/login")} style={{
+                        width: "100%", padding: "11px 0", borderRadius: 9, background: T.ink,
+                        color: "#fff", border: "none", fontSize: 13, fontWeight: 700,
+                        cursor: "pointer", fontFamily: "inherit",
+                      }}>
+                        تسجيل الدخول
+                      </button>
+                      <button className="sd-btn-ghost" onClick={() => navigate("/signup")} style={{
+                        width: "100%", padding: "11px 0", borderRadius: 9, background: T.white,
+                        color: T.ink, border: `1.5px solid ${T.ink}`, fontSize: 13, fontWeight: 700,
+                        cursor: "pointer", fontFamily: "inherit",
+                      }}>
+                        إنشاء حساب طالب
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <hr style={{ border: "none", borderTop: `1px solid ${T.line}`, margin: "0 0 1rem" }} />
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                {[
+                  { dot: T.green, text: "مدرسة معتمدة على المنصة" },
+                  { dot: T.ink, text: "أساتذة مؤهلون ومعتمدون" },
+                  { dot: T.amberDeep, text: "متابعة مستمرة للطلاب" },
+                ].map(({ dot, text }) => (
+                  <div key={text} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ width: 7, height: 7, borderRadius: "50%", background: dot, flexShrink: 0 }} />
+                    <span style={{ fontSize: 12, color: T.textMute, fontWeight: 500 }}>{text}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          </Reveal>
         </div>
       </div>
     </div>

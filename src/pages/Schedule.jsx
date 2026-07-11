@@ -410,8 +410,7 @@ function AttendanceSheetModal({ session, onClose }) {
   const STATUS_BTNS = [
     { key: "PRESENT", Icon: Check,        activeColor: "#0F6E56", activeBg: "#E1F5EE", title: "حاضر" },
     { key: "ABSENT",  Icon: XCircle,      activeColor: "#DC2626", activeBg: "#FEE2E2", title: "غائب" },
-    { key: "LATE",    Icon: Clock4,       activeColor: "#BA7517", activeBg: "#FAEEDA", title: "متأخر" },
-    { key: "EXCUSED", Icon: MinusCircle,  activeColor: "#534AB7", activeBg: "#EEEDFE", title: "معذور" },
+   
   ];
 
   return (
@@ -473,8 +472,7 @@ function AttendanceSheetModal({ session, onClose }) {
           const rowBg =
             status === "PRESENT" ? "rgba(225,245,238,.55)" :
             status === "ABSENT"  ? "rgba(254,226,226,.45)" :
-            status === "LATE"    ? "rgba(250,238,218,.55)" :
-            status === "EXCUSED" ? "rgba(238,237,254,.55)" :
+          
             "#fff";
           return (
             <div key={s.studentId} style={{ padding: "10px 1.25rem", borderBottom: i < students.length - 1 ? "1px solid #F8FAFC" : "none", background: rowBg, transition: "background .2s" }}>

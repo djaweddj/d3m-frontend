@@ -14,17 +14,35 @@ import PhoneOutlinedIcon from "@mui/icons-material/PhoneOutlined";
 import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
 import CakeOutlinedIcon from "@mui/icons-material/CakeOutlined";
 import FamilyRestroomOutlinedIcon from "@mui/icons-material/FamilyRestroomOutlined";
-
 import backImage from "../assets/back.jpg";
 
-const LEVELS = [
-  "1ère année",
-  "2ème année",
-  "3ème année",
-  "4ème année",
-  "5ème année",
-];
 
+function Label({ children, required }) {
+  return (
+    <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>
+      {children} {required && <span style={{ color: "#EF4444" }}>*</span>}
+    </label>
+  );
+}
+function TextInput({ value, onChange, placeholder, type = "text", min, disabled }) {
+  return (
+    <input
+      type={type} value={value}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder} min={min} disabled={disabled}
+      style={{
+        width: "100%", padding: "10px 12px", borderRadius: 10,
+        border: "1.5px solid #E2E8F0", fontSize: 13, color: "#0F172A",
+        fontFamily: "'Cairo',sans-serif",
+        background: disabled ? "#F1F5F9" : "#FAFCFF",
+        outline: "none", boxSizing: "border-box",
+        opacity: disabled ? 0.6 : 1,
+      }}
+      onFocus={e => !disabled && (e.target.style.borderColor = P)}
+      onBlur={e  => (e.target.style.borderColor = "#E2E8F0")}
+    />
+  );
+}
 export default function Signup() {
   const [showPassword, setShowPassword] = useState(false);
   const API_URL = import.meta.env.VITE_API_URL;
@@ -35,11 +53,31 @@ export default function Signup() {
     fullName: "",
     email: "",
     Password: "",
-    level: "",
+   
     parentName: "",
     parentPhone: "",
     birthDate: "",
   });
+  const [level,          setLevel]          = useState("");
+  const [customLevel, setCustomLevel] = useState("");
+
+const levels = [
+  "التحضيري",
+  "السنة الأولى ابتدائي",
+  "السنة الثانية ابتدائي",
+  "السنة الثالثة ابتدائي",
+  "السنة الرابعة ابتدائي",
+  "السنة الخامسة ابتدائي",
+  "السنة الأولى متوسط",
+  "السنة الثانية متوسط",
+  "السنة الثالثة متوسط",
+  "السنة الرابعة متوسط",
+  "السنة الأولى ثانوي",
+  "السنة الثانية ثانوي",
+  "السنة الثالثة ثانوي (البكالوريا)",
+  "مستوى آخر...",
+];
+
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -87,7 +125,7 @@ export default function Signup() {
         fullName: form.fullName,
         email: form.email,
         password: form.Password,
-        level: form.level,
+        level: "مستوى آخر..." ? customLevel : level,
         parentName: form.parentName,
         parentPhone: form.parentPhone,
         birthDate: form.birthDate, // "YYYY-MM-DD" – matches LocalDate
@@ -193,25 +231,40 @@ export default function Signup() {
             </Field>
 
             {/* Level */}
-            <Field label="Level">
-              <InputRow icon={<SchoolOutlinedIcon style={styles.icon} />}>
-                <select
-                  name="level"
-                  value={form.level}
-                  onChange={handleChange}
-                  style={{ ...styles.input, paddingRight: "16px" }}
-                >
-                  <option value="" disabled>
-                    Select your level
-                  </option>
-                  {LEVELS.map((lvl) => (
-                    <option key={lvl} value={lvl}>
-                      {lvl}
-                    </option>
-                  ))}
-                </select>
-              </InputRow>
-            </Field>
+           <Field>
+  <Label required>المستوى الدراسي</Label>
+
+  <select
+    value={level}
+    onChange={(e) => {
+      setLevel(e.target.value);
+
+      // Clear custom value if another option is selected
+      if (e.target.value !== "مستوى آخر...") {
+        setCustomLevel("");
+      }
+    }}
+    className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+  >
+    <option value="">اختر المستوى الدراسي</option>
+
+    {levels.map((item) => (
+      <option key={item} value={item}>
+        {item}
+      </option>
+    ))}
+  </select>
+
+  {level === "مستوى آخر..." && (
+    <div className="mt-3">
+      <TextInput
+        value={customLevel}
+        onChange={setCustomLevel}
+        placeholder="أدخل المستوى الدراسي"
+      />
+    </div>
+  )}
+</Field>
 
             {/* Birth Date */}
             <Field label="Date of Birth">

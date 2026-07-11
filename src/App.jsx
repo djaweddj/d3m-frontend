@@ -81,12 +81,7 @@ export default function App() {
   <Route path="/signup" element={<Signup />} />
   <Route path="/forgot-password" element={<PasswordResetFlow />} />
   <Route path="/schoolregister" element={<SchoolRegister />} />
-  {/*teacher dashboard */}
-   <Route path="/teacherDashboard" element={<TeacherDashboard/>} />
-   {/*student dashboard*/}
-   <Route path="/studentdashboard" element={<StudentDashboard/>} />
-   <Route path="/mystudent" element={<MyStudents/>} />
-
+  
 
 
 
@@ -111,11 +106,9 @@ export default function App() {
 
   {/* TEACHER */}
   <Route element={<ProtectedRoute role="TEACHER" />}>
-    <Route element={<TeacherLayout />}>
+   
       <Route path="/teacherdashboard" element={<TeacherDashboard />} />
-      <Route path="/teacherprofile" element={<TeacherProfile />} />
-      <Route path="/mystudent" element={<MyStudents />} />
-    </Route>
+      
   </Route>
 
   {/* SUPER ADMIN */}

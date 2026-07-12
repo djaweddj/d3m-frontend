@@ -3,7 +3,7 @@ import {
   Search, Users, CheckCircle, XCircle, RefreshCw, AlertCircle,
   ChevronDown, ChevronUp, Plus, X, Eye, EyeOff, UserPlus,
   BookOpen, CreditCard, ChevronRight, ArrowLeft, GraduationCap,
-  Clock, Wallet, Printer, History,
+  Clock, Wallet, Printer, History, ClipboardList,
 } from "lucide-react";
 import { useSchool } from "../context/SchoolContext";
 import api from "../api";
@@ -194,6 +194,81 @@ function printInvoice({ invoice, student, schoolName }) {
   setTimeout(() => { w.print(); }, 350);
 }
 
+// ── Attendance sheet printing ──────────────────────────────
+// Same popup+print mechanism as printInvoice, but fully client-side: no backend endpoint
+// needed. By the time ModuleSection renders the print icon it already has `module`
+// (subjectName/teacherName/level) and `students` (that module's roster) as props, plus
+// `schoolName` passed down from the page — that's everything the sheet needs.
+function printAttendanceSheet({ module, students, schoolName, sessionCount = 8 }) {
+  const w = window.open("", "_blank", "width=1000,height=750");
+  if (!w) {
+    alert("الرجاء السماح بالنوافذ المنبثقة لطباعة كشف الحضور");
+    return;
+  }
+
+  const dateHeaderCells = Array.from({ length: sessionCount }, () => `<th class="date-col"></th>`).join("");
+
+  const rows = students.map((s, i) => `
+    <tr>
+      <td class="idx">${i + 1}</td>
+      <td class="name">${s.fullName ?? "—"}</td>
+      ${Array.from({ length: sessionCount }, () => `<td class="mark"></td>`).join("")}
+    </tr>
+  `).join("");
+
+  w.document.write(`
+    <!DOCTYPE html>
+    <html dir="rtl" lang="ar">
+    <head>
+      <meta charset="UTF-8" />
+      <title>كشف حضور - ${module.subjectName ?? module.name ?? ""}</title>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
+        * { box-sizing: border-box; }
+        body { font-family: 'Cairo', sans-serif; margin: 0; padding: 32px; color: #0F172A; direction: rtl; }
+        .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid #3B82F6; padding-bottom: 16px; margin-bottom: 18px; }
+        .school-name { font-size: 20px; font-weight: 800; margin: 0; }
+        .doc-label { font-size: 12px; color: #64748B; margin: 4px 0 0; }
+        .meta { display: flex; gap: 22px; margin-bottom: 16px; font-size: 12px; }
+        .meta span { color: #64748B; }
+        .meta strong { color: #0F172A; margin-right: 4px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #E2E8F0; text-align: center; }
+        th { background: #F8FAFC; padding: 8px 2px; font-weight: 700; color: #475569; font-size: 10px; }
+        th.name-col { text-align: right; padding-right: 10px; }
+        td.idx { width: 26px; color: #94A3B8; font-size: 10px; }
+        td.name { text-align: right; padding: 7px 10px; font-weight: 600; font-size: 12px; white-space: nowrap; }
+        td.mark { height: 28px; width: 32px; }
+        .footer { font-size: 10px; color: #94A3B8; text-align: center; margin-top: 20px; }
+        @media print { body { padding: 18px; } @page { margin: 12mm; size: landscape; } }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <div>
+          <p class="school-name">${schoolName || "المؤسسة التعليمية"}</p>
+          <p class="doc-label">كشف حضور وغياب</p>
+        </div>
+      </div>
+      <div class="meta">
+        <div><span>الوحدة:</span><strong>${module.subjectName ?? module.name ?? "—"}</strong></div>
+        <div><span>الأستاذ:</span><strong>${module.teacherName ?? "—"}</strong></div>
+        <div><span>المستوى:</span><strong>${module.level ?? "—"}</strong></div>
+        <div><span>عدد التلاميذ:</span><strong>${students.length}</strong></div>
+      </div>
+      <table>
+        <thead><tr><th></th><th class="name-col">الاسم</th>${dateHeaderCells}</tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <p class="footer">تم إصدار هذا الكشف إلكترونياً · ${formatDate(new Date())}</p>
+    </body>
+    </html>
+  `);
+  w.document.close();
+  w.focus();
+  setTimeout(() => { w.print(); }, 350);
+}
+
 // ── Status badge (shared by drawer + invoice panel) ───────
 const STATUS_MAP = {
   PAID:      { bg: "#ECFDF5", color: "#065F46", label: "مدفوع",  icon: CheckCircle },
@@ -230,6 +305,37 @@ function PrintButton({ onClick, compact = false, title = "طباعة الفات�
     <button onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 7, border: "1.5px solid #3B82F6", background: "#EFF6FF", color: "#3B82F6", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
       <Printer size={12} />طباعة
     </button>
+  );
+}
+
+// Attendance-sheet trigger — sits in the module accordion header, next to the level
+// badge. Separate from PrintButton (which is only ever for PAID invoices) so the two
+// concerns don't get tangled — this one is always available, regardless of billing status.
+function AttendanceSheetButton({ onClick, color, light }) {
+  // Rendered inside ModuleSection's header, which is itself a <button> (toggles the
+  // accordion). A <button> nested inside another <button> is invalid HTML — the browser's
+  // parser force-closes the outer one early, which scrambles the DOM React thinks it
+  // rendered and makes clicks land unpredictably. Using a <span role="button"> here keeps
+  // it clickable and keyboard-accessible without nesting interactive elements.
+  return (
+    <span
+      role="button"
+      tabIndex={0}
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.stopPropagation();
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      title="طباعة كشف الحضور"
+      style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = light; e.currentTarget.style.borderColor = color; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.borderColor = "#E2E8F0"; }}
+    >
+      <ClipboardList size={14} color={color} />
+    </span>
   );
 }
 
@@ -495,7 +601,6 @@ function CreateInvoiceModal({ student, enrollments, schoolId, onClose, onSuccess
   const [period, setPeriod]             = useState(todayYearMonth());
   const [dueDate, setDueDate]           = useState(new Date().toISOString().slice(0, 10));
   const [amount, setAmount]             = useState("");
-  const [isPaid, setIsPaid]             = useState(false);
   const [submitting, setSubmitting]     = useState(false);
   const [error, setError]               = useState(null);
 
@@ -505,11 +610,11 @@ function CreateInvoiceModal({ student, enrollments, schoolId, onClose, onSuccess
     try {
       await schoolApi.createInvoiceManually({
         enrollmentId: Number(enrollmentId),
+      
         studentId: student.id,
         dueDate,
         period,
         totalAmount: Number(amount),
-        isPaid,
       });
       onSuccess("تم إنشاء الفاتورة بنجاح ✓");
     } catch (err) {
@@ -545,18 +650,6 @@ function CreateInvoiceModal({ student, enrollments, schoolId, onClose, onSuccess
           <div style={fw}>
             <label style={lbl}>المبلغ (دج) *</label>
             <input style={{ ...inp, direction: "ltr" }} type="number" min="0" placeholder="3000" value={amount} onChange={(e) => setAmount(e.target.value)} />
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 9, background: "#F8FAFC", border: "1px solid #E2E8F0" }}>
-            <input
-              id="isPaidCheckbox"
-              type="checkbox"
-              checked={isPaid}
-              onChange={(e) => setIsPaid(e.target.checked)}
-              style={{ width: 16, height: 16, cursor: "pointer" }}
-            />
-            <label htmlFor="isPaidCheckbox" style={{ fontSize: 13, fontWeight: 600, color: "#334155", cursor: "pointer" }}>
-              تم الدفع بالفعل
-            </label>
           </div>
           {error && (
             <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 9, background: "#FEF2F2", border: "1px solid #FECACA" }}>
@@ -835,6 +928,7 @@ function ModuleSection({ module, students, invoiceByStudentId, color, light, sch
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 20, background: light, color }}>{module.level}</span>
+          <AttendanceSheetButton color={color} light={light} onClick={() => printAttendanceSheet({ module, students, schoolName })} />
           {open ? <ChevronUp size={16} color="#94A3B8" /> : <ChevronDown size={16} color="#94A3B8" />}
         </div>
       </button>

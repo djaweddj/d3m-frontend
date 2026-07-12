@@ -101,6 +101,18 @@ async function fetchMyPayouts() {
   return res.json();
 }
 
+// GET /api/payouts/mine/month?period=YYYY-MM
+// Returns null when the teacher has no payout computed yet for that month
+// (backend throws ResourceNotFoundException -> 404, which we treat as "empty", not an error).
+async function fetchMyPayoutForMonth(period) {
+  const res = await fetch(`${API}/payouts/mine/month?period=${period}`, {
+    headers: authHeaders(),
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error("فشل تحميل مستحقات هذا الشهر");
+  return res.json();
+}
+
 // ─── Tiny shared components ───────────────────────────────────────────────────
 
 function Blob({ className }) {
@@ -710,19 +722,38 @@ function SchedulePage() {
   );
 }
 
-// ─── Payouts page (real data via /payouts/mine) ────────────────────────────────
+// ─── Payouts page (real data via /payouts/mine + /payouts/mine/month) ─────────
 
 function PayoutsPage() {
   const [payouts, setPayouts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedPeriod, setSelectedPeriod] = useState(""); // "" = show full history
 
   useEffect(() => {
-    fetchMyPayouts()
-      .then(setPayouts)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, []);
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    const load = selectedPeriod
+      ? fetchMyPayoutForMonth(selectedPeriod).then((p) => (p ? [p] : []))
+      : fetchMyPayouts();
+
+    load
+      .then((data) => {
+        if (!cancelled) setPayouts(data);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPeriod]);
 
   return (
     <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-8" dir="rtl">
@@ -730,11 +761,42 @@ function PayoutsPage() {
       <Blob className="bottom-[-100px] left-[-100px] h-[320px] w-[320px] bg-blue-100/50" />
 
       <div className="relative z-10 mx-auto max-w-5xl">
-        <PageHeader
-          badge="💰 مستحقاتي"
-          title="سجل المستحقات"
-          subtitle="تفاصيل مستحقاتك الشهرية بناءً على نسبتك من إيرادات أقسامك."
-        />
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-10 flex flex-wrap items-end justify-between gap-6"
+        >
+          <div>
+            <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-4 py-1.5 text-sm font-semibold text-blue-600">
+              💰 مستحقاتي
+            </span>
+            <h1 className="mb-4 mt-2 text-5xl font-extrabold text-slate-900">سجل المستحقات</h1>
+            <p className="max-w-2xl text-lg leading-8 text-slate-500">
+              تفاصيل مستحقاتك الشهرية بناءً على نسبتك من إيرادات أقسامك.
+            </p>
+          </div>
+
+          {/* Month filter */}
+          <div className="flex items-end gap-2">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-slate-400">تصفية حسب الشهر</label>
+              <input
+                type="month"
+                value={selectedPeriod}
+                onChange={(e) => setSelectedPeriod(e.target.value)}
+                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 outline-none transition focus:border-blue-400"
+              />
+            </div>
+            {selectedPeriod && (
+              <button
+                onClick={() => setSelectedPeriod("")}
+                className="h-12 rounded-2xl bg-slate-100 px-5 text-sm font-bold text-slate-600 transition hover:bg-red-50 hover:text-red-500"
+              >
+                ✕ إلغاء التصفية
+              </button>
+            )}
+          </div>
+        </motion.div>
 
         <ErrorBanner message={error} />
 
@@ -743,7 +805,9 @@ function PayoutsPage() {
         ) : payouts.length === 0 ? (
           <div className="rounded-3xl border border-slate-100 bg-white/80 p-16 text-center shadow-sm">
             <p className="mb-2 text-5xl">💤</p>
-            <p className="text-lg font-bold text-slate-700">لا توجد مستحقات محسوبة بعد</p>
+            <p className="text-lg font-bold text-slate-700">
+              {selectedPeriod ? "لا توجد مستحقات لهذا الشهر" : "لا توجد مستحقات محسوبة بعد"}
+            </p>
             <p className="mt-1 text-sm text-slate-400">تُحسب المستحقات تلقائياً في بداية كل شهر.</p>
           </div>
         ) : (
@@ -1069,7 +1133,6 @@ export default function TeacherDashboard() {
             <p className="text-5xl mb-4">⚠️</p>
             <p className="text-xl font-bold text-red-600 mb-2">خطأ في الاتصال</p>
             <p className="text-slate-500">{error}</p>
-            <p className="mt-3 text-sm text-slate-400">تأكد أن الخادم يعمل على localhost:8081</p>
           </div>
         </div>
       ) : (

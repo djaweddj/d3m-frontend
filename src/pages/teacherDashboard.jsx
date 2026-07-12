@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../context/authContext";
 
-const API = "http://localhost:8081/api";
+const API = "http://localhost:8080/api";
 
 function getToken() {
   return localStorage.getItem("accessToken");

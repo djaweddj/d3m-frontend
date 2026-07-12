@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Check, X, GraduationCap, RefreshCw, AlertCircle, BookOpen, DollarSign } from "lucide-react";
+import { Check, X, GraduationCap, RefreshCw, AlertCircle, BookOpen, DollarSign, Mail, Phone, User, Layers, MessageSquare } from "lucide-react";
 import { useAuth } from "../context/authContext";
 import api from "../api";
 
@@ -23,6 +23,11 @@ import api from "../api";
 //
 // For now: attempt GET /api/enrollments/pending (most likely endpoint name),
 // fall back gracefully with a clear message if 404/403.
+//
+// Backend now returns StudentRequestResponseDto (flat shape):
+// { id, studentId, studentFullName, studentEmail, studentLevel, parentName, parentPhone,
+//   moduleId, moduleName, subjectName, level, monthlyPrice,
+//   status, createdAt, reviewedAt, reviewComment }
 
 const requestsApi = {
   // Try the most likely endpoint — add it to backend if missing
@@ -41,6 +46,9 @@ const statusStyle = (status) => {
     default:          return { bg: "#F1F5F9", color: "#64748B", label: status ?? "—" };
   }
 };
+
+const formatDate = (value) =>
+  value ? new Date(value).toLocaleDateString("ar-MA", { year: "numeric", month: "long", day: "numeric" }) : null;
 
 function Spinner({ size = 18 }) {
   return (
@@ -98,15 +106,31 @@ function RejectModal({ enrollment, onClose, onConfirm }) {
   );
 }
 
+// ── Info row ───────────────────────────────────────────────
+function InfoRow({ icon: Icon, label, value, dir }) {
+  if (!value) return null;
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#F8FAFC", borderRadius: 9, padding: "8px 12px" }}>
+      <span style={{ fontSize: 12, color: "#64748B", display: "flex", alignItems: "center", gap: 6 }}>
+        <Icon size={12} color="#94A3B8" /> {label}
+      </span>
+      <span style={{ fontSize: 12, fontWeight: 600, color: "#0F172A", direction: dir || "rtl", textAlign: "left" }}>{value}</span>
+    </div>
+  );
+}
+
 // ── Request card ──────────────────────────────────────────
-// EnrollmentResponseDto: { id, student{StudentProfile}, subjectName, teacherName, moduleName, ModuleId, status, startDate, endDate, monthlyPrice, createdAt }
+// Backend DTO (StudentRequestResponseDto):
+// { id, studentId, studentFullName, studentEmail, studentLevel, parentName, parentPhone,
+//   moduleId, moduleName, subjectName, level, monthlyPrice,
+//   status, createdAt, reviewedAt, reviewComment }
 function RequestCard({ enrollment, onApprove, onReject, approving, rejecting }) {
-  const student = enrollment.student;
-  const name    = student?.user?.fullName ?? student?.fullName ?? "طالب";
-  const email   = student?.user?.email   ?? student?.email    ?? "";
-  const level   = student?.level         ?? "";
+  const name  = enrollment.studentFullName ?? "طالب";
   const initials = name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
   const st = statusStyle(enrollment.status);
+
+  const requestedDate = formatDate(enrollment.createdAt);
+  const reviewedDate  = formatDate(enrollment.reviewedAt);
 
   return (
     <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #E8EEF6", padding: "1.25rem", display: "flex", flexDirection: "column", gap: 14, transition: "box-shadow .2s" }}
@@ -120,37 +144,53 @@ function RequestCard({ enrollment, onApprove, onReject, approving, rejecting }) 
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>{name}</div>
-          <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
-            {level && <span>📚 {level}</span>}
-            {email && <span style={{ marginRight: 8, direction: "ltr" }}>{email}</span>}
-          </div>
+          {enrollment.studentLevel && (
+            <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>📚 {enrollment.studentLevel}</div>
+          )}
         </div>
         <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 10px", borderRadius: 20, background: st.bg, color: st.color, flexShrink: 0 }}>
           {st.label}
         </span>
       </div>
 
-      {/* Module info */}
+      {/* Student contact */}
       <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-        {[
-          { icon: BookOpen,    label: "الوحدة",     value: enrollment.moduleName  ?? `#${enrollment.ModuleId}` },
-          { icon: GraduationCap, label: "المادة",   value: enrollment.subjectName ?? "—" },
-          { icon: GraduationCap, label: "الأستاذ",  value: enrollment.teacherName ?? "—" },
-          { icon: DollarSign,  label: "الرسوم الشهرية", value: enrollment.monthlyPrice ? `${enrollment.monthlyPrice} دج` : "—" },
-        ].map(({ icon: Icon, label, value }) => (
-          <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#F8FAFC", borderRadius: 9, padding: "8px 12px" }}>
-            <span style={{ fontSize: 12, color: "#64748B", display: "flex", alignItems: "center", gap: 6 }}>
-              <Icon size={12} color="#94A3B8" /> {label}
-            </span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: "#0F172A" }}>{value}</span>
-          </div>
-        ))}
+        <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", letterSpacing: ".02em" }}>معلومات الطالب</div>
+        <InfoRow icon={Mail} label="البريد الإلكتروني" value={enrollment.studentEmail} dir="ltr" />
+        <InfoRow icon={Layers} label="المستوى" value={enrollment.studentLevel} />
       </div>
 
-      {/* Date */}
-      {enrollment.createdAt && (
-        <div style={{ fontSize: 10, color: "#94A3B8", textAlign: "center" }}>
-          تاريخ الطلب: {new Date(enrollment.createdAt).toLocaleDateString("ar-MA", { year: "numeric", month: "long", day: "numeric" })}
+      {/* Parent contact */}
+      {(enrollment.parentName || enrollment.parentPhone) && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", letterSpacing: ".02em" }}>ولي الأمر</div>
+          <InfoRow icon={User} label="الاسم" value={enrollment.parentName} />
+          <InfoRow icon={Phone} label="الهاتف" value={enrollment.parentPhone} dir="ltr" />
+        </div>
+      )}
+
+      {/* Module info */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", letterSpacing: ".02em" }}>تفاصيل الطلب</div>
+        <InfoRow icon={BookOpen} label="الوحدة" value={enrollment.moduleName ?? (enrollment.moduleId ? `#${enrollment.moduleId}` : null)} />
+        <InfoRow icon={GraduationCap} label="المادة" value={enrollment.subjectName} />
+        <InfoRow icon={Layers} label="مستوى الوحدة" value={enrollment.level} />
+        <InfoRow icon={DollarSign} label="الرسوم الشهرية" value={enrollment.monthlyPrice != null ? `${enrollment.monthlyPrice} دج` : null} />
+      </div>
+
+      {/* Review comment (for reviewed requests) */}
+      {enrollment.reviewComment && (
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 8, background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 9, padding: "8px 12px" }}>
+          <MessageSquare size={13} color="#DC2626" style={{ flexShrink: 0, marginTop: 2 }} />
+          <span style={{ fontSize: 12, color: "#991B1B", lineHeight: 1.6 }}>{enrollment.reviewComment}</span>
+        </div>
+      )}
+
+      {/* Dates */}
+      {(requestedDate || reviewedDate) && (
+        <div style={{ display: "flex", justifyContent: "center", gap: 14, fontSize: 10, color: "#94A3B8" }}>
+          {requestedDate && <span>تاريخ الطلب: {requestedDate}</span>}
+          {reviewedDate && <span>تاريخ المراجعة: {reviewedDate}</span>}
         </div>
       )}
 
@@ -229,7 +269,7 @@ export default function Requests() {
     try {
       await requestsApi.reject(id, comment);
       setRequests((prev) =>
-        prev.map((r) => r.id === id ? { ...r, status: "REJECTED" } : r)
+        prev.map((r) => r.id === id ? { ...r, status: "REJECTED", reviewComment: comment || r.reviewComment } : r)
       );
     } catch {}
   };

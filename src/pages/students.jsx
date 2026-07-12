@@ -495,6 +495,7 @@ function CreateInvoiceModal({ student, enrollments, schoolId, onClose, onSuccess
   const [period, setPeriod]             = useState(todayYearMonth());
   const [dueDate, setDueDate]           = useState(new Date().toISOString().slice(0, 10));
   const [amount, setAmount]             = useState("");
+  const [isPaid, setIsPaid]             = useState(false);
   const [submitting, setSubmitting]     = useState(false);
   const [error, setError]               = useState(null);
 
@@ -504,11 +505,11 @@ function CreateInvoiceModal({ student, enrollments, schoolId, onClose, onSuccess
     try {
       await schoolApi.createInvoiceManually({
         enrollmentId: Number(enrollmentId),
-      
         studentId: student.id,
         dueDate,
         period,
         totalAmount: Number(amount),
+        isPaid,
       });
       onSuccess("تم إنشاء الفاتورة بنجاح ✓");
     } catch (err) {
@@ -544,6 +545,18 @@ function CreateInvoiceModal({ student, enrollments, schoolId, onClose, onSuccess
           <div style={fw}>
             <label style={lbl}>المبلغ (دج) *</label>
             <input style={{ ...inp, direction: "ltr" }} type="number" min="0" placeholder="3000" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 9, background: "#F8FAFC", border: "1px solid #E2E8F0" }}>
+            <input
+              id="isPaidCheckbox"
+              type="checkbox"
+              checked={isPaid}
+              onChange={(e) => setIsPaid(e.target.checked)}
+              style={{ width: 16, height: 16, cursor: "pointer" }}
+            />
+            <label htmlFor="isPaidCheckbox" style={{ fontSize: 13, fontWeight: 600, color: "#334155", cursor: "pointer" }}>
+              تم الدفع بالفعل
+            </label>
           </div>
           {error && (
             <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 9, background: "#FEF2F2", border: "1px solid #FECACA" }}>

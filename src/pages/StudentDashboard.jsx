@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate ,Link} from "react-router-dom";
 import {
   BookOpen, User, CalendarDays, School,
   LogOut, Edit3, Check, AlertCircle,
   Loader2, RefreshCw, Clock, MapPin, GraduationCap,
-  Wallet, ChevronLeft, Menu, X,
+  Wallet, ChevronLeft, Menu, X,Home
 } from "lucide-react";
 import { useAuth } from "../context/authContext";
 import api from "../api";
@@ -413,7 +413,29 @@ function Sidebar({ active, setActive, profile, profileLoading, enrollments, onLo
       </div>
 
       {/* Nav */}
+        
       <nav style={{ flex: 1, padding: "10px 0", overflowY: "auto" }}>
+          <Link to={"/home"}> 
+           
+          <button
+             
+              className="sd-nav-item"
+              onClick={()=>{setActive(true)}}
+              style={{
+                display: "flex", alignItems: "center", gap: 11, width: "100%",
+                padding: "10px 1.1rem", border: "none", cursor: "pointer",
+                background: "rgba(28,111,184,.18)",
+                borderRight: `3px solid  transparent`,
+                color: "#7E93AC",
+                fontSize: 13, fontWeight:  500,
+                fontFamily: "'Cairo',system-ui,sans-serif",
+                textAlign: "right",
+              }}
+             
+            >
+              <Home></Home>
+              الصفحةالرئيسية
+            </button></Link>
         {NAV.map((item) => {
           const Icon = item.icon;
           const isActive = active === item.id;

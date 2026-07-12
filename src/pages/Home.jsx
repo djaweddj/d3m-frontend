@@ -1,323 +1,51 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "../components/ui/button";
 import {
   GraduationCap, School, Users, BookOpen, Star,
-  Search, MapPin, ArrowLeft, Sparkles, Shield,
-  TrendingUp, Clock, UserCircle2, Send, Lock,
+  MapPin, ArrowLeft, Sparkles, Shield,
+  TrendingUp, Clock, UserCircle2, PresentationIcon,
 } from "lucide-react";
 
 import { useAuth } from "../context/authContext";
 
-// ─── Mock schools list ────────────────────────────────────
-const SCHOOL_OPTIONS = [
-  "مدرسة النجاح للرياضيات",
-  "أكاديمية اللغات الحديثة",
-  "معهد العلوم الطبيعية",
-  "مركز التفوق الدراسي",
-  "مدرسة الأدب والفلسفة",
-  "أكاديمية البرمجة والتكنولوجيا",
-];
-
-const SCHOOL_COLOR = {
-  "مدرسة النجاح للرياضيات":        { bg: "#EEF2FF", text: "#4338CA" },
-  "أكاديمية اللغات الحديثة":       { bg: "#ECFDF5", text: "#065F46" },
-  "معهد العلوم الطبيعية":           { bg: "#F3E8FF", text: "#6B21A8" },
-  "مركز التفوق الدراسي":            { bg: "#EBF4FE", text: "#0C447C" },
-  "مدرسة الأدب والفلسفة":           { bg: "#FEF3C7", text: "#92400E" },
-  "أكاديمية البرمجة والتكنولوجيا":  { bg: "#FFF1F2", text: "#9F1239" },
-};
-
-const AVATAR_BG = ["#185FA5", "#0F6E56", "#BA7517", "#534AB7", "#9F1239", "#065F46"];
-
-const INITIAL_COMMENTS = [
-  { id: 1, user: "سارة بن علي",     initials: "سب", avatarIdx: 0,
-    school: "مدرسة النجاح للرياضيات",        rating: 5,
-    text: "مدرسة رائعة! الأساتذة متميزون ومنهجية التدريس واضحة. تحسّن مستواي في الرياضيات بشكل ملحوظ.",
-    date: "2026-05-20" },
-  { id: 2, user: "أحمد بوعلام",     initials: "أب", avatarIdx: 1,
-    school: "أكاديمية البرمجة والتكنولوجيا", rating: 5,
-    text: "أفضل أكاديمية للبرمجة في المنطقة. المهندس أمين محترف ويشرح بأسلوب مبسّط جداً.",
-    date: "2026-05-18" },
-  { id: 3, user: "نور الهدى مزيان", initials: "نم", avatarIdx: 2,
-    school: "مركز التفوق الدراسي",            rating: 4,
-    text: "المركز ممتاز والأساتذة متعاونون. أتمنى أوقات دراسة أكثر مرونة.",
-    date: "2026-05-15" },
-  { id: 4, user: "يوسف حمدي",       initials: "يح", avatarIdx: 3,
-    school: "أكاديمية اللغات الحديثة",        rating: 5,
-    text: "تحسّن مستواي في الفرنسية كثيراً بعد شهرين. الطريقة التفاعلية رائعة جداً.",
-    date: "2026-05-10" },
-];
+// ─── API config ───────────────────────────────────────────
+const API_BASE_URL = "http://localhost:8080";
 
 // ─── helpers ──────────────────────────────────────────────
 const getInitials = (name) =>
   (name ?? "؟").split(" ").map((w) => w[0]).join("").slice(0, 2);
 
-// ─── Star row ─────────────────────────────────────────────
-function StarRow({ count, size = 13 }) {
-  return (
-    <div style={{ display: "flex", gap: 2 }}>
-      {Array.from({ length: 5 }, (_, i) => (
-        <Star key={i} size={size}
-          style={{ fill: i < count ? "#F59E0B" : "none",
-                   color: i < count ? "#F59E0B" : "#CBD5E1" }} />
-      ))}
-    </div>
-  );
+// Animates a number counting up from 0 to `value` whenever it changes/enters view
+function useCountUp(value, duration = 1400) {
+  const [display, setDisplay] = useState(0);
+
+  useEffect(() => {
+    if (value == null) return;
+    let start = null;
+    let raf;
+
+    const step = (timestamp) => {
+      if (start === null) start = timestamp;
+      const progress = Math.min((timestamp - start) / duration, 1);
+      // ease-out-quad
+      const eased = 1 - (1 - progress) * (1 - progress);
+      setDisplay(Math.floor(eased * value));
+      if (progress < 1) raf = requestAnimationFrame(step);
+      else setDisplay(value);
+    };
+
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [value, duration]);
+
+  return display;
 }
 
-// ─── Comment card ─────────────────────────────────────────
-function CommentCard({ c }) {
-  const sc = SCHOOL_COLOR[c.school] || { bg: "#F1F5F9", text: "#475569" };
-  return (
-    <div style={{
-      background: "#fff", borderRadius: 14, border: "1.5px solid #E8EEF6",
-      padding: "1.25rem", display: "flex", flexDirection: "column", gap: 10,
-      transition: "border-color .15s, box-shadow .15s",
-    }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = "#CBD5E1"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,.05)"; }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = "#E8EEF6"; e.currentTarget.style.boxShadow = "none"; }}>
-
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{
-            width: 40, height: 40, borderRadius: "50%", flexShrink: 0,
-            background: AVATAR_BG[c.avatarIdx % AVATAR_BG.length],
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 13, fontWeight: 700, color: "#fff",
-            border: "2px solid rgba(255,255,255,.5)",
-          }}>{c.initials}</div>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>{c.user}</div>
-            <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 1 }}>{c.date}</div>
-            <StarRow count={c.rating} size={12} />
-          </div>
-        </div>
-        <span style={{
-          padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600,
-          background: sc.bg, color: sc.text,
-          border: `1px solid ${sc.text}33`,
-          whiteSpace: "nowrap", flexShrink: 0,
-        }}>
-          🏫 {c.school}
-        </span>
-      </div>
-
-      <p style={{ fontSize: 13, color: "#334155", lineHeight: 1.75, margin: 0 }}>{c.text}</p>
-    </div>
-  );
-}
-
-// ─── Comments section ─────────────────────────────────────
-function CommentsSection({ user }) {
-  const [comments, setComments] = useState(INITIAL_COMMENTS);
-  const [school,   setSchool]   = useState("");
-  const [text,     setText]     = useState("");
-  const [rating,   setRating]   = useState(0);
-  const [hover,    setHover]    = useState(0);
-  const [saved,    setSaved]    = useState(false);
-
-  // user.name is normalized in fetchMe (= fullName from backend)
-  const displayName =  user?.fullName ?? "";
-  
-
-  const handleSubmit = () => {
-    if (!school || !text.trim() || rating === 0) return;
-    setComments(prev => [{
-      id: Date.now(),
-      user: displayName,
-      initials: getInitials(displayName),
-      avatarIdx: 4,
-      school, rating,
-      text: text.trim(),
-      date: new Date().toISOString().slice(0, 10),
-    }, ...prev]);
-    setSchool(""); setText(""); setRating(0);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
-  };
-
-  const inp = {
-    padding: "8px 11px", borderRadius: 9, border: "1.5px solid #E2E8F0",
-    fontSize: 13, fontFamily: "inherit", color: "#0F172A",
-    background: "#FAFCFF", outline: "none", width: "100%",
-  };
-
-  return (
-    <section style={{
-      background: "#F8FAFC", borderTop: "1px solid #E8EEF6",
-      borderBottom: "1px solid #E8EEF6", padding: "5rem 1.5rem",
-    }}>
-      <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: "2rem" }}>
-
-        {/* Header */}
-        <div style={{ textAlign: "center" }}>
-          <span style={{
-            display: "inline-block", padding: "4px 14px", borderRadius: 20,
-            background: "#EBF4FE", color: "#185FA5", fontSize: 12, fontWeight: 600,
-            border: "1px solid #B5D4F4", marginBottom: 10,
-          }}>
-            💬 آراء الطلاب
-          </span>
-          <h2 style={{ fontSize: 26, fontWeight: 700, color: "#0F172A", margin: "0 0 6px" }}>
-            ما يقوله الطلاب
-          </h2>
-          <p style={{ fontSize: 13, color: "#64748B", margin: 0 }}>
-            تقييمات حقيقية من طلاب مسجلين في مدارسنا
-          </p>
-        </div>
-
-        {/* Add comment box */}
-        <div style={{ background: "#fff", borderRadius: 14, border: "1.5px solid #E8EEF6", padding: "1.25rem" }}>
-          <div style={{
-            fontSize: 14, fontWeight: 700, color: "#0F172A", marginBottom: 14,
-            display: "flex", alignItems: "center", gap: 8,
-          }}>
-            <span style={{ fontSize: 18 }}>✍️</span> أضف تعليقك
-          </div>
-
-          {user?.role === "STUDENT" ? (
-            /* ── Logged-in student form ── */
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-
-              {/* User badge */}
-              <div style={{
-                display: "flex", alignItems: "center", gap: 8,
-                padding: "8px 12px", background: "#EBF4FE", borderRadius: 9,
-                border: "1px solid #B5D4F4",
-              }}>
-                <div style={{
-                  width: 30, height: 30, borderRadius: "50%", background: "#185FA5",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 11, fontWeight: 700, color: "#fff",
-                }}>
-                  {getInitials(displayName)}
-                </div>
-                <span style={{ fontSize: 12, fontWeight: 600, color: "#0C447C" }}>
-                  تعليق بإسم: {displayName}
-                </span>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-
-                {/* School select */}
-                <div>
-                  <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 4 }}>
-                    اختر المدرسة *
-                  </label>
-                  <select style={{ ...inp, cursor: "pointer" }} value={school} onChange={e => setSchool(e.target.value)}>
-                    <option value="">— اختر مدرسة —</option>
-                    {SCHOOL_OPTIONS.map(s => <option key={s}>{s}</option>)}
-                  </select>
-                </div>
-
-                {/* Star rating */}
-                <div>
-                  <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 6 }}>
-                    التقييم *
-                  </label>
-                  <div style={{ display: "flex", gap: 4 }}>
-                    {[1, 2, 3, 4, 5].map(n => (
-                      <Star key={n} size={24}
-                        onMouseEnter={() => setHover(n)}
-                        onMouseLeave={() => setHover(0)}
-                        onClick={() => setRating(n)}
-                        style={{
-                          cursor: "pointer", transition: "transform .1s",
-                          transform: (hover || rating) >= n ? "scale(1.15)" : "scale(1)",
-                          fill: (hover || rating) >= n ? "#F59E0B" : "none",
-                          color: (hover || rating) >= n ? "#F59E0B" : "#CBD5E1",
-                        }} />
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Text */}
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 4 }}>
-                  تعليقك *
-                </label>
-                <textarea
-                  style={{ ...inp, resize: "none", minHeight: 90, lineHeight: 1.7 }}
-                  placeholder="شارك تجربتك مع هذه المدرسة..."
-                  value={text}
-                  onChange={e => setText(e.target.value)}
-                />
-              </div>
-
-              {/* Submit */}
-              <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10 }}>
-                {saved && (
-                  <span style={{ fontSize: 12, color: "#0F6E56", fontWeight: 600 }}>
-                    ✓ تم نشر تعليقك بنجاح
-                  </span>
-                )}
-                <button
-                  onClick={handleSubmit}
-                  disabled={!school || !text.trim() || rating === 0}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 7,
-                    padding: "8px 20px", borderRadius: 9, border: "none",
-                    background: (!school || !text.trim() || rating === 0) ? "#94A3B8" : "#185FA5",
-                    color: "#fff", fontSize: 13, fontWeight: 600,
-                    cursor: (!school || !text.trim() || rating === 0) ? "not-allowed" : "pointer",
-                    fontFamily: "inherit", transition: "background .15s",
-                  }}
-                >
-                  <Send size={13} /> نشر التعليق
-                </button>
-              </div>
-            </div>
-          ) : (
-            /* ── Guest banner ── */
-            <div style={{
-              background: "#F8FAFC", borderRadius: 12,
-              border: "1.5px dashed #CBD5E1", padding: "1.5rem", textAlign: "center",
-            }}>
-              <div style={{
-                width: 44, height: 44, borderRadius: 12, background: "#EBF4FE",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                margin: "0 auto 12px", fontSize: 22,
-              }}>
-                <Lock size={20} color="#185FA5" />
-              </div>
-              <p style={{ fontSize: 13, color: "#64748B", marginBottom: 14, lineHeight: 1.7 }}>
-                يمكنك قراءة جميع التعليقات كزائر، لكن لإضافة تعليق يجب تسجيل الدخول كطالب.
-              </p>
-              <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
-                <Link to="/login">
-                  <button style={{
-                    padding: "8px 20px", borderRadius: 9, background: "#185FA5",
-                    color: "#fff", border: "none", fontSize: 13, fontWeight: 600,
-                    cursor: "pointer", fontFamily: "inherit",
-                  }}>
-                    تسجيل الدخول
-                  </button>
-                </Link>
-                <Link to="/signup">
-                  <button style={{
-                    padding: "8px 20px", borderRadius: 9, background: "#fff",
-                    color: "#185FA5", border: "1.5px solid #185FA5",
-                    fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
-                  }}>
-                    إنشاء حساب
-                  </button>
-                </Link>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Comments list */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {comments.map(c => <CommentCard key={c.id} c={c} />)}
-        </div>
-
-      </div>
-    </section>
-  );
+function formatNumber(n) {
+  if (n == null) return "—";
+  return n.toLocaleString("en-US");
 }
 
 // ─── User pill ────────────────────────────────────────────
@@ -338,6 +66,35 @@ function UserPill({ user }) {
       <span className="text-sm font-medium text-slate-500">زائر</span>
       <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
     </div>
+  );
+}
+
+// ─── Stat card (live data) ────────────────────────────────
+function StatCard({ icon: Icon, value, label, loading, delay }) {
+  const count = useCountUp(loading ? null : value);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 24 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-60px" }}
+      transition={{ duration: 0.55, delay, ease: [0.22, 1, 0.36, 1] }}
+      whileHover={{ y: -6 }}
+      className="stat-card relative overflow-hidden rounded-3xl border border-slate-200 bg-white px-8 py-10 text-center shadow-sm"
+    >
+      <div className="stat-glow pointer-events-none absolute -top-16 left-1/2 h-40 w-40 -translate-x-1/2 rounded-full bg-blue-100/70 blur-3xl" />
+      <div className="relative mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+        <Icon className="h-7 w-7" />
+      </div>
+      <div className="relative mb-2 text-4xl font-extrabold text-blue-600 tabular-nums">
+        {loading ? (
+          <span className="inline-block h-9 w-20 animate-pulse rounded-lg bg-slate-100 align-middle" />
+        ) : (
+          <>{formatNumber(count)}+</>
+        )}
+      </div>
+      <div className="relative text-sm font-medium text-slate-500">{label}</div>
+    </motion.div>
   );
 }
 
@@ -375,39 +132,90 @@ function SchoolCard({ name, city, rating, subject, delay }) {
   );
 }
 
-// ─── Floating badge ───────────────────────────────────────
-function FloatingBadge({ icon: Icon, label, value, className }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.8 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.4, delay: 0.7 }}
-      className={`absolute flex items-center gap-2 rounded-2xl border border-white bg-white/90 backdrop-blur-sm px-4 py-2.5 shadow-xl ${className}`}
-    >
-      <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-600 text-white">
-        <Icon className="h-4 w-4" />
-      </div>
-      <div>
-        <p className="text-xs font-bold text-slate-900">{value}</p>
-        <p className="text-[10px] text-slate-400">{label}</p>
-      </div>
-    </motion.div>
-  );
-}
-
 // ─── Home page ────────────────────────────────────────────
 export default function Home() {
   const { user } = useAuth();
 
+  const [stats, setStats] = useState({ schools: null, students: null, teachers: null });
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchStats() {
+      try {
+        setStatsLoading(true);
+        setStatsError(false);
+        const res = await fetch(`${API_BASE_URL}/api/home`);
+        if (!res.ok) throw new Error(`Request failed with status ${res.status}`);
+        const data = await res.json();
+        if (!cancelled) {
+          setStats({
+            schools: data.schools ?? 0,
+            students: data.students ?? 0,
+            teachers: data.teachers ?? 0,
+          });
+        }
+      } catch (err) {
+        if (!cancelled) setStatsError(true);
+      } finally {
+        if (!cancelled) setStatsLoading(false);
+      }
+    }
+
+    fetchStats();
+    return () => { cancelled = true; };
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#fafafa] text-slate-900 overflow-hidden" dir="rtl">
+
+      {/* Keyframes + small utility animations used across the page */}
+      <style>{`
+        @keyframes floatY {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-10px); }
+        }
+        @keyframes floatSlow {
+          0%, 100% { transform: translateY(0px) rotate(0deg); }
+          50% { transform: translateY(-16px) rotate(2deg); }
+        }
+        @keyframes shimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+        @keyframes pulseGlow {
+          0%, 100% { opacity: 0.55; transform: scale(1); }
+          50% { opacity: 0.9; transform: scale(1.08); }
+        }
+        @keyframes gridDrift {
+          0% { background-position: 0 0; }
+          100% { background-position: 48px 48px; }
+        }
+        @keyframes underlineDraw {
+          from { stroke-dashoffset: 220; }
+          to { stroke-dashoffset: 0; }
+        }
+        .float-badge { animation: floatY 4.5s ease-in-out infinite; }
+        .float-badge-slow { animation: floatSlow 7s ease-in-out infinite; }
+        .bg-grid-drift { animation: gridDrift 18s linear infinite; }
+        .glow-pulse { animation: pulseGlow 3.5s ease-in-out infinite; }
+        .hero-underline { stroke-dasharray: 220; stroke-dashoffset: 220; animation: underlineDraw 1.1s 0.5s ease-out forwards; }
+        .stat-card:hover .stat-glow { animation: pulseGlow 1.8s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) {
+          .float-badge, .float-badge-slow, .bg-grid-drift, .glow-pulse, .hero-underline, .stat-card:hover .stat-glow {
+            animation: none !important;
+          }
+        }
+      `}</style>
 
       {/* ── Hero ── */}
       <section className="relative overflow-hidden bg-white border-b border-slate-100">
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute right-[-80px] top-[-80px] h-[420px] w-[420px] rounded-full bg-blue-100/60 blur-3xl" />
-          <div className="absolute left-[-80px] bottom-[-80px] h-[380px] w-[380px] rounded-full bg-indigo-100/50 blur-3xl" />
-          <div className="absolute inset-0 opacity-[0.03]"
+          <div className="absolute right-[-80px] top-[-80px] h-[420px] w-[420px] rounded-full bg-blue-100/60 blur-3xl glow-pulse" />
+          <div className="absolute left-[-80px] bottom-[-80px] h-[380px] w-[380px] rounded-full bg-indigo-100/50 blur-3xl glow-pulse" style={{ animationDelay: "1.2s" }} />
+          <div className="absolute inset-0 opacity-[0.03] bg-grid-drift"
             style={{ backgroundImage: "linear-gradient(#1e3a8a 1px,transparent 1px),linear-gradient(90deg,#1e3a8a 1px,transparent 1px)", backgroundSize: "48px 48px" }} />
         </div>
 
@@ -425,31 +233,24 @@ export default function Home() {
               <span className="relative">
                 <span className="relative z-10 text-blue-600">أفضل مدارس</span>
                 <svg className="absolute -bottom-1 right-0 left-0 w-full" viewBox="0 0 200 8" preserveAspectRatio="none" style={{ height: 8 }}>
-                  <path d="M0 6 Q50 0 100 5 Q150 10 200 4" fill="none" stroke="#BFDBFE" strokeWidth="4" strokeLinecap="round" />
+                  <path className="hero-underline" d="M0 6 Q50 0 100 5 Q150 10 200 4" fill="none" stroke="#BFDBFE" strokeWidth="4" strokeLinecap="round" />
                 </svg>
               </span>
               <br />الدعم في مدينتك
             </motion.h2>
 
-            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5, delay: 0.25 }}
-              className="mb-10 max-w-xl text-lg leading-8 text-slate-500 mx-auto lg:mx-0">
-              قارن بين المدارس، اقرأ تقييمات الطلاب الحقيقية، وابحث بسهولة.
-            </motion.p>
-
-          
            
-
 
             {/* CTAs */}
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.45 }}
-              className="flex flex-col gap-3 sm:flex-row sm:justify-center lg:justify-start">
+              className="flex flex-col gap-3 sm:flex-row sm:justify-center lg:justify-start " style={{marginTop:"70px"}} >
               <Link to="/schools">
-                <Button className="h-12 rounded-xl bg-blue-600 px-7 text-sm font-bold hover:bg-blue-700 gap-2">
+                <Button className="h-12 rounded-xl bg-blue-600 px-7 text-sm font-bold hover:bg-blue-700 gap-2 transition-transform hover:scale-[1.03] active:scale-95" >
                   تصفح المدارس <ArrowLeft className="h-4 w-4" />
                 </Button>
               </Link>
               <Link to="/schoolregister">
-                <Button variant="outline" className="h-12 rounded-xl border-slate-200 px-7 text-sm font-semibold text-slate-700 hover:bg-slate-50 gap-2">
+                <Button variant="outline" className="h-12 rounded-xl border-slate-200 px-7 text-sm font-semibold text-slate-700 hover:bg-slate-50 gap-2 transition-transform hover:scale-[1.03] active:scale-95">
                   <BookOpen className="h-4 w-4 text-blue-500" /> سجّل مدرستك
                 </Button>
               </Link>
@@ -468,13 +269,52 @@ export default function Home() {
                 <div className="flex items-center gap-0.5">
                   {[...Array(5)].map((_, i) => <Star key={i} className="h-3 w-3 fill-amber-400 text-amber-400" />)}
                 </div>
-                <p className="text-xs text-slate-500 mt-0.5">+1,000 طالب يثقون في منصتنا</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {statsLoading ? "جاري التحميل..." : `+${formatNumber(stats.students ?? 0)} طالب يثقون في منصتنا`}
+                </p>
               </div>
             </motion.div>
           </motion.div>
 
-          {/* Right panel */}
-       
+          {/* Right panel — floating badges */}
+          <div className="relative hidden lg:block h-[420px]">
+            <motion.div initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.6, delay: 0.3 }}
+              className="float-badge-slow absolute right-6 top-6 flex items-center gap-2 rounded-2xl border border-white bg-white/90 backdrop-blur-sm px-4 py-2.5 shadow-xl">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-600 text-white">
+                <School className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-900">{statsLoading ? "…" : formatNumber(stats.schools ?? 0)}</p>
+                <p className="text-[10px] text-slate-400">مدرسة</p>
+              </div>
+            </motion.div>
+
+            <motion.div initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.6, delay: 0.5 }}
+              className="float-badge absolute left-4 top-40 flex items-center gap-2 rounded-2xl border border-white bg-white/90 backdrop-blur-sm px-4 py-2.5 shadow-xl">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-600 text-white">
+                <Users className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-900">{statsLoading ? "…" : formatNumber(stats.students ?? 0)}</p>
+                <p className="text-[10px] text-slate-400">طالب</p>
+              </div>
+            </motion.div>
+
+            <motion.div initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.6, delay: 0.7 }}
+              className="float-badge-slow absolute right-16 bottom-10 flex items-center gap-2 rounded-2xl border border-white bg-white/90 backdrop-blur-sm px-4 py-2.5 shadow-xl">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-violet-600 text-white">
+                <PresentationIcon className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-900">{statsLoading ? "…" : formatNumber(stats.teachers ?? 0)}</p>
+                <p className="text-[10px] text-slate-400">أستاذ</p>
+              </div>
+            </motion.div>
+
+            <div className="absolute inset-0 -z-10 flex items-center justify-center">
+              <div className="h-72 w-72 rounded-full bg-blue-50 glow-pulse" />
+            </div>
+          </div>
         </div>
       </section>
 
@@ -490,9 +330,14 @@ export default function Home() {
             { icon: Shield,     title: "مدارس معتمدة",   desc: "جميع المدارس يتم التحقق منها لضمان أعلى مستوى من الجودة.", color: "bg-blue-50 text-blue-600" },
             { icon: Clock,      title: "تسجيل سريع",     desc: "عملية تسجيل بسيطة لا تتجاوز دقيقتين للطلاب والمدارس.",    color: "bg-violet-50 text-violet-600" },
             { icon: TrendingUp, title: "تقييمات حقيقية", desc: "اقرأ تقييمات الطلاب الحقيقية وقارن قبل اتخاذ قرارك.",     color: "bg-emerald-50 text-emerald-600" },
-          ].map(item => (
-            <motion.div key={item.title} whileHover={{ y: -4 }} transition={{ type: "spring", stiffness: 300 }}
-              className="rounded-3xl border border-slate-200 bg-white p-7 shadow-sm hover:shadow-md transition-all">
+          ].map((item, i) => (
+            <motion.div key={item.title}
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-60px" }}
+              transition={{ duration: 0.5, delay: i * 0.1 }}
+              whileHover={{ y: -4 }}
+              className="rounded-3xl border border-slate-200 bg-white p-7 shadow-sm hover:shadow-md transition-shadow">
               <div className={`mb-5 flex h-14 w-14 items-center justify-center rounded-2xl ${item.color}`}>
                 <item.icon className="h-7 w-7" />
               </div>
@@ -503,39 +348,51 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── Stats ── */}
-      <section className="border-y border-slate-200 bg-white py-16">
-        <div className="container mx-auto grid gap-8 px-6 text-center md:grid-cols-3">
-          {[["50+", "مدرسة مسجلة"], ["1,000+", "طالب مسجل"], ["4.8 ⭐", "متوسط التقييم"]].map(([n, t]) => (
-            <div key={t}>
-              <div className="mb-2 text-4xl font-extrabold text-blue-600">{n}</div>
-              <div className="text-sm font-medium text-slate-500">{t}</div>
+      {/* ── Stats (live from API) ── */}
+      <section className="border-y border-slate-200 bg-white py-20">
+        <div className="container mx-auto px-6">
+          <div className="mb-12 text-center">
+            <span className="inline-block rounded-full border border-blue-100 bg-blue-50 px-4 py-1 text-sm font-semibold text-blue-600 mb-4">أرقامنا</span>
+            <h3 className="text-3xl font-extrabold text-slate-900">مجتمع ينمو كل يوم</h3>
+          </div>
+
+          {statsError ? (
+            <div className="mx-auto max-w-md rounded-2xl border border-red-100 bg-red-50 px-6 py-4 text-center text-sm text-red-600">
+              تعذر تحميل الإحصائيات في الوقت الحالي. حاول تحديث الصفحة.
             </div>
-          ))}
+          ) : (
+            <div className="grid gap-6 md:grid-cols-3">
+              <StatCard icon={School}  value={stats.schools}  label="مدرسة مسجلة" loading={statsLoading} delay={0} />
+              <StatCard icon={Users}   value={stats.students} label="طالب مسجل"   loading={statsLoading} delay={0.1} />
+              <StatCard icon={PresentationIcon} value={stats.teachers} label="أستاذ منضم" loading={statsLoading} delay={0.2} />
+            </div>
+          )}
         </div>
       </section>
 
-      {/* ── Comments ── */}
-      <CommentsSection user={user} />
-
       {/* ── CTA ── */}
       <section className="container mx-auto px-6 py-24">
-        <div className="relative overflow-hidden rounded-[32px] bg-slate-900 px-8 py-20 text-center text-white md:px-16">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-80px" }}
+          transition={{ duration: 0.6 }}
+          className="relative overflow-hidden rounded-[32px] bg-slate-900 px-8 py-20 text-center text-white md:px-16">
           <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute right-0 top-0 h-72 w-72 rounded-full bg-blue-600/20 blur-3xl" />
-            <div className="absolute left-0 bottom-0 h-72 w-72 rounded-full bg-violet-600/20 blur-3xl" />
+            <div className="absolute right-0 top-0 h-72 w-72 rounded-full bg-blue-600/20 blur-3xl glow-pulse" />
+            <div className="absolute left-0 bottom-0 h-72 w-72 rounded-full bg-violet-600/20 blur-3xl glow-pulse" style={{ animationDelay: "1s" }} />
           </div>
           <div className="relative">
             <span className="mb-6 inline-block rounded-full border border-white/10 bg-white/10 px-4 py-1 text-sm font-semibold text-blue-300">ابدأ مجاناً</span>
             <h3 className="mb-4 text-4xl font-extrabold leading-tight">ابدأ رحلتك التعليمية اليوم</h3>
             <p className="mx-auto mb-10 max-w-xl text-base leading-7 text-slate-300">انضم إلى آلاف الطلاب الذين يستخدمون منصتنا.</p>
             <Link to="/schools">
-              <Button className="h-12 rounded-xl bg-blue-600 px-8 text-sm font-bold hover:bg-blue-500 gap-2">
+              <Button className="h-12 rounded-xl bg-blue-600 px-8 text-sm font-bold hover:bg-blue-500 gap-2 transition-transform hover:scale-[1.03] active:scale-95">
                 تصفح المدارس الآن <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
           </div>
-        </div>
+        </motion.div>
       </section>
 
       {/* ── Footer ── */}

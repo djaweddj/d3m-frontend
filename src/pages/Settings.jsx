@@ -3,6 +3,7 @@ import { Upload, School, Save, Loader2, X, Lock, Eye, EyeOff, CheckCircle2 } fro
 import { useAuth } from "../context/authContext";
 import { uploadSchoolLogo} from "../api";
 import { toast } from "sonner";
+import {useSchool} from "../context/SchoolContext" 
 
 // Keep these in sync with the backend's FileValidator
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
@@ -12,7 +13,9 @@ const BRAND = "#185FA5";
 
 export default function Settings() {
   // useAuth gives: { user, school, updateSchool }
-  const { user, school, updateSchool } = useAuth();
+  const { user,  updateSchool } = useAuth();
+  const {school}=useSchool();
+  console.log("school",school)
   const changePassword = (data) =>
   api.put("/auth/change-password", data);
 

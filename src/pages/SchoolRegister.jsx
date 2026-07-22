@@ -20,8 +20,10 @@ import {
   User,
   Loader2,
 } from "lucide-react";
+import { useLanguage } from "../context/LanguageContext";
 
 // ─── Algerian wilayas ─────────────────────────────────────────────────────────
+// Kept as official Arabic place names regardless of interface language.
 const WILAYAS = [
   "أدرار","الشلف","الأغواط","أم البواقي","باتنة","بجاية","بسكرة","بشار",
   "البليدة","البويرة","تمنراست","تبسة","تلمسان","تيارت","تيزي وزو","الجزائر",
@@ -34,12 +36,11 @@ const WILAYAS = [
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const Field = ({ label, hint, req, error, children }) => (
+const Field = ({ label, req, error, children }) => (
   <div className="flex flex-col gap-1.5">
     <label className="text-[13px] font-semibold text-gray-800">
       {label}
-      {req && <span className="text-red-500 mr-1">*</span>}
-      {hint && <span className="font-normal text-gray-400 text-xs mr-1">— {hint}</span>}
+      {req && <span className="text-red-500 mx-1">*</span>}
     </label>
     {children}
     {error && (
@@ -53,7 +54,7 @@ const Field = ({ label, hint, req, error, children }) => (
 const InputIcon = ({ icon: Icon, children }) => (
   <div className="relative">
     {children}
-    <Icon className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+    <Icon className="absolute end-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
   </div>
 );
 
@@ -73,10 +74,13 @@ const inputCls =
   "w-full font-cairo text-sm px-3.5 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition";
 
 // ─── Success screen ───────────────────────────────────────────────────────────
-function SuccessScreen() {
+function SuccessScreen({ t, dir }) {
   return (
-    <div className="min-h-screen bg-gray-50 font-cairo" dir="rtl"
-      style={{ fontFamily: "'Cairo', sans-serif" }}>
+    <div
+      className="min-h-screen bg-gray-50 font-cairo"
+      dir={dir}
+      style={{ fontFamily: "'Cairo', sans-serif" }}
+    >
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&family=Tajawal:wght@400;500;700&display=swap');`}</style>
 
       <header className="border-b bg-white h-16 flex items-center px-6 justify-between sticky top-0 z-10">
@@ -85,7 +89,7 @@ function SuccessScreen() {
             <GraduationCap className="h-5 w-5 text-white" />
           </div>
           <span className="text-lg font-bold" style={{ fontFamily: "'Tajawal', sans-serif" }}>
-            منصة <span className="text-blue-600">مدارس</span> الدعم
+            {t("navbar.platformName")}
           </span>
         </Link>
       </header>
@@ -95,20 +99,15 @@ function SuccessScreen() {
           <CheckCircle2 className="h-10 w-10 text-green-600" />
         </div>
         <h1 className="text-2xl font-bold text-gray-900 mb-2" style={{ fontFamily: "'Tajawal', sans-serif" }}>
-          تم إرسال طلبك بنجاح!
+          {t("schoolRegister.success.title")}
         </h1>
-        <p className="text-sm text-gray-500 mb-8">
-          شكراً لانضمامك — سيتواصل معك فريقنا خلال 48 ساعة لتأكيد التسجيل.
-        </p>
+        <p className="text-sm text-gray-500 mb-8">{t("schoolRegister.success.subtitle")}</p>
 
-        <div className="bg-white border border-gray-100 rounded-2xl p-5 text-right mb-8">
-          <p className="text-sm font-semibold text-gray-800 mb-3">الخطوات التالية</p>
-          {[
-            "مراجعة المعلومات من قبل فريقنا",
-            "التواصل معك لتأكيد التفاصيل والمستندات",
-            "تفعيل حساب مدرستك على المنصة",
-            "البدء في استقبال طلبات التسجيل",
-          ].map((step) => (
+        <div className="bg-white border border-gray-100 rounded-2xl p-5 text-start mb-8">
+          <p className="text-sm font-semibold text-gray-800 mb-3">
+            {t("schoolRegister.success.nextStepsTitle")}
+          </p>
+          {t("schoolRegister.success.steps").map((step) => (
             <div key={step} className="flex items-center gap-2 mb-2.5 last:mb-0">
               <CheckCircle2 className="h-4 w-4 text-blue-500 flex-shrink-0" />
               <span className="text-sm text-gray-600">{step}</span>
@@ -119,13 +118,13 @@ function SuccessScreen() {
         <div className="flex gap-3 justify-center">
           <Link to="/schools">
             <button className="px-6 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition">
-              تصفح المدارس
+              {t("schoolRegister.success.browseSchools")}
             </button>
           </Link>
           <Link to="/">
             <button className="px-6 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 transition flex items-center gap-2">
               <Home className="h-4 w-4" />
-              الرئيسية
+              {t("schoolRegister.success.home")}
             </button>
           </Link>
         </div>
@@ -136,14 +135,13 @@ function SuccessScreen() {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function SchoolRegister() {
-  
+  const { t, dir } = useLanguage();
   const navigate = useNavigate();
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState(null);
-   const API_URL = import.meta.env.VITE_API_URL;
-  
+  const API_URL = import.meta.env.VITE_API_URL;
 
   const {
     register,
@@ -154,7 +152,6 @@ export default function SchoolRegister() {
   const onSubmit = async (data) => {
     setIsLoading(true);
     setServerError(null);
-    
 
     // Map form fields → backend DTO
     const payload = {
@@ -170,7 +167,6 @@ export default function SchoolRegister() {
 
     try {
       const response = await fetch(`${API_URL}/api/school-requests`, {
-  
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -178,21 +174,16 @@ export default function SchoolRegister() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
-        
+
         const message =
-          errorData?.message ||
-          errorData?.error ||
-          `خطأ في الخادم (${response.status})`;
+          errorData?.message || errorData?.error || `${t("schoolRegister.errors.serverErrorTitle")} (${response.status})`;
         throw new Error(message);
       }
 
-      toast.success("تم إرسال طلب التسجيل بنجاح!");
+      toast.success(t("schoolRegister.success.title"));
       setIsSubmitted(true);
     } catch (err) {
-      const msg =
-        err.message === "Failed to fetch"
-          ? "تعذّر الاتصال بالخادم — تأكد من تشغيل الخادم المحلي"
-          : err.message;
+      const msg = err.message === "Failed to fetch" ? t("schoolRegister.errors.fetchError") : err.message;
       setServerError(msg);
       toast.error(msg);
     } finally {
@@ -200,14 +191,12 @@ export default function SchoolRegister() {
     }
   };
 
-  if (isSubmitted) return <SuccessScreen />;
-  
+  if (isSubmitted) return <SuccessScreen t={t} dir={dir} />;
 
+  const stepLabels = t("schoolRegister.steps");
 
   return (
-    <div className="min-h-screen bg-gray-50" dir="rtl"
-      style={{ fontFamily: "'Cairo', sans-serif" }}>
-
+    <div className="min-h-screen bg-gray-50" dir={dir} style={{ fontFamily: "'Cairo', sans-serif" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&family=Tajawal:wght@400;500;700&display=swap');`}</style>
 
       {/* ── Header ── */}
@@ -217,13 +206,13 @@ export default function SchoolRegister() {
             <GraduationCap className="h-5 w-5 text-white" />
           </div>
           <span className="text-lg font-bold text-gray-900" style={{ fontFamily: "'Tajawal', sans-serif" }}>
-            منصة <span className="text-blue-600">مدارس</span> الدعم
+            {t("navbar.platformName")}
           </span>
         </Link>
         <Link to="/schools">
           <button className="text-sm font-medium text-gray-500 border border-gray-200 px-4 py-2 rounded-lg hover:bg-gray-50 hover:text-gray-800 transition flex items-center gap-1.5">
             <Building2 className="h-4 w-4" />
-            تصفح المدارس
+            {t("schoolRegister.browseSchools")}
           </button>
         </Link>
       </header>
@@ -241,36 +230,27 @@ export default function SchoolRegister() {
           }}
         />
         <h1 className="text-2xl font-bold text-white relative" style={{ fontFamily: "'Tajawal', sans-serif" }}>
-          تسجيل مدرسة جديدة
+          {t("schoolRegister.hero.title")}
         </h1>
-        <p className="text-sm text-blue-200 mt-1 relative">
-          انضم إلى شبكة مدارس الدعم وابدأ في استقبال الطلاب اليوم
-        </p>
+        <p className="text-sm text-blue-200 mt-1 relative">{t("schoolRegister.hero.subtitle")}</p>
 
         {/* Step pills */}
         <div className="flex justify-center mt-6 relative">
-          {[
-            { n: "1", label: "معلومات المدرسة", active: true },
-            { n: "2", label: "المراجعة", active: false },
-            { n: "3", label: "التفعيل", active: false },
-          ].map((step, i) => (
+          {stepLabels.map((label, i) => (
             <div
-              key={step.n}
+              key={label}
               className={`flex items-center gap-2 px-4 py-1.5 text-xs font-medium border transition
-                ${i === 0 ? "rounded-r-full" : ""}
-                ${i === 2 ? "rounded-l-full" : ""}
-                ${step.active
-                  ? "bg-white/20 text-white border-white/40"
-                  : "bg-white/10 text-white/60 border-white/15"
-                }`}
+                ${i === 0 ? "rounded-s-full" : ""}
+                ${i === stepLabels.length - 1 ? "rounded-e-full" : ""}
+                ${i === 0 ? "bg-white/20 text-white border-white/40" : "bg-white/10 text-white/60 border-white/15"}`}
             >
               <span
                 className={`w-5 h-5 rounded-full border text-[10px] flex items-center justify-center
-                  ${step.active ? "bg-white text-blue-700 border-white font-bold" : "border-current"}`}
+                  ${i === 0 ? "bg-white text-blue-700 border-white font-bold" : "border-current"}`}
               >
-                {step.n}
+                {i + 1}
               </span>
-              {step.label}
+              {label}
             </div>
           ))}
         </div>
@@ -280,62 +260,71 @@ export default function SchoolRegister() {
       <div className="max-w-2xl mx-auto px-4 -mt-5 pb-12 relative">
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-
             {/* Server error banner */}
             {serverError && (
               <div className="mx-6 mt-6 bg-red-50 border border-red-200 rounded-xl p-4 flex gap-3 items-start">
                 <X className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-semibold text-red-800">حدث خطأ</p>
+                  <p className="text-sm font-semibold text-red-800">
+                    {t("schoolRegister.errors.serverErrorTitle")}
+                  </p>
                   <p className="text-xs text-red-600 mt-0.5">{serverError}</p>
                 </div>
               </div>
             )}
 
             {/* ── Section 1: School info ── */}
-            <SectionHeader icon={Info} label="معلومات المدرسة" sub="البيانات الأساسية لمدرستك" />
+            <SectionHeader
+              icon={Info}
+              label={t("schoolRegister.sections.schoolInfo.label")}
+              sub={t("schoolRegister.sections.schoolInfo.sub")}
+            />
 
             <div className="p-6 space-y-4">
-              <Field label="اسم المدرسة" req error={errors.schoolName?.message}>
+              <Field label={t("schoolRegister.fields.schoolName")} req error={errors.schoolName?.message}>
                 <input
                   className={inputCls}
-                  placeholder="مثال: مدرسة الأمل للدعم التربوي"
-                  {...register("schoolName", { required: "اسم المدرسة مطلوب" })}
+                  placeholder={t("schoolRegister.fields.schoolNamePlaceholder")}
+                  {...register("schoolName", { required: t("schoolRegister.errors.schoolName") })}
                 />
               </Field>
 
               {/* Wilaya + Commune */}
               <div className="grid grid-cols-2 gap-4">
-                <Field label="الولاية" req error={errors.wilaya?.message}>
+                <Field label={t("schoolRegister.fields.wilaya")} req error={errors.wilaya?.message}>
                   <InputIcon icon={MapPin}>
                     <select
-                      className={`${inputCls} pr-9 appearance-none cursor-pointer`}
+                      className={`${inputCls} pe-9 appearance-none cursor-pointer`}
                       defaultValue=""
-                      {...register("wilaya", { required: "الولاية مطلوبة" })}
+                      {...register("wilaya", { required: t("schoolRegister.errors.wilaya") })}
                     >
-                      <option value="" disabled>اختر الولاية...</option>
+                      <option value="" disabled>
+                        {t("schoolRegister.fields.selectWilaya")}
+                      </option>
                       {WILAYAS.map((w) => (
-                        <option key={w} value={w}>{w}</option>
+                        <option key={w} value={w}>
+                          {w}
+                        </option>
                       ))}
                     </select>
                   </InputIcon>
                 </Field>
 
-                <Field label="البلدية" req error={errors.commune?.message}>
+                <Field label={t("schoolRegister.fields.commune")} req error={errors.commune?.message}>
                   <input
                     className={inputCls}
-                    placeholder="مثال: باب الوادي"
-                    {...register("commune", { required: "البلدية مطلوبة" })}
+                    placeholder={t("schoolRegister.fields.communePlaceholder")}
+                    {...register("commune", { required: t("schoolRegister.errors.commune") })}
                   />
                 </Field>
               </div>
 
-              <Field label="العنوان التفصيلي" req error={errors.address?.message}>
+              <Field label={t("schoolRegister.fields.address")} req error={errors.address?.message}>
                 <InputIcon icon={MapPin}>
                   <input
-                    className={`${inputCls} pr-9`}
-                    placeholder="رقم، شارع، حي..."
-                    {...register("address", { required: "العنوان مطلوب" })}
+                    className={`${inputCls} pe-9`}
+                    placeholder={t("schoolRegister.fields.addressPlaceholder")}
+                    {...register("address", { required: t("schoolRegister.errors.address") })}
                   />
                 </InputIcon>
               </Field>
@@ -344,51 +333,55 @@ export default function SchoolRegister() {
             <div className="border-t border-gray-100 mx-6" />
 
             {/* ── Section 2: Owner info ── */}
-            <SectionHeader icon={User} label="معلومات المسؤول" sub="بيانات صاحب أو مدير المدرسة" />
+            <SectionHeader
+              icon={User}
+              label={t("schoolRegister.sections.ownerInfo.label")}
+              sub={t("schoolRegister.sections.ownerInfo.sub")}
+            />
 
             <div className="p-6 space-y-4">
-              <Field label="الاسم الكامل للمسؤول" req error={errors.ownerFullName?.message}>
+              <Field label={t("schoolRegister.fields.ownerFullName")} req error={errors.ownerFullName?.message}>
                 <InputIcon icon={User}>
                   <input
-                    className={`${inputCls} pr-9`}
-                    placeholder="الاسم واللقب"
-                    {...register("ownerFullName", { required: "اسم المسؤول مطلوب" })}
+                    className={`${inputCls} pe-9`}
+                    placeholder={t("schoolRegister.fields.ownerFullNamePlaceholder")}
+                    {...register("ownerFullName", { required: t("schoolRegister.errors.ownerFullName") })}
                   />
                 </InputIcon>
               </Field>
 
               <div className="grid grid-cols-2 gap-4">
-                <Field label="رقم الهاتف" req error={errors.phone?.message}>
+                <Field label={t("schoolRegister.fields.phone")} req error={errors.phone?.message}>
                   <InputIcon icon={Phone}>
                     <input
-                      className={`${inputCls} pr-9`}
+                      className={`${inputCls} pe-9`}
                       placeholder="0612345678"
                       dir="ltr"
-                      style={{ textAlign: "right" }}
+                      style={{ textAlign: "start" }}
                       {...register("phone", {
-                        required: "رقم الهاتف مطلوب",
+                        required: t("schoolRegister.errors.phone"),
                         pattern: {
                           value: /^0[5-7][0-9]{8}$/,
-                          message: "رقم الهاتف غير صحيح (مثال: 0612345678)",
+                          message: t("schoolRegister.errors.phoneInvalid"),
                         },
                       })}
                     />
                   </InputIcon>
                 </Field>
 
-                <Field label="البريد الإلكتروني" req error={errors.email?.message}>
+                <Field label={t("schoolRegister.fields.email")} req error={errors.email?.message}>
                   <InputIcon icon={Mail}>
                     <input
                       type="email"
-                      className={`${inputCls} pr-9`}
+                      className={`${inputCls} pe-9`}
                       placeholder="example@email.com"
                       dir="ltr"
-                      style={{ textAlign: "right" }}
+                      style={{ textAlign: "start" }}
                       {...register("email", {
-                        required: "البريد الإلكتروني مطلوب",
+                        required: t("schoolRegister.errors.email"),
                         pattern: {
                           value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                          message: "بريد إلكتروني غير صحيح",
+                          message: t("schoolRegister.errors.emailInvalid"),
                         },
                       })}
                     />
@@ -400,29 +393,30 @@ export default function SchoolRegister() {
             <div className="border-t border-gray-100 mx-6" />
 
             {/* ── Section 3: Account security ── */}
-            <SectionHeader icon={Lock} label="الحساب والأمان" sub="أنشئ كلمة مرور لحساب مدرستك" />
+            <SectionHeader
+              icon={Lock}
+              label={t("schoolRegister.sections.security.label")}
+              sub={t("schoolRegister.sections.security.sub")}
+            />
 
             <div className="p-6">
-              <Field label="كلمة المرور" req error={errors.password?.message}>
+              <Field label={t("schoolRegister.fields.password")} req error={errors.password?.message}>
                 <div className="relative">
                   <input
                     type={showPassword ? "text" : "password"}
-                    className={`${inputCls} pr-9`}
-                    placeholder="8 أحرف على الأقل"
+                    className={`${inputCls} pe-9`}
+                    placeholder={t("schoolRegister.fields.passwordPlaceholder")}
                     {...register("password", {
-                      required: "كلمة المرور مطلوبة",
-                      minLength: { value: 8, message: "يجب أن تكون 8 أحرف على الأقل" },
+                      required: t("schoolRegister.errors.password"),
+                      minLength: { value: 8, message: t("schoolRegister.errors.passwordLength") },
                     })}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+                    className="absolute end-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
                   >
-                    {showPassword
-                      ? <EyeOff className="h-4 w-4" />
-                      : <Eye className="h-4 w-4" />
-                    }
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
               </Field>
@@ -432,13 +426,9 @@ export default function SchoolRegister() {
             <div className="mx-6 mb-6 bg-green-50 border border-green-200 rounded-xl p-4 flex gap-3">
               <ShieldCheck className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-semibold text-green-800 mb-1">ملاحظات مهمة</p>
+                <p className="text-sm font-semibold text-green-800 mb-1">{t("schoolRegister.notice.title")}</p>
                 <ul className="space-y-1">
-                  {[
-                    "ستتم مراجعة طلبك خلال 48 ساعة عمل",
-                    "سيُطلب منك تقديم مستندات رسمية عند التواصل",
-                    "يمكنك تعديل بيانات مدرستك بعد التفعيل",
-                  ].map((note) => (
+                  {t("schoolRegister.notice.items").map((note) => (
                     <li key={note} className="flex items-center gap-2 text-xs text-green-700">
                       <CheckCircle2 className="h-3.5 w-3.5 text-green-500 flex-shrink-0" />
                       {note}
@@ -455,7 +445,7 @@ export default function SchoolRegister() {
                   type="button"
                   className="px-6 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-500 hover:bg-white hover:text-gray-800 transition"
                 >
-                  إلغاء
+                  {t("schoolRegister.cancel")}
                 </button>
               </Link>
               <button
@@ -466,12 +456,12 @@ export default function SchoolRegister() {
                 {isLoading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    جاري الإرسال...
+                    {t("schoolRegister.submitting")}
                   </>
                 ) : (
                   <>
                     <Send className="h-4 w-4" />
-                    إرسال طلب التسجيل
+                    {t("schoolRegister.submit")}
                   </>
                 )}
               </button>

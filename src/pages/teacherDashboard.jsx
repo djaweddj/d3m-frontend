@@ -5,8 +5,9 @@ import {
   LayoutDashboard, User, Users, CalendarDays, Wallet, LogOut, School,
 } from "lucide-react";
 import { useAuth } from "../context/authContext";
+import { useLanguage } from "../context/LanguageContext";
 
-const API = "http://localhost:8080/api";
+const API = "http://localhost:8081/api";
 
 function getToken() {
   return localStorage.getItem("accessToken");
@@ -21,55 +22,37 @@ function authHeaders() {
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
-const ARABIC_MONTHS = [
-  "جانفي", "فيفري", "مارس", "أفريل", "ماي", "جوان",
-  "جويلية", "أوت", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر",
-];
-
-function formatPeriod(period) {
+function formatPeriod(period, t) {
   if (!period) return "—";
   const [y, m] = period.split("-");
   const idx = parseInt(m, 10) - 1;
-  return `${ARABIC_MONTHS[idx] ?? m} ${y}`;
+  const months = t("teacherDashboard.months");
+  const monthName = Array.isArray(months) ? months[idx] : m;
+  return `${monthName ?? m} ${y}`;
 }
 
 function formatTime(t) {
   return t ? t.slice(0, 5) : "—";
 }
 
-function formatMoney(v) {
+function formatMoney(v, t, locale) {
   if (v === null || v === undefined) return "—";
-  return `${Number(v).toLocaleString("en-US")} دج`;
+  return `${Number(v).toLocaleString(locale || "en-US")} ${t("teacherDashboard.currency")}`;
 }
 
-function formatDate(dt) {
+function formatDate(dt, locale) {
   if (!dt) return null;
   const d = new Date(dt);
-  return d.toLocaleDateString("ar-DZ", { year: "numeric", month: "long", day: "numeric" });
+  return d.toLocaleDateString(locale || "ar-DZ", { year: "numeric", month: "long", day: "numeric" });
 }
 
-const DAY_LABELS = {
-  SUNDAY: "الأحد",
-  MONDAY: "الإثنين",
-  TUESDAY: "الثلاثاء",
-  WEDNESDAY: "الأربعاء",
-  THURSDAY: "الخميس",
-  FRIDAY: "الجمعة",
-  SATURDAY: "السبت",
-};
-
 const DAY_ORDER = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
-
-const PAYOUT_STATUS = {
-  PENDING: { label: "قيد الانتظار", classes: "bg-amber-50 text-amber-600 border-amber-100" },
-  PAID: { label: "مدفوع", classes: "bg-emerald-50 text-emerald-600 border-emerald-100" },
-};
 
 // ─── API calls ────────────────────────────────────────────────────────────────
 
 async function fetchProfile() {
   const res = await fetch(`${API}/teachers/profile`, { headers: authHeaders() });
-  if (!res.ok) throw new Error("فشل تحميل الملف الشخصي");
+  if (!res.ok) throw new Error("PROFILE_LOAD_FAILED");
   return res.json();
 }
 
@@ -79,25 +62,25 @@ async function updateProfile(data) {
     headers: authHeaders(),
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error("فشل حفظ التعديلات");
+  if (!res.ok) throw new Error("PROFILE_SAVE_FAILED");
   return res.json();
 }
 
 async function fetchMyModules() {
   const res = await fetch(`${API}/modules/mine`, { headers: authHeaders() });
-  if (!res.ok) throw new Error("فشل تحميل الأقسام");
+  if (!res.ok) throw new Error("MODULES_LOAD_FAILED");
   return res.json();
 }
 
 async function fetchStudentsByModule(moduleId) {
   const res = await fetch(`${API}/students/by-module/${moduleId}`, { headers: authHeaders() });
-  if (!res.ok) throw new Error("فشل تحميل قائمة التلاميذ");
+  if (!res.ok) throw new Error("STUDENTS_LOAD_FAILED");
   return res.json();
 }
 
 async function fetchMyPayouts() {
   const res = await fetch(`${API}/payouts/mine`, { headers: authHeaders() });
-  if (!res.ok) throw new Error("فشل تحميل المستحقات");
+  if (!res.ok) throw new Error("PAYOUTS_LOAD_FAILED");
   return res.json();
 }
 
@@ -109,10 +92,30 @@ async function fetchMyPayoutForMonth(period) {
     headers: authHeaders(),
   });
   if (res.status === 404) return null;
+<<<<<<< HEAD
   if (!res.ok) throw new Error("فشل تحميل مستحقات هذا الشهر");
   return res.json();
 }
 
+=======
+  if (!res.ok) throw new Error("PAYOUT_MONTH_LOAD_FAILED");
+  return res.json();
+}
+
+// Maps internal error codes to translated messages
+function errMsg(t, code) {
+  const map = {
+    PROFILE_LOAD_FAILED: t("teacherDashboard.errors.profileLoad"),
+    PROFILE_SAVE_FAILED: t("teacherDashboard.errors.profileSave"),
+    MODULES_LOAD_FAILED: t("teacherDashboard.errors.modulesLoad"),
+    STUDENTS_LOAD_FAILED: t("teacherDashboard.errors.studentsLoad"),
+    PAYOUTS_LOAD_FAILED: t("teacherDashboard.errors.payoutsLoad"),
+    PAYOUT_MONTH_LOAD_FAILED: t("teacherDashboard.errors.payoutMonthLoad"),
+  };
+  return map[code] || code;
+}
+
+>>>>>>> a1933d6 (add launguages transition)
 // ─── Tiny shared components ───────────────────────────────────────────────────
 
 function Blob({ className }) {
@@ -144,12 +147,13 @@ function ErrorBanner({ message }) {
   );
 }
 
-function Spinner({ label = "جاري التحميل..." }) {
+function Spinner({ label }) {
+  const { t } = useLanguage();
   return (
     <div className="flex flex-1 items-center justify-center p-16">
       <div className="text-center">
         <div className="mb-4 h-10 w-10 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600 mx-auto" />
-        <p className="text-slate-500 font-semibold">{label}</p>
+        <p className="text-slate-500 font-semibold">{label || t("teacherDashboard.common.loading")}</p>
       </div>
     </div>
   );
@@ -170,6 +174,7 @@ function PageHeader({ badge, title, subtitle }) {
 // ─── Logout confirmation modal ─────────────────────────────────────────────────
 
 function LogoutModal({ onConfirm, onCancel }) {
+  const { t, dir } = useLanguage();
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -178,6 +183,7 @@ function LogoutModal({ onConfirm, onCancel }) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
     >
       <motion.div
+        dir={dir}
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         className="w-full max-w-sm rounded-[28px] border border-slate-200 bg-white p-8 text-center shadow-2xl"
@@ -185,20 +191,20 @@ function LogoutModal({ onConfirm, onCancel }) {
         <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-red-50 text-3xl">
           🚪
         </div>
-        <h2 className="mb-2 text-xl font-extrabold text-slate-900">تسجيل الخروج</h2>
-        <p className="mb-6 text-sm text-slate-500">هل أنت متأكد أنك تريد تسجيل الخروج من حسابك؟</p>
+        <h2 className="mb-2 text-xl font-extrabold text-slate-900">{t("teacherDashboard.logoutModal.title")}</h2>
+        <p className="mb-6 text-sm text-slate-500">{t("teacherDashboard.logoutModal.question")}</p>
         <div className="flex gap-3">
           <button
             onClick={onCancel}
             className="flex-1 rounded-2xl bg-slate-100 px-5 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-200"
           >
-            إلغاء
+            {t("teacherDashboard.logoutModal.cancel")}
           </button>
           <button
             onClick={onConfirm}
             className="flex-1 rounded-2xl bg-gradient-to-br from-red-500 to-rose-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-red-200"
           >
-            تسجيل الخروج
+            {t("teacherDashboard.logoutModal.confirm")}
           </button>
         </div>
       </motion.div>
@@ -209,6 +215,7 @@ function LogoutModal({ onConfirm, onCancel }) {
 // ─── Profile page ─────────────────────────────────────────────────────────────
 
 function ProfilePage({ profile, onSaved }) {
+  const { t, dir } = useLanguage();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(profile);
   const [saving, setSaving] = useState(false);
@@ -231,7 +238,7 @@ function ProfilePage({ profile, onSaved }) {
       onSaved(updated);
       setEditing(false);
     } catch (e) {
-      setError(e.message);
+      setError(errMsg(t, e.message));
     } finally {
       setSaving(false);
     }
@@ -240,7 +247,7 @@ function ProfilePage({ profile, onSaved }) {
   const cur = editing ? draft : profile;
 
   return (
-    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-8" dir="rtl">
+    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-8" dir={dir}>
       <Blob className="right-[-100px] top-[-100px] h-[350px] w-[350px] bg-blue-100/60" />
       <Blob className="bottom-[-100px] left-[-100px] h-[320px] w-[320px] bg-emerald-100/50" />
 
@@ -252,10 +259,10 @@ function ProfilePage({ profile, onSaved }) {
         >
           <div>
             <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-4 py-1.5 text-sm font-semibold text-emerald-600">
-              👤 الملف الشخصي
+              👤 {t("teacherDashboard.profile.badge")}
             </span>
-            <h1 className="mt-4 text-5xl font-extrabold text-slate-900">بروفايلي</h1>
-            <p className="mt-3 text-lg text-slate-500">اعرض وعدّل معلوماتك الشخصية.</p>
+            <h1 className="mt-4 text-5xl font-extrabold text-slate-900">{t("teacherDashboard.profile.title")}</h1>
+            <p className="mt-3 text-lg text-slate-500">{t("teacherDashboard.profile.subtitle")}</p>
           </div>
 
           <div className="mt-8 flex gap-3">
@@ -265,7 +272,7 @@ function ProfilePage({ profile, onSaved }) {
                 onClick={() => { setDraft(profile); setEditing(true); }}
                 className="flex items-center gap-2 rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-200"
               >
-                ✏️ تعديل
+                ✏️ {t("teacherDashboard.profile.edit")}
               </motion.button>
             ) : (
               <>
@@ -274,13 +281,13 @@ function ProfilePage({ profile, onSaved }) {
                   disabled={saving}
                   className="flex items-center gap-2 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-500 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-200 disabled:opacity-60"
                 >
-                  {saving ? "جاري الحفظ..." : "✓ حفظ"}
+                  {saving ? t("teacherDashboard.profile.saving") : `✓ ${t("teacherDashboard.profile.save")}`}
                 </button>
                 <button
                   onClick={() => { setEditing(false); setError(null); }}
                   className="rounded-2xl bg-slate-100 px-6 py-3 text-sm font-bold text-slate-600 hover:bg-red-50 hover:text-red-500"
                 >
-                  ✕ إلغاء
+                  ✕ {t("teacherDashboard.profile.cancel")}
                 </button>
               </>
             )}
@@ -307,7 +314,7 @@ function ProfilePage({ profile, onSaved }) {
                   value={draft.fullName || ""}
                   onChange={(e) => setDraft((p) => ({ ...p, fullName: e.target.value }))}
                   className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xl font-bold text-slate-900 outline-none focus:border-blue-400 focus:bg-white transition"
-                  placeholder="الاسم الكامل"
+                  placeholder={t("teacherDashboard.profile.fullNamePlaceholder")}
                 />
               ) : (
                 <h2 className="text-3xl font-extrabold text-slate-900">{cur.fullName}</h2>
@@ -315,7 +322,7 @@ function ProfilePage({ profile, onSaved }) {
               <span className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-4 py-1.5 text-sm font-semibold text-blue-600">
                 📚 {cur.specialization || "—"}
               </span>
-              <p className="text-xs text-slate-400">التخصص يُعدّل من طرف إدارة المدرسة فقط</p>
+              <p className="text-xs text-slate-400">{t("teacherDashboard.profile.specializationNote")}</p>
             </div>
           </div>
         </motion.div>
@@ -331,19 +338,19 @@ function ProfilePage({ profile, onSaved }) {
             <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-md">
               ✉️
             </span>
-            معلومات التواصل
+            {t("teacherDashboard.profile.contactTitle")}
           </h3>
           <div className="grid gap-4 md:grid-cols-3">
             <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
-              <p className="mb-1 text-xs text-slate-400">البريد الإلكتروني</p>
+              <p className="mb-1 text-xs text-slate-400">{t("teacherDashboard.profile.emailLabel")}</p>
               <p className="text-sm font-semibold text-slate-800">{cur.email}</p>
             </div>
             <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
-              <p className="mb-1 text-xs text-slate-400">المعرف</p>
+              <p className="mb-1 text-xs text-slate-400">{t("teacherDashboard.profile.idLabel")}</p>
               <p className="text-sm font-semibold text-slate-800">#{cur.id}</p>
             </div>
             <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
-              <p className="mb-1 text-xs text-emerald-500">نسبتك من الإيرادات</p>
+              <p className="mb-1 text-xs text-emerald-500">{t("teacherDashboard.profile.revenueShareLabel")}</p>
               <p className="text-sm font-extrabold text-emerald-700">
                 {cur.percentage !== undefined && cur.percentage !== null ? `${cur.percentage}%` : "—"}
               </p>
@@ -363,7 +370,7 @@ function ProfilePage({ profile, onSaved }) {
               <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-md">
                 📖
               </span>
-              المواد التي تُدرّسها
+              {t("teacherDashboard.profile.subjectsTitle")}
             </h3>
             <div className="flex flex-wrap gap-3">
               {cur.subjectNames.map((s, i) => (
@@ -389,7 +396,7 @@ function ProfilePage({ profile, onSaved }) {
             <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-purple-500 text-white shadow-md">
               📝
             </span>
-            نبذة شخصية
+            {t("teacherDashboard.profile.bioTitle")}
           </h3>
           {editing ? (
             <textarea
@@ -397,10 +404,10 @@ function ProfilePage({ profile, onSaved }) {
               onChange={(e) => setDraft((p) => ({ ...p, bio: e.target.value }))}
               rows={4}
               className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none focus:border-violet-400 focus:bg-white transition resize-none"
-              placeholder="اكتب نبذة عنك..."
+              placeholder={t("teacherDashboard.profile.bioPlaceholder")}
             />
           ) : (
-            <p className="text-base leading-8 text-slate-600">{cur.bio || "لم تتم إضافة نبذة بعد."}</p>
+            <p className="text-base leading-8 text-slate-600">{cur.bio || t("teacherDashboard.profile.bioEmpty")}</p>
           )}
         </motion.div>
       </div>
@@ -411,6 +418,7 @@ function ProfilePage({ profile, onSaved }) {
 // ─── Students page (real data via /modules/mine + /students/by-module) ───────
 
 function StudentsModal({ module: mod, onClose }) {
+  const { t, dir } = useLanguage();
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -419,7 +427,7 @@ function StudentsModal({ module: mod, onClose }) {
   useEffect(() => {
     fetchStudentsByModule(mod.id)
       .then(setStudents)
-      .catch((e) => setError(e.message))
+      .catch((e) => setError(errMsg(t, e.message)))
       .finally(() => setLoading(false));
   }, [mod.id]);
 
@@ -435,6 +443,7 @@ function StudentsModal({ module: mod, onClose }) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
     >
       <motion.div
+        dir={dir}
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-[32px] border border-slate-200 bg-white p-8 shadow-2xl"
@@ -458,7 +467,7 @@ function StudentsModal({ module: mod, onClose }) {
           <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
           <input
             type="text"
-            placeholder="ابحث عن تلميذ..."
+            placeholder={t("teacherDashboard.students.searchPlaceholder")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pr-12 pl-4 text-sm outline-none transition focus:border-blue-400 focus:bg-white"
@@ -466,11 +475,11 @@ function StudentsModal({ module: mod, onClose }) {
         </div>
 
         {loading ? (
-          <Spinner label="جاري تحميل التلاميذ..." />
+          <Spinner label={t("teacherDashboard.students.loadingStudents")} />
         ) : error ? (
           <ErrorBanner message={error} />
         ) : filtered.length === 0 ? (
-          <p className="py-10 text-center text-slate-400">لا يوجد تلاميذ مسجلين بعد.</p>
+          <p className="py-10 text-center text-slate-400">{t("teacherDashboard.students.noStudents")}</p>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
             {filtered.map((student, i) => (
@@ -492,8 +501,8 @@ function StudentsModal({ module: mod, onClose }) {
                 </div>
                 {(student.parentName || student.parentPhone) && (
                   <div className="border-t border-slate-100 pt-3 text-xs text-slate-500">
-                    {student.parentName && <p>ولي الأمر: {student.parentName}</p>}
-                    {student.parentPhone && <p>الهاتف: {student.parentPhone}</p>}
+                    {student.parentName && <p>{t("teacherDashboard.students.parentLabel")} {student.parentName}</p>}
+                    {student.parentPhone && <p>{t("teacherDashboard.students.phoneLabel")} {student.parentPhone}</p>}
                   </div>
                 )}
               </motion.div>
@@ -506,6 +515,7 @@ function StudentsModal({ module: mod, onClose }) {
 }
 
 function StudentsPage() {
+  const { t } = useLanguage();
   const [modules, setModules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -514,7 +524,7 @@ function StudentsPage() {
   useEffect(() => {
     fetchMyModules()
       .then(setModules)
-      .catch((e) => setError(e.message))
+      .catch((e) => setError(errMsg(t, e.message)))
       .finally(() => setLoading(false));
   }, []);
 
@@ -524,15 +534,15 @@ function StudentsPage() {
   }, {});
 
   return (
-    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-8" dir="rtl">
+    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-8" dir={useLanguage().dir}>
       <Blob className="right-[-100px] top-[-100px] h-[350px] w-[350px] bg-blue-100/60" />
       <Blob className="bottom-[-100px] left-[-100px] h-[320px] w-[320px] bg-violet-100/50" />
 
       <div className="relative z-10 mx-auto max-w-7xl">
         <PageHeader
-          badge="👨‍🎓 إدارة التلاميذ"
-          title="أقسامي وتلاميذي"
-          subtitle="اختر أحد أقسامك لعرض قائمة التلاميذ المسجلين فيه."
+          badge={`👨‍🎓 ${t("teacherDashboard.students.badge")}`}
+          title={t("teacherDashboard.students.title")}
+          subtitle={t("teacherDashboard.students.subtitle")}
         />
 
         <ErrorBanner message={error} />
@@ -542,8 +552,8 @@ function StudentsPage() {
         ) : modules.length === 0 ? (
           <div className="rounded-3xl border border-slate-100 bg-white/80 p-16 text-center shadow-sm">
             <p className="mb-2 text-5xl">📭</p>
-            <p className="text-lg font-bold text-slate-700">لا توجد أقسام مسندة إليك بعد</p>
-            <p className="mt-1 text-sm text-slate-400">سيظهر هنا كل قسم تُسند إليه إدارة المدرسة.</p>
+            <p className="text-lg font-bold text-slate-700">{t("teacherDashboard.students.emptyTitle")}</p>
+            <p className="mt-1 text-sm text-slate-400">{t("teacherDashboard.students.emptySubtitle")}</p>
           </div>
         ) : (
           <div className="space-y-10">
@@ -560,7 +570,7 @@ function StudentsPage() {
                   </div>
                   <div>
                     <h2 className="text-2xl font-extrabold text-slate-900">{level}</h2>
-                    <p className="text-sm text-slate-400">{mods.length} أقسام</p>
+                    <p className="text-sm text-slate-400">{t("teacherDashboard.students.moduleCount", { count: mods.length })}</p>
                   </div>
                 </div>
 
@@ -585,7 +595,7 @@ function StudentsPage() {
                       </h3>
                       <p className="mb-4 text-sm text-slate-500">{m.subjectName} · {m.classroomName}</p>
                       <p className="mb-3 text-sm text-slate-500">
-                        عدد التلاميذ: {m.enrolledCount} / {m.maxStudents}
+                        {t("teacherDashboard.students.enrolledCountLabel")} {m.enrolledCount} / {m.maxStudents}
                       </p>
                       <div className="h-2 overflow-hidden rounded-full bg-slate-100">
                         <div
@@ -614,6 +624,7 @@ function StudentsPage() {
 // ─── Schedule page (real data via /modules/mine) ───────────────────────────────
 
 function SchedulePage() {
+  const { t, dir } = useLanguage();
   const [modules, setModules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -621,7 +632,7 @@ function SchedulePage() {
   useEffect(() => {
     fetchMyModules()
       .then(setModules)
-      .catch((e) => setError(e.message))
+      .catch((e) => setError(errMsg(t, e.message)))
       .finally(() => setLoading(false));
   }, []);
 
@@ -653,15 +664,15 @@ function SchedulePage() {
   const activeDays = DAY_ORDER.filter((d) => sessionsByDay[d].length > 0);
 
   return (
-    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-8" dir="rtl">
+    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-8" dir={dir}>
       <Blob className="right-[-100px] top-[-100px] h-[350px] w-[350px] bg-blue-100/60" />
       <Blob className="bottom-[-100px] left-[-100px] h-[320px] w-[320px] bg-cyan-100/50" />
 
       <div className="relative z-10 mx-auto max-w-6xl">
         <PageHeader
-          badge="🗓️ جدولي الأسبوعي"
-          title="جدول الحصص"
-          subtitle="نظرة أسبوعية على جميع حصصك، مرتبة حسب اليوم والوقت."
+          badge={`🗓️ ${t("teacherDashboard.schedule.badge")}`}
+          title={t("teacherDashboard.schedule.title")}
+          subtitle={t("teacherDashboard.schedule.subtitle")}
         />
 
         <ErrorBanner message={error} />
@@ -671,7 +682,7 @@ function SchedulePage() {
         ) : activeDays.length === 0 ? (
           <div className="rounded-3xl border border-slate-100 bg-white/80 p-16 text-center shadow-sm">
             <p className="mb-2 text-5xl">🗓️</p>
-            <p className="text-lg font-bold text-slate-700">لا توجد حصص مبرمجة بعد</p>
+            <p className="text-lg font-bold text-slate-700">{t("teacherDashboard.schedule.empty")}</p>
           </div>
         ) : (
           <div className="space-y-8">
@@ -687,8 +698,8 @@ function SchedulePage() {
                   <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-md text-lg">
                     📅
                   </div>
-                  <h2 className="text-xl font-extrabold text-slate-900">{DAY_LABELS[day]}</h2>
-                  <span className="text-sm text-slate-400">{sessionsByDay[day].length} حصص</span>
+                  <h2 className="text-xl font-extrabold text-slate-900">{t(`dashboard.days.${day}`)}</h2>
+                  <span className="text-sm text-slate-400">{t("teacherDashboard.schedule.sessionCount", { count: sessionsByDay[day].length })}</span>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
@@ -707,7 +718,7 @@ function SchedulePage() {
                           {s.subjectName} · {s.classroomName} · {s.level}
                         </p>
                         <p className="mt-1 text-xs text-slate-400">
-                          {s.enrolledCount} / {s.maxStudents} تلميذ
+                          {t("teacherDashboard.schedule.enrolledCount", { enrolled: s.enrolledCount, max: s.maxStudents })}
                         </p>
                       </div>
                     </div>
@@ -725,6 +736,7 @@ function SchedulePage() {
 // ─── Payouts page (real data via /payouts/mine + /payouts/mine/month) ─────────
 
 function PayoutsPage() {
+  const { t, dir, locale } = useLanguage();
   const [payouts, setPayouts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -744,7 +756,11 @@ function PayoutsPage() {
         if (!cancelled) setPayouts(data);
       })
       .catch((e) => {
+<<<<<<< HEAD
         if (!cancelled) setError(e.message);
+=======
+        if (!cancelled) setError(errMsg(t, e.message));
+>>>>>>> a1933d6 (add launguages transition)
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -754,9 +770,17 @@ function PayoutsPage() {
       cancelled = true;
     };
   }, [selectedPeriod]);
+<<<<<<< HEAD
+=======
+
+  const PAYOUT_STATUS = {
+    PENDING: { label: t("teacherDashboard.payoutStatus.PENDING"), classes: "bg-amber-50 text-amber-600 border-amber-100" },
+    PAID: { label: t("teacherDashboard.payoutStatus.PAID"), classes: "bg-emerald-50 text-emerald-600 border-emerald-100" },
+  };
+>>>>>>> a1933d6 (add launguages transition)
 
   return (
-    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-8" dir="rtl">
+    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-8" dir={dir}>
       <Blob className="right-[-100px] top-[-100px] h-[350px] w-[350px] bg-emerald-100/60" />
       <Blob className="bottom-[-100px] left-[-100px] h-[320px] w-[320px] bg-blue-100/50" />
 
@@ -768,18 +792,30 @@ function PayoutsPage() {
         >
           <div>
             <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-4 py-1.5 text-sm font-semibold text-blue-600">
+<<<<<<< HEAD
               💰 مستحقاتي
             </span>
             <h1 className="mb-4 mt-2 text-5xl font-extrabold text-slate-900">سجل المستحقات</h1>
             <p className="max-w-2xl text-lg leading-8 text-slate-500">
               تفاصيل مستحقاتك الشهرية بناءً على نسبتك من إيرادات أقسامك.
+=======
+              💰 {t("teacherDashboard.payouts.badge")}
+            </span>
+            <h1 className="mb-4 mt-2 text-5xl font-extrabold text-slate-900">{t("teacherDashboard.payouts.title")}</h1>
+            <p className="max-w-2xl text-lg leading-8 text-slate-500">
+              {t("teacherDashboard.payouts.subtitle")}
+>>>>>>> a1933d6 (add launguages transition)
             </p>
           </div>
 
           {/* Month filter */}
           <div className="flex items-end gap-2">
             <div className="flex flex-col gap-1.5">
+<<<<<<< HEAD
               <label className="text-xs font-semibold text-slate-400">تصفية حسب الشهر</label>
+=======
+              <label className="text-xs font-semibold text-slate-400">{t("teacherDashboard.payouts.filterLabel")}</label>
+>>>>>>> a1933d6 (add launguages transition)
               <input
                 type="month"
                 value={selectedPeriod}
@@ -792,7 +828,11 @@ function PayoutsPage() {
                 onClick={() => setSelectedPeriod("")}
                 className="h-12 rounded-2xl bg-slate-100 px-5 text-sm font-bold text-slate-600 transition hover:bg-red-50 hover:text-red-500"
               >
+<<<<<<< HEAD
                 ✕ إلغاء التصفية
+=======
+                ✕ {t("teacherDashboard.payouts.clearFilter")}
+>>>>>>> a1933d6 (add launguages transition)
               </button>
             )}
           </div>
@@ -806,9 +846,15 @@ function PayoutsPage() {
           <div className="rounded-3xl border border-slate-100 bg-white/80 p-16 text-center shadow-sm">
             <p className="mb-2 text-5xl">💤</p>
             <p className="text-lg font-bold text-slate-700">
+<<<<<<< HEAD
               {selectedPeriod ? "لا توجد مستحقات لهذا الشهر" : "لا توجد مستحقات محسوبة بعد"}
             </p>
             <p className="mt-1 text-sm text-slate-400">تُحسب المستحقات تلقائياً في بداية كل شهر.</p>
+=======
+              {selectedPeriod ? t("teacherDashboard.payouts.emptyMonth") : t("teacherDashboard.payouts.emptyAll")}
+            </p>
+            <p className="mt-1 text-sm text-slate-400">{t("teacherDashboard.payouts.emptyNote")}</p>
+>>>>>>> a1933d6 (add launguages transition)
           </div>
         ) : (
           <div className="space-y-4">
@@ -824,17 +870,17 @@ function PayoutsPage() {
                 >
                   <div className="flex flex-wrap items-center justify-between gap-4">
                     <div>
-                      <h3 className="text-lg font-extrabold text-slate-900">{formatPeriod(p.period)}</h3>
+                      <h3 className="text-lg font-extrabold text-slate-900">{formatPeriod(p.period, t)}</h3>
                       <p className="mt-1 text-sm text-slate-400">
-                        إيرادات أقسامك: {formatMoney(p.totalModuleRevenue)} · نسبتك: {p.percentage}%
+                        {t("teacherDashboard.payouts.revenueLabel")} {formatMoney(p.totalModuleRevenue, t, locale)} · {t("teacherDashboard.payouts.percentageLabel")} {p.percentage}%
                       </p>
                       {p.paidAt && (
-                        <p className="mt-1 text-xs text-slate-400">تاريخ الدفع: {formatDate(p.paidAt)}</p>
+                        <p className="mt-1 text-xs text-slate-400">{t("teacherDashboard.payouts.paidAtLabel")} {formatDate(p.paidAt, locale)}</p>
                       )}
                     </div>
                     <div className="flex items-center gap-4">
                       <span className="text-2xl font-extrabold text-emerald-600">
-                        {formatMoney(p.payoutAmount)}
+                        {formatMoney(p.payoutAmount, t, locale)}
                       </span>
                       <span className={`rounded-full border px-4 py-1.5 text-sm font-semibold ${status.classes}`}>
                         {status.label}
@@ -853,14 +899,6 @@ function PayoutsPage() {
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
-const NAV = [
-  { id: "home", label: "الرئيسية", icon: LayoutDashboard },
-  { id: "profile", label: "بروفايلي", icon: User },
-  { id: "students", label: "تلاميذي", icon: Users },
-  { id: "schedule", label: "جدولي", icon: CalendarDays },
-  { id: "payouts", label: "مستحقاتي", icon: Wallet },
-];
-
 function hexToRgb(hex = "#185FA5") {
   const h = hex.replace("#", "");
   const n = parseInt(h, 16);
@@ -869,12 +907,22 @@ function hexToRgb(hex = "#185FA5") {
 
 function Sidebar({ active, onNav, onLogoutClick, profile }) {
   const { school } = useAuth();
+  const { t, dir } = useLanguage();
+
+  const NAV = [
+    { id: "home", label: t("teacherDashboard.nav.home"), icon: LayoutDashboard },
+    { id: "profile", label: t("teacherDashboard.nav.profile"), icon: User },
+    { id: "students", label: t("teacherDashboard.nav.students"), icon: Users },
+    { id: "schedule", label: t("teacherDashboard.nav.schedule"), icon: CalendarDays },
+    { id: "payouts", label: t("teacherDashboard.nav.payouts"), icon: Wallet },
+  ];
 
   const p = school?.primaryColor || "#185FA5";
   const rgb = hexToRgb(p);
 
-  const schoolName = school?.schoolName || "المدرسة";
-  const initials = (profile?.fullName || "أستاذ")
+  const schoolName = school?.schoolName || t("teacherDashboard.sidebar.schoolFallback");
+  const teacherFallback = t("teacherDashboard.sidebar.teacherFallback");
+  const initials = (profile?.fullName || teacherFallback)
     .split(" ")
     .filter(Boolean)
     .map((w) => w[0])
@@ -884,7 +932,7 @@ function Sidebar({ active, onNav, onLogoutClick, profile }) {
 
   return (
     <aside
-      dir="rtl"
+      dir={dir}
       style={{
         width: 224,
         display: "flex",
@@ -904,7 +952,7 @@ function Sidebar({ active, onNav, onLogoutClick, profile }) {
         padding: "16px", borderBottom: "1px solid rgba(255,255,255,0.07)",
       }}>
         {school?.logoUrl ? (
-          <img src={school.logoUrl} alt="شعار"
+          <img src={school.logoUrl} alt={t("teacherDashboard.sidebar.logoAlt")}
             style={{ width: 38, height: 38, borderRadius: 10, objectFit: "cover", flexShrink: 0 }} />
         ) : (
           <div style={{
@@ -918,7 +966,7 @@ function Sidebar({ active, onNav, onLogoutClick, profile }) {
           <p style={{ fontSize: 13, fontWeight: 700, color: "#fff", lineHeight: 1.2, margin: 0 }}>
             {schoolName}
           </p>
-          <p style={{ fontSize: 10, color: "#64748B", marginTop: 2, margin: 0 }}>لوحة الأستاذ</p>
+          <p style={{ fontSize: 10, color: "#64748B", marginTop: 2, margin: 0 }}>{t("teacherDashboard.sidebar.subtitle")}</p>
         </div>
       </div>
 
@@ -938,9 +986,9 @@ function Sidebar({ active, onNav, onLogoutClick, profile }) {
         </div>
         <div>
           <p style={{ fontSize: 12, fontWeight: 600, color: "#E2E8F0", margin: 0 }}>
-            {profile?.fullName || "أستاذ"}
+            {profile?.fullName || teacherFallback}
           </p>
-          <p style={{ fontSize: 10, color: "#1D9E75", marginTop: 2, margin: 0 }}>أستاذ ✓</p>
+          <p style={{ fontSize: 10, color: "#1D9E75", marginTop: 2, margin: 0 }}>{t("teacherDashboard.sidebar.badge")}</p>
         </div>
       </div>
 
@@ -1012,7 +1060,7 @@ function Sidebar({ active, onNav, onLogoutClick, profile }) {
           }}
         >
           <LogOut size={15} />
-          تسجيل الخروج
+          {t("teacherDashboard.sidebar.logout")}
         </button>
       </div>
     </aside>
@@ -1022,6 +1070,7 @@ function Sidebar({ active, onNav, onLogoutClick, profile }) {
 // ─── Home page (real stats via /modules/mine + /payouts/mine) ─────────────────
 
 function HomePage({ profile }) {
+  const { t, dir, locale } = useLanguage();
   const [modules, setModules] = useState([]);
   const [latestPayout, setLatestPayout] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -1037,19 +1086,22 @@ function HomePage({ profile }) {
   }, []);
 
   const totalEnrolled = modules.reduce((sum, m) => sum + (m.enrolledCount || 0), 0);
+  const teacherFallback = t("teacherDashboard.sidebar.teacherFallback");
 
   const stats = [
-    { emoji: "📚", number: statsLoading ? "—" : modules.length, label: "قسم نشط" },
-    { emoji: "👨‍🎓", number: statsLoading ? "—" : totalEnrolled, label: "تلميذ مسجل" },
+    { emoji: "📚", number: statsLoading ? "—" : modules.length, label: t("teacherDashboard.home.statActiveModules") },
+    { emoji: "👨‍🎓", number: statsLoading ? "—" : totalEnrolled, label: t("teacherDashboard.home.statEnrolledStudents") },
     {
       emoji: "💰",
-      number: statsLoading ? "—" : latestPayout ? formatMoney(latestPayout.payoutAmount) : "—",
-      label: latestPayout ? `مستحقات ${formatPeriod(latestPayout.period)}` : "لا توجد مستحقات بعد",
+      number: statsLoading ? "—" : latestPayout ? formatMoney(latestPayout.payoutAmount, t, locale) : "—",
+      label: latestPayout
+        ? t("teacherDashboard.home.statPayoutFor", { period: formatPeriod(latestPayout.period, t) })
+        : t("teacherDashboard.home.statNoPayout"),
     },
   ];
 
   return (
-    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-8" dir="rtl">
+    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-8" dir={dir}>
       <Blob className="top-[-120px] right-[-120px] h-[420px] w-[420px] bg-blue-100/60" />
       <Blob className="bottom-[-120px] left-[-120px] h-[380px] w-[380px] bg-violet-100/50" />
 
@@ -1061,22 +1113,22 @@ function HomePage({ profile }) {
           className="rounded-[32px] border border-slate-200 bg-white/80 p-10 shadow-xl shadow-slate-100 backdrop-blur-xl"
         >
           <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-4 py-1.5 text-sm font-semibold text-blue-600">
-            ✨ لوحة تحكم حديثة
+            ✨ {t("teacherDashboard.home.badge")}
           </span>
 
           <h1 className="mb-3 text-5xl font-extrabold leading-tight text-slate-900">
-            مرحباً، <span className="text-blue-600">{profile ? profile.fullName : "أستاذ"}</span> 👋
+            {t("teacherDashboard.home.greeting")} <span className="text-blue-600">{profile ? profile.fullName : teacherFallback}</span> 👋
           </h1>
 
           <p className="mb-10 max-w-2xl text-lg leading-8 text-slate-500">
-            يمكنك متابعة أقسامك وتلاميذك، الاطلاع على جدولك الأسبوعي، ومراجعة مستحقاتك الشهرية.
+            {t("teacherDashboard.home.intro")}
           </p>
 
           {profile && (
             <div className="mb-8 rounded-2xl border border-emerald-100 bg-emerald-50 p-5">
               <p className="text-sm font-bold text-emerald-700">
-                📋 تخصصك: <span className="font-extrabold">{profile.specialization || "—"}</span>
-                &nbsp;·&nbsp; البريد: <span className="font-extrabold">{profile.email}</span>
+                📋 {t("teacherDashboard.home.specializationLabel")} <span className="font-extrabold">{profile.specialization || "—"}</span>
+                &nbsp;·&nbsp; {t("teacherDashboard.home.emailLabel")} <span className="font-extrabold">{profile.email}</span>
               </p>
             </div>
           )}
@@ -1095,6 +1147,7 @@ function HomePage({ profile }) {
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
 export default function TeacherDashboard() {
+  const { t, dir } = useLanguage();
   const [page, setPage] = useState("home");
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1106,7 +1159,7 @@ export default function TeacherDashboard() {
   useEffect(() => {
     fetchProfile()
       .then(setProfile)
-      .catch((e) => setError(e.message))
+      .catch((e) => setError(errMsg(t, e.message)))
       .finally(() => setLoading(false));
   }, []);
 
@@ -1117,7 +1170,7 @@ export default function TeacherDashboard() {
   };
 
   return (
-    <div dir="rtl" className="flex min-h-screen overflow-hidden bg-[#fafafa] text-slate-900">
+    <div dir={dir} className="flex min-h-screen overflow-hidden bg-[#fafafa] text-slate-900">
       <Sidebar
         active={page}
         onNav={setPage}
@@ -1131,7 +1184,7 @@ export default function TeacherDashboard() {
         <div className="flex flex-1 items-center justify-center p-8">
           <div className="rounded-3xl border border-red-100 bg-red-50 p-10 text-center">
             <p className="text-5xl mb-4">⚠️</p>
-            <p className="text-xl font-bold text-red-600 mb-2">خطأ في الاتصال</p>
+            <p className="text-xl font-bold text-red-600 mb-2">{t("teacherDashboard.connectionError")}</p>
             <p className="text-slate-500">{error}</p>
           </div>
         </div>

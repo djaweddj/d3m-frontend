@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../api";
+import { useLanguage } from "../context/LanguageContext";
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 const fetchSubjects    = ()         => api.get("/api/subjects").then(r => r.data);
@@ -18,9 +19,10 @@ const EMPTY_CLASSROOM = { name: "", capacity: "" };
 
 // ─── Shared UI ────────────────────────────────────────────────────────────────
 function TabBar({ active, onChange }) {
+  const { t } = useLanguage();
   const tabs = [
-    { key: "subjects",   label: "المواد الدراسية"  },
-    { key: "classrooms", label: "الفصول الدراسية" },
+    { key: "subjects",   label: t("subjectsClassrooms.tabs.subjects")   },
+    { key: "classrooms", label: t("subjectsClassrooms.tabs.classrooms") },
   ];
   return (
     <div className="flex gap-2 mb-6">
@@ -39,6 +41,7 @@ function TabBar({ active, onChange }) {
 }
 
 function Modal({ open, title, onClose, onConfirm, confirmLabel, confirmColor = "blue", children }) {
+  const { t, dir } = useLanguage();
   if (!open) return null;
   const btnColor =
     confirmColor === "red"   ? "bg-red-500 hover:bg-red-600"      :
@@ -52,13 +55,13 @@ function Modal({ open, title, onClose, onConfirm, confirmLabel, confirmColor = "
           <motion.div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6"
             initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.92, opacity: 0 }}
             transition={{ type: "spring", damping: 20, stiffness: 300 }}
-            onClick={e => e.stopPropagation()} dir="rtl">
+            onClick={e => e.stopPropagation()} dir={dir}>
             <h2 className="text-lg font-bold text-gray-800 mb-4">{title}</h2>
             <div className="space-y-3">{children}</div>
             <div className="flex gap-2 mt-6 justify-end">
               <button onClick={onClose}
                 className="px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition">
-                إلغاء
+                {t("subjectsClassrooms.modal.cancel")}
               </button>
               <button onClick={onConfirm}
                 className={`px-4 py-2 rounded-lg text-sm text-white font-semibold transition ${btnColor}`}>
@@ -131,6 +134,7 @@ function Spinner() {
 
 // ─── SUBJECTS TAB ─────────────────────────────────────────────────────────────
 function SubjectsTab() {
+  const { t, dir } = useLanguage();
   const [subjects,      setSubjects]      = useState([]);
   const [teachers,      setTeachers]      = useState([]);
   const [loading,       setLoading]       = useState(true);
@@ -146,16 +150,16 @@ function SubjectsTab() {
   async function load() {
     try {
       setLoading(true); setError(null);
-      const [s, t] = await Promise.all([fetchSubjects(), fetchTeachers()]);
+      const [s, tt] = await Promise.all([fetchSubjects(), fetchTeachers()]);
       setSubjects(s);
-      setTeachers(t.filter(tc => !tc.archived));
-    } catch { setError("فشل تحميل البيانات. حاول مرة أخرى."); }
+      setTeachers(tt.filter(tc => !tc.archived));
+    } catch { setError(t("subjectsClassrooms.subjects.loadError")); }
     finally   { setLoading(false); }
   }
 
-  const teacherOptions = teachers.map(t => ({
-    value: String(t.id),
-    label: `${t.fullName}${t.specialization ? " — " + t.specialization : ""}`,
+  const teacherOptions = teachers.map(tc => ({
+    value: String(tc.id),
+    label: `${tc.fullName}${tc.specialization ? " — " + tc.specialization : ""}`,
   }));
 
   function openCreate() { setForm(EMPTY_SUBJECT); setCreateOpen(true); }
@@ -171,7 +175,7 @@ function SubjectsTab() {
       });
       setSubjects(prev => [created, ...prev]);
       setCreateOpen(false);
-    } catch { alert("فشل إنشاء المادة."); }
+    } catch { alert(t("subjectsClassrooms.subjects.createError")); }
     finally { setSubmitting(false); }
   }
 
@@ -191,7 +195,7 @@ function SubjectsTab() {
       });
       setSubjects(prev => prev.map(s => s.id === updated.id ? updated : s));
       setEditTarget(null);
-    } catch { alert("فشل تعديل المادة."); }
+    } catch { alert(t("subjectsClassrooms.subjects.editError")); }
     finally { setSubmitting(false); }
   }
 
@@ -201,22 +205,22 @@ function SubjectsTab() {
       await archiveSubject(archiveTarget.id);
       setSubjects(prev => prev.filter(s => s.id !== archiveTarget.id));
       setArchiveTarget(null);
-    } catch { alert("فشل أرشفة المادة."); }
+    } catch { alert(t("subjectsClassrooms.subjects.archiveError")); }
     finally { setSubmitting(false); }
   }
 
   const subjectForm = (
     <>
-      <Input label="اسم المادة *" value={form.name}
-        onChange={v => setForm(f => ({ ...f, name: v }))} placeholder="مثال: الرياضيات" />
-      <Textarea label="وصف المادة" value={form.description}
-        onChange={v => setForm(f => ({ ...f, description: v }))} placeholder="وصف اختياري..." />
+      <Input label={t("subjectsClassrooms.subjects.form.nameLabel")} value={form.name}
+        onChange={v => setForm(f => ({ ...f, name: v }))} placeholder={t("subjectsClassrooms.subjects.form.namePlaceholder")} />
+      <Textarea label={t("subjectsClassrooms.subjects.form.descriptionLabel")} value={form.description}
+        onChange={v => setForm(f => ({ ...f, description: v }))} placeholder={t("subjectsClassrooms.subjects.form.descriptionPlaceholder")} />
       <SelectField
-        label="الأستاذ المسؤول"
+        label={t("subjectsClassrooms.subjects.form.teacherLabel")}
         value={form.teacherId}
         onChange={v => setForm(f => ({ ...f, teacherId: v }))}
         options={teacherOptions}
-        placeholder="بدون تخصيص (اختياري)"
+        placeholder={t("subjectsClassrooms.subjects.form.teacherPlaceholder")}
       />
     </>
   );
@@ -224,17 +228,17 @@ function SubjectsTab() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-gray-500">{subjects.length} مادة دراسية</p>
+        <p className="text-sm text-gray-500">{t("subjectsClassrooms.subjects.countLabel", { count: subjects.length })}</p>
         <button onClick={openCreate}
           className="flex items-center gap-2 px-4 py-2 bg-[#185FA5] text-white text-sm font-semibold rounded-xl hover:bg-[#134d8a] transition shadow">
-          <span className="text-lg leading-none">+</span> إضافة مادة
+          <span className="text-lg leading-none">+</span> {t("subjectsClassrooms.subjects.addButton")}
         </button>
       </div>
 
       {loading ? <Spinner /> : error ? (
         <div className="text-center py-10 text-red-500 text-sm">{error}</div>
       ) : subjects.length === 0 ? (
-        <EmptyState message="لا توجد مواد دراسية بعد. أضف أول مادة!" />
+        <EmptyState message={t("subjectsClassrooms.subjects.emptyMessage")} />
       ) : (
         <div className="grid gap-3">
           <AnimatePresence>
@@ -243,7 +247,7 @@ function SubjectsTab() {
                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.2 }}
                 className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-start justify-between gap-3"
-                dir="rtl">
+                dir={dir}>
                 <div className="flex items-start gap-3 min-w-0">
                   <div className="w-10 h-10 rounded-xl bg-[#185FA5]/10 flex items-center justify-center shrink-0">
                     <svg className="w-5 h-5 text-[#185FA5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -259,18 +263,18 @@ function SubjectsTab() {
                     {s.teacherName ? (
                       <p className="text-xs text-[#185FA5] mt-1">👨‍🏫 {s.teacherName}</p>
                     ) : (
-                      <p className="text-xs text-gray-300 mt-1">بدون أستاذ مخصص</p>
+                      <p className="text-xs text-gray-300 mt-1">{t("subjectsClassrooms.subjects.noTeacher")}</p>
                     )}
                   </div>
                 </div>
                 <div className="flex gap-2 shrink-0">
                   <button onClick={() => openEdit(s)}
                     className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:border-[#185FA5] hover:text-[#185FA5] transition">
-                    تعديل
+                    {t("subjectsClassrooms.subjects.editButton")}
                   </button>
                   <button onClick={() => setArchiveTarget(s)}
                     className="text-xs px-3 py-1.5 rounded-lg border border-red-100 text-red-500 hover:bg-red-50 transition">
-                    أرشفة
+                    {t("subjectsClassrooms.subjects.archiveButton")}
                   </button>
                 </div>
               </motion.div>
@@ -279,25 +283,24 @@ function SubjectsTab() {
         </div>
       )}
 
-      <Modal open={createOpen} title="إضافة مادة دراسية جديدة"
+      <Modal open={createOpen} title={t("subjectsClassrooms.subjects.createTitle")}
         onClose={() => setCreateOpen(false)} onConfirm={handleCreate}
-        confirmLabel={submitting ? "جارٍ الحفظ..." : "حفظ"}>
+        confirmLabel={submitting ? t("subjectsClassrooms.subjects.saving") : t("subjectsClassrooms.subjects.save")}>
         {subjectForm}
       </Modal>
 
-      <Modal open={!!editTarget} title="تعديل المادة"
+      <Modal open={!!editTarget} title={t("subjectsClassrooms.subjects.editTitle")}
         onClose={() => setEditTarget(null)} onConfirm={handleEdit}
-        confirmLabel={submitting ? "جارٍ الحفظ..." : "حفظ التغييرات"}>
+        confirmLabel={submitting ? t("subjectsClassrooms.subjects.saving") : t("subjectsClassrooms.subjects.saveChanges")}>
         {subjectForm}
       </Modal>
 
-      <Modal open={!!archiveTarget} title="تأكيد الأرشفة"
+      <Modal open={!!archiveTarget} title={t("subjectsClassrooms.subjects.archiveTitle")}
         onClose={() => setArchiveTarget(null)} onConfirm={handleArchive}
-        confirmLabel={submitting ? "جارٍ الأرشفة..." : "نعم، أرشف"} confirmColor="red">
+        confirmLabel={submitting ? t("subjectsClassrooms.subjects.archiving") : t("subjectsClassrooms.subjects.archiveConfirm")} confirmColor="red">
         <p className="text-sm text-gray-600">
-          هل أنت متأكد من أرشفة مادة{" "}
-          <span className="font-semibold text-gray-800">"{archiveTarget?.name}"</span>؟
-          <br />لن تظهر في القائمة بعد الأرشفة.
+          {t("subjectsClassrooms.subjects.archiveConfirmText", { name: archiveTarget?.name })}
+          <br />{t("subjectsClassrooms.subjects.archiveConfirmNote")}
         </p>
       </Modal>
     </div>
@@ -306,6 +309,7 @@ function SubjectsTab() {
 
 // ─── CLASSROOMS TAB ───────────────────────────────────────────────────────────
 function ClassroomsTab() {
+  const { t, dir } = useLanguage();
   const [classrooms, setClassrooms] = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState(null);
@@ -320,7 +324,7 @@ function ClassroomsTab() {
     try {
       setLoading(true); setError(null);
       setClassrooms(await fetchClassrooms());
-    } catch { setError("فشل تحميل الفصول. حاول مرة أخرى."); }
+    } catch { setError(t("subjectsClassrooms.classrooms.loadError")); }
     finally { setLoading(false); }
   }
 
@@ -333,7 +337,7 @@ function ClassroomsTab() {
       const created = await createClassroom({ name: form.name.trim(), capacity: Number(form.capacity) });
       setClassrooms(prev => [created, ...prev]);
       setCreateOpen(false);
-    } catch (err) { alert(err?.response?.data || "فشل إنشاء الفصل."); }
+    } catch (err) { alert(err?.response?.data || t("subjectsClassrooms.classrooms.createError")); }
     finally { setSubmitting(false); }
   }
 
@@ -349,24 +353,24 @@ function ClassroomsTab() {
       const updated = await updateClassroom(editTarget.id, { name: form.name.trim(), capacity: Number(form.capacity) });
       setClassrooms(prev => prev.map(c => c.id === updated.id ? updated : c));
       setEditTarget(null);
-    } catch { alert("فشل تعديل الفصل."); }
+    } catch { alert(t("subjectsClassrooms.classrooms.editError")); }
     finally { setSubmitting(false); }
   }
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-gray-500">{classrooms.length} فصل دراسي</p>
+        <p className="text-sm text-gray-500">{t("subjectsClassrooms.classrooms.countLabel", { count: classrooms.length })}</p>
         <button onClick={openCreate}
           className="flex items-center gap-2 px-4 py-2 bg-[#0F6E56] text-white text-sm font-semibold rounded-xl hover:bg-[#0a5540] transition shadow">
-          <span className="text-lg leading-none">+</span> إضافة فصل
+          <span className="text-lg leading-none">+</span> {t("subjectsClassrooms.classrooms.addButton")}
         </button>
       </div>
 
       {loading ? <Spinner /> : error ? (
         <div className="text-center py-10 text-red-500 text-sm">{error}</div>
       ) : classrooms.length === 0 ? (
-        <EmptyState message="لا توجد فصول دراسية بعد. أضف أول فصل!" />
+        <EmptyState message={t("subjectsClassrooms.classrooms.emptyMessage")} />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <AnimatePresence>
@@ -374,7 +378,7 @@ function ClassroomsTab() {
               <motion.div key={c.id}
                 initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
                 transition={{ duration: 0.2 }}
-                className="bg-white rounded-xl border border-gray-100 shadow-sm p-4" dir="rtl">
+                className="bg-white rounded-xl border border-gray-100 shadow-sm p-4" dir={dir}>
                 <div className="flex items-start justify-between mb-3">
                   <div className="w-10 h-10 rounded-xl bg-[#0F6E56]/10 flex items-center justify-center">
                     <svg className="w-5 h-5 text-[#0F6E56]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -384,7 +388,7 @@ function ClassroomsTab() {
                   </div>
                   <button onClick={() => openEdit(c)}
                     className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:border-[#0F6E56] hover:text-[#0F6E56] transition">
-                    تعديل
+                    {t("subjectsClassrooms.classrooms.editButton")}
                   </button>
                 </div>
                 <p className="font-bold text-gray-800 text-base">{c.name}</p>
@@ -393,7 +397,7 @@ function ClassroomsTab() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                       d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
-                  <span className="text-xs text-gray-500">السعة: {c.capacity} طالب</span>
+                  <span className="text-xs text-gray-500">{t("subjectsClassrooms.classrooms.capacityLabel", { capacity: c.capacity })}</span>
                 </div>
               </motion.div>
             ))}
@@ -401,18 +405,18 @@ function ClassroomsTab() {
         </div>
       )}
 
-      <Modal open={createOpen} title="إضافة فصل دراسي جديد"
+      <Modal open={createOpen} title={t("subjectsClassrooms.classrooms.createTitle")}
         onClose={() => setCreateOpen(false)} onConfirm={handleCreate}
-        confirmLabel={submitting ? "جارٍ الحفظ..." : "حفظ"} confirmColor="green">
-        <Input label="اسم الفصل *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} placeholder="مثال: 1A" />
-        <Input label="السعة (عدد الطلاب) *" type="number" value={form.capacity} onChange={v => setForm(f => ({ ...f, capacity: v }))} placeholder="مثال: 30" />
+        confirmLabel={submitting ? t("subjectsClassrooms.classrooms.saving") : t("subjectsClassrooms.classrooms.save")} confirmColor="green">
+        <Input label={t("subjectsClassrooms.classrooms.form.nameLabel")} value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} placeholder={t("subjectsClassrooms.classrooms.form.namePlaceholder")} />
+        <Input label={t("subjectsClassrooms.classrooms.form.capacityLabel")} type="number" value={form.capacity} onChange={v => setForm(f => ({ ...f, capacity: v }))} placeholder={t("subjectsClassrooms.classrooms.form.capacityPlaceholder")} />
       </Modal>
 
-      <Modal open={!!editTarget} title="تعديل الفصل"
+      <Modal open={!!editTarget} title={t("subjectsClassrooms.classrooms.editTitle")}
         onClose={() => setEditTarget(null)} onConfirm={handleEdit}
-        confirmLabel={submitting ? "جارٍ الحفظ..." : "حفظ التغييرات"} confirmColor="green">
-        <Input label="اسم الفصل *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} />
-        <Input label="السعة (عدد الطلاب) *" type="number" value={form.capacity} onChange={v => setForm(f => ({ ...f, capacity: v }))} />
+        confirmLabel={submitting ? t("subjectsClassrooms.classrooms.saving") : t("subjectsClassrooms.classrooms.saveChanges")} confirmColor="green">
+        <Input label={t("subjectsClassrooms.classrooms.form.nameLabel")} value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} />
+        <Input label={t("subjectsClassrooms.classrooms.form.capacityLabel")} type="number" value={form.capacity} onChange={v => setForm(f => ({ ...f, capacity: v }))} />
       </Modal>
     </div>
   );
@@ -420,13 +424,14 @@ function ClassroomsTab() {
 
 // ─── MAIN PAGE ────────────────────────────────────────────────────────────────
 export default function SubjectsAndClassrooms() {
+  const { t, dir } = useLanguage();
   const [activeTab, setActiveTab] = useState("subjects");
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6" dir="rtl">
+    <div className="min-h-screen bg-gray-50 p-6" dir={dir}>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">المواد والفصول الدراسية</h1>
-        <p className="text-sm text-gray-400 mt-1">إدارة المواد الدراسية والفصول الخاصة بمدرستك</p>
+        <h1 className="text-2xl font-bold text-gray-900">{t("subjectsClassrooms.page.title")}</h1>
+        <p className="text-sm text-gray-400 mt-1">{t("subjectsClassrooms.page.subtitle")}</p>
       </div>
       <TabBar active={activeTab} onChange={setActiveTab} />
       <AnimatePresence mode="wait">

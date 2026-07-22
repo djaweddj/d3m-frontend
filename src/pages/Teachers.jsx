@@ -1,6 +1,8 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { Plus, Mail, BookOpen, RefreshCw, AlertCircle, X, Check, Archive, Pencil, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, CheckCircle2, Clock, Calculator, Users, Wallet, PiggyBank, Landmark } from "lucide-react";
 import { useAuth } from "../context/authContext";
+import { useLanguage } from "../context/LanguageContext";
 import api from "../api";
 
 // ── API ───────────────────────────────────────────────────
@@ -26,12 +28,12 @@ function formatDA(amount) {
   return new Intl.NumberFormat("fr-DZ", { maximumFractionDigits: 2 }).format(amount) + " د.ج";
 }
 
-function formatPeriod(period) {
+function formatPeriod(period, locale) {
   if (!period) return "—";
   try {
     const [year, month] = String(period).split("-");
     const date = new Date(Number(year), Number(month) - 1, 1);
-    return date.toLocaleDateString("ar-DZ", { month: "long", year: "numeric" });
+    return date.toLocaleDateString(locale || "ar-DZ", { month: "long", year: "numeric" });
   } catch {
     return String(period);
   }
@@ -70,14 +72,14 @@ function Spinner({ size = 20, color = "#185FA5" }) {
 }
 
 // ── Error Block ───────────────────────────────────────────
-function ErrorBlock({ message, onRetry }) {
+function ErrorBlock({ message, onRetry, t }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "2rem" }}>
       <AlertCircle size={32} color="#E2A84B" />
       <p style={{ color: "#64748B", fontSize: 13 }}>{message}</p>
       {onRetry && (
         <button onClick={onRetry} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 8, border: "1.5px solid #185FA5", background: "#EBF4FE", color: "#185FA5", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-          <RefreshCw size={13} /> إعادة المحاولة
+          <RefreshCw size={13} /> {t("teachers.retry")}
         </button>
       )}
     </div>
@@ -251,18 +253,32 @@ function PayoutInfoCard({
 }
 
 // ── Add Teacher Modal ─────────────────────────────────────
+<<<<<<< HEAD
 function AddTeacherModal({ subjects, onClose, onSaved, primaryColor }) {
   const [form, setForm] = useState({ fullName: "", email: "", password: "Teacher@123", percentage: "20", specialization: "", bio: "", subjectId: "" });
+=======
+function AddTeacherModal({ subjects, onClose, onSaved, primaryColor, t, dir, locale }) {
+  const [form, setForm] = useState({
+    fullName: "", email: "", password: "Teacher@123",
+    percentage: "20", specialization: "", bio: "", subjectId: "",
+  });
+>>>>>>> a1933d6 (add launguages transition)
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
   const handleSave = async () => {
+<<<<<<< HEAD
     if (!form.fullName.trim()) return setError("الاسم مطلوب");
     if (!form.email.trim()) return setError("البريد الإلكتروني مطلوب");
     if (!form.password.trim()) return setError("كلمة المرور مطلوبة");
+=======
+    if (!form.fullName.trim()) return setError(t("teachers.errors.nameRequired"));
+    if (!form.email.trim())    return setError(t("teachers.errors.emailRequired"));
+    if (!form.password.trim()) return setError(t("teachers.errors.passwordRequired"));
+>>>>>>> a1933d6 (add launguages transition)
     const pct = parseFloat(form.percentage);
-    if (isNaN(pct) || pct < 0 || pct > 100) return setError("النسبة يجب أن تكون بين 0 و 100");
+    if (isNaN(pct) || pct < 0 || pct > 100) return setError(t("teachers.errors.percentageRange"));
 
     setSaving(true); setError("");
     try {
@@ -274,23 +290,32 @@ function AddTeacherModal({ subjects, onClose, onSaved, primaryColor }) {
       onSaved(res.data);
       onClose();
     } catch (err) {
-      setError(err?.response?.data?.message || "فشل الحفظ");
+      setError(err?.response?.data?.message || t("teachers.errors.saveFailed"));
     } finally {
       setSaving(false);
     }
   };
 
   return (
+<<<<<<< HEAD
     <ModalShell onClose={onClose} title="إضافة أستاذ جديد" subtitle="سيتم إنشاء حساب للأستاذ تلقائياً" emoji="👨‍🏫">
       <FormBody form={form} setForm={setForm} subjects={subjects} showPassword={showPassword} setShowPassword={setShowPassword} primaryColor={primaryColor} isEdit={false} />
+=======
+    <ModalShell onClose={onClose} title={t("teachers.addModal.title")} subtitle={t("teachers.addModal.subtitle")} emoji="👨‍🏫" dir={dir}>
+      <FormBody
+        form={form} setForm={setForm} subjects={subjects}
+        showPassword={showPassword} setShowPassword={setShowPassword}
+        primaryColor={primaryColor} isEdit={false} t={t} locale={locale}
+      />
+>>>>>>> a1933d6 (add launguages transition)
       {error && <ErrorMsg msg={error} />}
-      <ModalFooter onClose={onClose} onSave={handleSave} saving={saving} primaryColor={primaryColor} label="إضافة الأستاذ" />
+      <ModalFooter onClose={onClose} onSave={handleSave} saving={saving} primaryColor={primaryColor} label={t("teachers.addModal.submit")} t={t} />
     </ModalShell>
   );
 }
 
 // ── Edit Teacher Modal ────────────────────────────────────
-function EditTeacherModal({ teacher, subjects, onClose, onSaved, primaryColor }) {
+function EditTeacherModal({ teacher, subjects, onClose, onSaved, primaryColor, t, dir, locale }) {
   const [form, setForm] = useState({
     fullName: teacher.fullName || "", email: teacher.email || "", password: "",
     percentage: teacher.percentage != null ? String(teacher.percentage) : "0",
@@ -354,10 +379,15 @@ function EditTeacherModal({ teacher, subjects, onClose, onSaved, primaryColor })
   };
 
   const handleSave = async () => {
+<<<<<<< HEAD
     if (!form.fullName.trim()) return setError("الاسم مطلوب");
     if (!form.email.trim()) return setError("البريد الإلكتروني مطلوب");
+=======
+    if (!form.fullName.trim()) return setError(t("teachers.errors.nameRequired"));
+    if (!form.email.trim())    return setError(t("teachers.errors.emailRequired"));
+>>>>>>> a1933d6 (add launguages transition)
     const pct = parseFloat(form.percentage);
-    if (isNaN(pct) || pct < 0 || pct > 100) return setError("النسبة يجب أن تكون بين 0 و 100");
+    if (isNaN(pct) || pct < 0 || pct > 100) return setError(t("teachers.errors.percentageRange"));
 
     setSaving(true); setError("");
     try {
@@ -372,32 +402,170 @@ function EditTeacherModal({ teacher, subjects, onClose, onSaved, primaryColor })
       onSaved(res.data);
       onClose();
     } catch (err) {
-      setError(err?.response?.data?.message || "فشل الحفظ");
+      setError(err?.response?.data?.message || t("teachers.errors.saveFailed"));
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <ModalShell onClose={onClose} title="تعديل بيانات الأستاذ" subtitle={`تعديل بيانات ${teacher.fullName}`} emoji="✏️">
+    <ModalShell
+      onClose={onClose}
+      title={t("teachers.editModal.title")}
+      subtitle={t("teachers.editModal.subtitleFor", { name: teacher.fullName })}
+      emoji="✏️"
+      dir={dir}
+    >
       <FormBody
+<<<<<<< HEAD
         form={form} setForm={setForm} subjects={subjects} showPassword={showPassword} setShowPassword={setShowPassword}
         primaryColor={primaryColor} isEdit={true}
         lastPayout={lastPayout} payoutLoading={payoutLoading} payoutError={payoutError}
         previousPercentage={teacher.percentage} period={period} onPeriodChange={setPeriod}
         onMarkPaid={handleMarkPaid} markingPaid={markingPaid} onRecalculate={handleRecalculate} recalculating={recalculating}
+=======
+        form={form} setForm={setForm} subjects={subjects}
+        showPassword={showPassword} setShowPassword={setShowPassword}
+        primaryColor={primaryColor} isEdit={true} t={t} locale={locale}
+        lastPayout={lastPayout} payoutLoading={payoutLoading}
+        previousPercentage={teacher.percentage}
+>>>>>>> a1933d6 (add launguages transition)
       />
       {error && <ErrorMsg msg={error} />}
-      <ModalFooter onClose={onClose} onSave={handleSave} saving={saving} primaryColor={primaryColor} label="حفظ التعديلات" />
+      <ModalFooter onClose={onClose} onSave={handleSave} saving={saving} primaryColor={primaryColor} label={t("teachers.editModal.submit")} t={t} />
     </ModalShell>
   );
 }
 
-// ── Shared modal shell ────────────────────────────────────
-function ModalShell({ onClose, title, subtitle, emoji, children }) {
+<<<<<<< HEAD
+=======
+// ── Payout Info Card (edit modal only) ───────────────────
+function PayoutInfoCard({ lastPayout, payoutLoading, previousPercentage, currentPercentage, primaryColor, t, locale }) {
+  const prevPct   = previousPercentage != null ? Number(previousPercentage) : null;
+  const currPct   = parseFloat(currentPercentage);
+  const changed   = prevPct != null && !isNaN(currPct) && currPct !== prevPct;
+  const increased = changed && currPct > prevPct;
+
   return (
+    <div style={{
+      borderRadius: 10, border: "1.5px solid #E2E8F0",
+      background: "#F8FAFC", overflow: "hidden",
+    }}>
+      {/* Card header */}
+      <div style={{
+        padding: "7px 12px", background: "#EBF4FE",
+        borderBottom: "1.5px solid #DBEAFE",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+      }}>
+        <span style={{ fontSize: 10, fontWeight: 700, color: "#185FA5", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          {t("teachers.payoutCard.title")}
+        </span>
+        {lastPayout && !payoutLoading && (
+          <span style={{ fontSize: 10, color: "#64748B", fontWeight: 600 }}>
+            {formatPeriod(lastPayout.period, locale)}
+          </span>
+        )}
+      </div>
+
+      {/* Card body */}
+      <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+
+        {payoutLoading ? (
+          <div style={{ display: "flex", justifyContent: "center", padding: "6px 0" }}>
+            <Spinner size={16} />
+          </div>
+        ) : !lastPayout ? (
+          <p style={{ fontSize: 12, color: "#94A3B8", margin: 0, textAlign: "center", padding: "4px 0" }}>
+            {t("teachers.payoutCard.none")}
+          </p>
+        ) : (
+          <>
+            {/* Breakdown row: revenue × % = payout */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+
+              {/* Revenue */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 1, alignItems: "center", flex: 1 }}>
+                <span style={{ fontSize: 9, fontWeight: 600, color: "#94A3B8" }}>{t("teachers.payoutCard.revenue")}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#0F172A" }}>
+                  {formatDA(lastPayout.totalModuleRevenue)}
+                </span>
+              </div>
+
+              {/* × */}
+              <span style={{ fontSize: 13, color: "#CBD5E1", fontWeight: 700 }}>×</span>
+
+              {/* Percentage used */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 1, alignItems: "center", flex: 1 }}>
+                <span style={{ fontSize: 9, fontWeight: 600, color: "#94A3B8" }}>{t("teachers.payoutCard.appliedPercentage")}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#0F172A" }}>
+                  {lastPayout.percentage != null ? `${lastPayout.percentage}%` : "—"}
+                </span>
+              </div>
+
+              {/* = */}
+              <span style={{ fontSize: 13, color: "#CBD5E1", fontWeight: 700 }}>=</span>
+
+              {/* Payout amount */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 1, alignItems: "center", flex: 1 }}>
+                <span style={{ fontSize: 9, fontWeight: 600, color: "#94A3B8" }}>{t("teachers.payoutCard.payout")}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: primaryColor }}>
+                  {formatDA(lastPayout.payoutAmount)}
+                </span>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div style={{ height: 1, background: "#F1F5F9" }} />
+
+            {/* Previous percentage + change indicator */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                <span style={{ fontSize: 9, fontWeight: 600, color: "#94A3B8" }}>{t("teachers.payoutCard.previousPercentage")}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
+                  {prevPct != null ? `${prevPct}%` : "—"}
+                </span>
+              </div>
+
+              {/* Change badge — only shown when admin has typed a new value */}
+              {changed && (
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 4,
+                  padding: "3px 9px", borderRadius: 20,
+                  background: increased ? "#ECFDF5" : "#FEF2F2",
+                  border: `1px solid ${increased ? "#A7F3D0" : "#FECACA"}`,
+                }}>
+                  {increased
+                    ? <TrendingUp  size={11} color="#059669" />
+                    : <TrendingDown size={11} color="#DC2626" />
+                  }
+                  <span style={{ fontSize: 11, fontWeight: 700, color: increased ? "#059669" : "#DC2626" }}>
+                    {prevPct}% → {currPct}%
+                  </span>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+>>>>>>> a1933d6 (add launguages transition)
+// ── Shared modal shell ────────────────────────────────────
+function ModalShell({ onClose, title, subtitle, emoji, children, dir }) {
+  return (
+<<<<<<< HEAD
     <div onClick={(e) => e.target === e.currentTarget && onClose()} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: "1rem" }}>
       <div dir="rtl" style={{ background: "#fff", borderRadius: 14, width: "100%", maxWidth: 440, border: "1.5px solid #E2E8F0", overflow: "hidden", fontFamily: "'Cairo',sans-serif", maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
+=======
+    <div
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+      style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: "1rem" }}
+    >
+      <div dir={dir} style={{ background: "#fff", borderRadius: 14, width: "100%", maxWidth: 440, border: "1.5px solid #E2E8F0", overflow: "hidden", fontFamily: "'Cairo',sans-serif", maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
+        {/* Header */}
+>>>>>>> a1933d6 (add launguages transition)
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.25rem", borderBottom: "1.5px solid #F1F5F9", background: "#FAFCFF", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ width: 34, height: 34, borderRadius: 9, background: "#EBF4FE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>{emoji}</div>
@@ -419,6 +587,7 @@ function ModalShell({ onClose, title, subtitle, emoji, children }) {
 }
 
 // ── Shared form body ──────────────────────────────────────
+<<<<<<< HEAD
 function FormBody({
   form, setForm, subjects, showPassword, setShowPassword, primaryColor, isEdit,
   lastPayout, payoutLoading, payoutError, previousPercentage,
@@ -434,39 +603,85 @@ function FormBody({
 
       <Field label="البريد الإلكتروني *">
         <input style={{ ...inp, direction: "ltr" }} type="email" placeholder="example@mail.com" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+=======
+function FormBody({ form, setForm, subjects, showPassword, setShowPassword, primaryColor, isEdit, lastPayout, payoutLoading, previousPercentage, t, locale }) {
+  return (
+    <>
+      {/* Section: Account Info */}
+      <SectionLabel>{t("teachers.form.accountSection")}</SectionLabel>
+
+      <Field label={t("teachers.form.fullName")}>
+        <input style={inp} type="text" placeholder={t("teachers.form.fullNamePlaceholder")}
+          value={form.fullName} onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))} />
       </Field>
 
-      <Field label={isEdit ? "كلمة المرور الجديدة (اتركها فارغة للإبقاء على الحالية)" : "كلمة المرور *"}>
+      <Field label={t("teachers.form.email")}>
+        <input style={{ ...inp, direction: "ltr" }} type="email" placeholder="example@mail.com"
+          value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+>>>>>>> a1933d6 (add launguages transition)
+      </Field>
+
+      <Field label={isEdit ? t("teachers.form.newPassword") : t("teachers.form.password")}>
         <div style={{ position: "relative" }}>
+<<<<<<< HEAD
           <input style={{ ...inp, direction: "ltr", paddingLeft: 34 }} type={showPassword ? "text" : "password"} placeholder={isEdit ? "اترك فارغاً إن لم ترد تغييرها" : "كلمة المرور"} value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} />
           <button onClick={() => setShowPassword((v) => !v)} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 2, color: "#94A3B8", display: "flex", alignItems: "center" }}>
+=======
+          <input
+            style={{ ...inp, direction: "ltr", paddingLeft: 34 }}
+            type={showPassword ? "text" : "password"}
+            placeholder={isEdit ? t("teachers.form.passwordPlaceholderEdit") : t("teachers.form.passwordPlaceholder")}
+            value={form.password}
+            onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+          />
+          <button
+            onClick={() => setShowPassword((v) => !v)}
+            style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 2, color: "#94A3B8", display: "flex", alignItems: "center" }}
+          >
+>>>>>>> a1933d6 (add launguages transition)
             {showPassword
               ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
               : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             }
           </button>
         </div>
-        {!isEdit && <p style={{ fontSize: 10, color: "#94A3B8", margin: "4px 0 0" }}>سيستخدم الأستاذ هذه البيانات لتسجيل الدخول</p>}
+        {!isEdit && <p style={{ fontSize: 10, color: "#94A3B8", margin: "4px 0 0" }}>{t("teachers.form.passwordNote")}</p>}
       </Field>
 
+<<<<<<< HEAD
       <SectionLabel>النسبة والدفعات</SectionLabel>
+=======
+      {/* Section: Revenue */}
+      <SectionLabel>{t("teachers.form.revenueSection")}</SectionLabel>
+>>>>>>> a1933d6 (add launguages transition)
 
       {isEdit && (
         <PayoutInfoCard
+<<<<<<< HEAD
           lastPayout={lastPayout} payoutLoading={payoutLoading} payoutError={payoutError}
           previousPercentage={previousPercentage} currentPercentage={form.percentage} primaryColor={primaryColor}
           period={period} onPeriodChange={onPeriodChange} onMarkPaid={onMarkPaid} markingPaid={markingPaid}
           onRecalculate={onRecalculate} recalculating={recalculating}
+=======
+          lastPayout={lastPayout}
+          payoutLoading={payoutLoading}
+          previousPercentage={previousPercentage}
+          currentPercentage={form.percentage}
+          primaryColor={primaryColor}
+          t={t}
+          locale={locale}
+>>>>>>> a1933d6 (add launguages transition)
         />
       )}
 
-      <Field label="نسبة الأستاذ من الإيرادات (%) *">
+      <Field label={t("teachers.form.percentageLabel")}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <input style={{ ...inp, width: 90, textAlign: "center", fontWeight: 700, fontSize: 15, color: primaryColor }} type="number" min="0" max="100" step="1" value={form.percentage} onChange={(e) => setForm((f) => ({ ...f, percentage: e.target.value }))} />
           <div style={{ flex: 1 }}>
             <input type="range" min="0" max="100" step="1" value={form.percentage} onChange={(e) => setForm((f) => ({ ...f, percentage: e.target.value }))} style={{ width: "100%", accentColor: primaryColor }} />
           </div>
         </div>
+<<<<<<< HEAD
         <p style={{ fontSize: 10, color: "#94A3B8", margin: "4px 0 0" }}>الأستاذ سيحصل على {form.percentage || 0}% من إيرادات موديولاته</p>
       </Field>
 
@@ -475,16 +690,41 @@ function FormBody({
       <Field label="المادة الدراسية">
         <select style={{ ...inp, cursor: "pointer" }} value={form.subjectId} onChange={(e) => setForm((f) => ({ ...f, subjectId: e.target.value }))}>
           <option value="">-- اختر مادة --</option>
+=======
+        <p style={{ fontSize: 10, color: "#94A3B8", margin: "4px 0 0" }}>
+          {t("teachers.form.percentageNote", { pct: form.percentage || 0 })}
+        </p>
+      </Field>
+
+      {/* Section: Professional Info */}
+      <SectionLabel>{t("teachers.form.professionalSection")}</SectionLabel>
+
+      <Field label={t("teachers.form.subjectLabel")}>
+        <select style={{ ...inp, cursor: "pointer" }} value={form.subjectId}
+          onChange={(e) => setForm((f) => ({ ...f, subjectId: e.target.value }))}>
+          <option value="">{t("teachers.form.subjectPlaceholder")}</option>
+>>>>>>> a1933d6 (add launguages transition)
           {subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
       </Field>
 
+<<<<<<< HEAD
       <Field label="التخصص">
         <input style={inp} type="text" placeholder="مثال: رياضيات تطبيقية" value={form.specialization} onChange={(e) => setForm((f) => ({ ...f, specialization: e.target.value }))} />
       </Field>
 
       <Field label="نبذة مختصرة">
         <input style={inp} type="text" placeholder="وصف قصير عن الأستاذ" value={form.bio} onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))} />
+=======
+      <Field label={t("teachers.form.specializationLabel")}>
+        <input style={inp} type="text" placeholder={t("teachers.form.specializationPlaceholder")}
+          value={form.specialization} onChange={(e) => setForm((f) => ({ ...f, specialization: e.target.value }))} />
+      </Field>
+
+      <Field label={t("teachers.form.bioLabel")}>
+        <input style={inp} type="text" placeholder={t("teachers.form.bioPlaceholder")}
+          value={form.bio} onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))} />
+>>>>>>> a1933d6 (add launguages transition)
       </Field>
     </>
   );
@@ -505,20 +745,32 @@ function Field({ label, children }) {
 function ErrorMsg({ msg }) {
   return <div style={{ fontSize: 12, color: "#DC2626", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "7px 12px" }}>⚠️ {msg}</div>;
 }
-function ModalFooter({ onClose, onSave, saving, primaryColor, label }) {
+function ModalFooter({ onClose, onSave, saving, primaryColor, label, t }) {
   return (
     <div style={{ display: "flex", gap: 8, padding: "1rem 1.25rem", borderTop: "1.5px solid #F1F5F9", background: "#FAFCFF", flexShrink: 0 }}>
+<<<<<<< HEAD
       <button onClick={onClose} style={{ flex: 1, padding: "8px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>إلغاء</button>
       <button onClick={onSave} disabled={saving} style={{ flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px", borderRadius: 9, border: "none", background: saving ? "#93B5D9" : primaryColor, color: "#fff", fontSize: 13, fontWeight: 600, cursor: saving ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
         {saving ? <Spinner size={13} color="#fff" /> : <Check size={13} />}
         {saving ? "جارٍ الحفظ..." : label}
+=======
+      <button onClick={onClose} style={{ flex: 1, padding: "8px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+        {t("teachers.footer.cancel")}
+      </button>
+      <button
+        onClick={onSave} disabled={saving}
+        style={{ flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px", borderRadius: 9, border: "none", background: saving ? "#93B5D9" : primaryColor, color: "#fff", fontSize: 13, fontWeight: 600, cursor: saving ? "not-allowed" : "pointer", fontFamily: "inherit" }}
+      >
+        {saving ? <Spinner size={13} /> : <Check size={13} />}
+        {saving ? t("teachers.footer.saving") : label}
+>>>>>>> a1933d6 (add launguages transition)
       </button>
     </div>
   );
 }
 
 // ── Teacher Card ──────────────────────────────────────────
-function TeacherCard({ t, subjectMap, primaryColor, isArchived, onArchive, onUnarchive, onEdit, actionId }) {
+function TeacherCard({ t, subjectMap, primaryColor, isArchived, onArchive, onUnarchive, onEdit, actionId, tr }) {
   return (
     <div
       style={{
@@ -530,6 +782,7 @@ function TeacherCard({ t, subjectMap, primaryColor, isArchived, onArchive, onUna
       onMouseLeave={(e) => { e.currentTarget.style.borderColor = isArchived ? "#E2E8F0" : "#E8EEF6"; e.currentTarget.style.boxShadow = "none"; }}
     >
       {isArchived ? (
+<<<<<<< HEAD
         <button onClick={() => onUnarchive(t.id)} disabled={actionId === t.id} title="استعادة الأستاذ"
           style={{ position: "absolute", top: 10, left: 10, display: "flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 7, border: "1px solid #D1FAE5", background: "#ECFDF5", cursor: "pointer", fontSize: 10, fontWeight: 600, color: "#059669" }}>
           {actionId === t.id ? <Spinner size={10} color="#059669" /> : <RefreshCw size={10} />}
@@ -537,6 +790,20 @@ function TeacherCard({ t, subjectMap, primaryColor, isArchived, onArchive, onUna
         </button>
       ) : (
         <button onClick={() => onArchive(t.id)} disabled={actionId === t.id} title="أرشفة الأستاذ"
+=======
+        <button
+          onClick={() => onUnarchive(t.id)} disabled={actionId === t.id}
+          title={tr("teachers.restoreTitle")}
+          style={{ position: "absolute", top: 10, left: 10, display: "flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 7, border: "1px solid #D1FAE5", background: "#ECFDF5", cursor: "pointer", fontSize: 10, fontWeight: 600, color: "#059669" }}
+        >
+          {actionId === t.id ? <Spinner size={10} /> : <RefreshCw size={10} />}
+          {tr("teachers.restore")}
+        </button>
+      ) : (
+        <button
+          onClick={() => onArchive(t.id)} disabled={actionId === t.id}
+          title={tr("teachers.archiveTitle")}
+>>>>>>> a1933d6 (add launguages transition)
           style={{ position: "absolute", top: 10, left: 10, width: 26, height: 26, borderRadius: 7, border: "1px solid #E2E8F0", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: .6, transition: "opacity .15s" }}
           onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")} onMouseLeave={(e) => (e.currentTarget.style.opacity = ".6")}>
           {actionId === t.id ? <Spinner size={10} /> : <Archive size={11} color="#DC2626" />}
@@ -544,13 +811,25 @@ function TeacherCard({ t, subjectMap, primaryColor, isArchived, onArchive, onUna
       )}
 
       {!isArchived ? (
+<<<<<<< HEAD
         <button onClick={() => onEdit(t)} title="تعديل بيانات الأستاذ"
+=======
+        <button
+          onClick={() => onEdit(t)}
+          title={tr("teachers.editTitle")}
+>>>>>>> a1933d6 (add launguages transition)
           style={{ position: "absolute", top: 10, right: 10, width: 26, height: 26, borderRadius: 7, border: "1px solid #E2E8F0", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: .6, transition: "opacity .15s" }}
           onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")} onMouseLeave={(e) => (e.currentTarget.style.opacity = ".6")}>
           <Pencil size={11} color="#185FA5" />
         </button>
       ) : (
+<<<<<<< HEAD
         <span style={{ position: "absolute", top: 10, right: 10, fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 20, background: "#FEF2F2", color: "#DC2626", border: "1px solid #FECACA" }}>مؤرشف</span>
+=======
+        <span style={{ position: "absolute", top: 10, right: 10, fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 20, background: "#FEF2F2", color: "#DC2626", border: "1px solid #FECACA" }}>
+          {tr("teachers.archivedBadge")}
+        </span>
+>>>>>>> a1933d6 (add launguages transition)
       )}
 
       <div style={{ width: 52, height: 52, borderRadius: "50%", background: isArchived ? "#94A3B8" : primaryColor, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 700, border: "3px solid #EBF4FE", marginTop: isArchived ? 8 : 0 }}>
@@ -793,6 +1072,7 @@ function TabSwitcher({ active, onChange, primaryColor }) {
 // ── Main ──────────────────────────────────────────────────
 export default function Teachers() {
   const { school } = useAuth();
+  const { t, dir, locale } = useLanguage();
   const p = school?.primaryColor || "#185FA5";
 
   const [activeTab, setActiveTab] = useState("teachers");
@@ -814,11 +1094,11 @@ export default function Teachers() {
       setTeachers(tRes.data?.content ?? tRes.data ?? []);
       setSubjects(sRes.data?.content ?? sRes.data ?? []);
     } catch (err) {
-      setError(err?.response?.data?.message || "خطأ في تحميل البيانات");
+      setError(err?.response?.data?.message || t("teachers.loadError"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const loadArchived = useCallback(async () => {
     setArchivedLoading(true);
@@ -843,7 +1123,7 @@ export default function Teachers() {
       setTeachers((prev) => prev.filter((t) => t.id !== id));
       if (showArchived && archived) setArchivedTeachers((prev) => [{ ...archived, archived: true }, ...prev]);
     } catch (err) {
-      alert(err?.response?.data?.message || "فشلت الأرشفة");
+      alert(err?.response?.data?.message || t("teachers.archiveFailed"));
     } finally {
       setActionId(null);
     }
@@ -857,7 +1137,7 @@ export default function Teachers() {
       setArchivedTeachers((prev) => prev.filter((t) => t.id !== id));
       if (restored) setTeachers((prev) => [{ ...restored, archived: false }, ...prev]);
     } catch (err) {
-      alert(err?.response?.data?.message || "فشلت الاستعادة");
+      alert(err?.response?.data?.message || t("teachers.restoreFailed"));
     } finally {
       setActionId(null);
     }
@@ -871,11 +1151,12 @@ export default function Teachers() {
   const displayList = showArchived ? archivedTeachers : teachers;
 
   return (
-    <div dir="rtl" style={{ padding: "1.25rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
+    <div dir={dir} style={{ padding: "1.25rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem", flexWrap: "wrap", gap: 12 }}>
         <div>
+<<<<<<< HEAD
           <h1 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0 }}>الأساتذة والرواتب</h1>
           <p style={{ fontSize: 12, color: "#94A3B8", marginTop: 2, margin: 0 }}>
             {activeTab === "teachers" ? (loading ? "..." : `${teachers.length} أستاذ نشط`) : "تتبّع وإدارة رواتب الأساتذة الشهرية"}
@@ -904,10 +1185,41 @@ export default function Teachers() {
                 </button>
               )}
             </div>
+=======
+          <h1 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("sidebar.nav.teachers")}</h1>
+          <p style={{ fontSize: 12, color: "#94A3B8", marginTop: 2, margin: 0 }}>
+            {loading ? "..." : t("teachers.countActive", { count: teachers.length })}
+          </p>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={showArchived ? loadArchived : load}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}
+          >
+            <RefreshCw size={13} />
+          </button>
+          <button
+            onClick={() => setShowArchived((v) => !v)}
+            style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 14px", borderRadius: 9, border: `1.5px solid ${showArchived ? "#FECACA" : "#E2E8F0"}`, background: showArchived ? "#FEF2F2" : "#fff", color: showArchived ? "#DC2626" : "#64748B", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "all .15s" }}
+          >
+            <Archive size={13} />
+            {showArchived ? t("teachers.hideArchived") : t("teachers.showArchived")}
+          </button>
+          {!showArchived && (
+            <button
+              onClick={() => setShowAddModal(true)}
+              style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 9, border: "none", background: p, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "opacity .15s" }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = ".88")}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+            >
+              <Plus size={15} /> {t("teachers.addTeacher")}
+            </button>
+>>>>>>> a1933d6 (add launguages transition)
           )}
         </div>
       </div>
 
+<<<<<<< HEAD
       {activeTab === "teachers" ? (
         <>
           {showArchived && (
@@ -935,14 +1247,62 @@ export default function Teachers() {
         </>
       ) : (
         <PayoutsTab teachers={teachers} primaryColor={p} />
+=======
+      {/* Archived banner */}
+      {showArchived && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, padding: "8px 14px", borderRadius: 10, background: "#FEF2F2", border: "1.5px solid #FECACA" }}>
+          <Archive size={14} color="#DC2626" />
+          <span style={{ fontSize: 12, fontWeight: 600, color: "#DC2626" }}>
+            {t("teachers.archivedBanner")}
+          </span>
+        </div>
+      )}
+
+      {/* Body */}
+      {(loading && !showArchived) || (archivedLoading && showArchived) ? (
+        <div style={{ display: "flex", justifyContent: "center", padding: "3rem" }}><Spinner size={28} /></div>
+      ) : error && !showArchived ? (
+        <ErrorBlock message={error} onRetry={load} t={t} />
+      ) : displayList.length === 0 ? (
+        <div style={{ textAlign: "center", color: "#94A3B8", padding: "3rem", fontSize: 13 }}>
+          {showArchived ? t("teachers.emptyArchived") : t("teachers.emptyActive")}
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 12 }}>
+          {displayList.map((teacher) => (
+            <TeacherCard
+              key={teacher.id} t={teacher} subjectMap={subjectMap}
+              primaryColor={p} isArchived={showArchived}
+              onArchive={handleArchive} onUnarchive={handleUnarchive}
+              onEdit={setEditingTeacher} actionId={actionId} tr={t}
+            />
+          ))}
+        </div>
+>>>>>>> a1933d6 (add launguages transition)
       )}
 
       {showAddModal && (
+<<<<<<< HEAD
         <AddTeacherModal subjects={subjects} primaryColor={p} onClose={() => setShowAddModal(false)} onSaved={(newTeacher) => setTeachers((prev) => [newTeacher, ...prev])} />
+=======
+        <AddTeacherModal
+          subjects={subjects} primaryColor={p} t={t} dir={dir} locale={locale}
+          onClose={() => setShowAddModal(false)}
+          onSaved={(newTeacher) => setTeachers((prev) => [newTeacher, ...prev])}
+        />
+>>>>>>> a1933d6 (add launguages transition)
       )}
 
       {editingTeacher && (
+<<<<<<< HEAD
         <EditTeacherModal teacher={editingTeacher} subjects={subjects} primaryColor={p} onClose={() => setEditingTeacher(null)} onSaved={(updated) => { handleTeacherUpdated(updated); setEditingTeacher(null); }} />
+=======
+        <EditTeacherModal
+          teacher={editingTeacher} subjects={subjects} primaryColor={p} t={t} dir={dir} locale={locale}
+          onClose={() => setEditingTeacher(null)}
+          onSaved={(updated) => { handleTeacherUpdated(updated); setEditingTeacher(null); }}
+        />
+>>>>>>> a1933d6 (add launguages transition)
       )}
     </div>
   );

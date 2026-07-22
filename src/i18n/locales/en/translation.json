@@ -1,0 +1,11 @@
+{
+  "home": "Home",
+  "schools": "Schools",
+  "login": "Login",
+  "register": "Register",
+  "welcome": "Welcome",
+   "platformName": "School Support Platform",
+   "dashboard": "Dashboard",
+   "logout": "Logout"
+
+}

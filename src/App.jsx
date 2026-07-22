@@ -1,5 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
+import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import "./App.css";
 
 
@@ -46,6 +48,14 @@ import PasswordResetFlow from "./pages/PasswordReset";
 
 
 
+function useSyncDocumentDirection() {
+  const { i18n } = useTranslation();
+  useEffect(() => {
+    const dir = i18n.language === "ar" ? "rtl" : "ltr";
+    document.documentElement.dir = dir;
+    document.documentElement.lang = i18n.language;
+  }, [i18n.language]);
+}
 // Load Google Fonts
 const link = document.createElement("link");
 link.rel = "stylesheet";
@@ -60,6 +70,7 @@ script.src =
 document.head.appendChild(script);
 
 export default function App() {
+    useSyncDocumentDirection();
   return (
     <AuthProvider>
    

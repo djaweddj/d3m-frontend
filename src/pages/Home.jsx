@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -9,9 +10,10 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "../context/authContext";
+import { useLanguage } from "../context/LanguageContext";
 
 // ─── API config ───────────────────────────────────────────
-const API_BASE_URL = "http://localhost:8080";
+const API_BASE_URL = "http://localhost:8081";
 
 // ─── helpers ──────────────────────────────────────────────
 const getInitials = (name) =>
@@ -43,13 +45,13 @@ function useCountUp(value, duration = 1400) {
   return display;
 }
 
-function formatNumber(n) {
+function formatNumber(n, locale = "en-US") {
   if (n == null) return "—";
-  return n.toLocaleString("en-US");
+  return n.toLocaleString(locale);
 }
 
 // ─── User pill ────────────────────────────────────────────
-function UserPill({ user }) {
+function UserPill({ user, visitorLabel }) {
   if (user) {
     return (
       <div className="flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5">
@@ -63,14 +65,14 @@ function UserPill({ user }) {
   return (
     <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
       <UserCircle2 className="h-4 w-4 text-slate-400" />
-      <span className="text-sm font-medium text-slate-500">زائر</span>
+      <span className="text-sm font-medium text-slate-500">{visitorLabel}</span>
       <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
     </div>
   );
 }
 
 // ─── Stat card (live data) ────────────────────────────────
-function StatCard({ icon: Icon, value, label, loading, delay }) {
+function StatCard({ icon: Icon, value, label, loading, delay, locale }) {
   const count = useCountUp(loading ? null : value);
 
   return (
@@ -90,7 +92,7 @@ function StatCard({ icon: Icon, value, label, loading, delay }) {
         {loading ? (
           <span className="inline-block h-9 w-20 animate-pulse rounded-lg bg-slate-100 align-middle" />
         ) : (
-          <>{formatNumber(count)}+</>
+          <>{formatNumber(count, locale)}+</>
         )}
       </div>
       <div className="relative text-sm font-medium text-slate-500">{label}</div>
@@ -98,43 +100,10 @@ function StatCard({ icon: Icon, value, label, loading, delay }) {
   );
 }
 
-// ─── School card ──────────────────────────────────────────
-function SchoolCard({ name, city, rating, subject, delay }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, x: 30 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.5, delay }}
-      className="flex items-center justify-between rounded-2xl border border-slate-100 bg-white p-4 shadow-sm hover:shadow-md hover:border-blue-200 transition-all duration-200"
-    >
-      <div className="flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 text-blue-600">
-          <School className="h-6 w-6" />
-        </div>
-        <div>
-          <p className="font-bold text-slate-900 text-sm">{name}</p>
-          <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
-            <MapPin className="h-3 w-3" /> {city}
-          </p>
-          <p className="text-[10px] font-medium text-blue-500 mt-0.5">{subject}</p>
-        </div>
-      </div>
-      <div className="flex flex-col items-end gap-1.5">
-        <div className="rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-600">
-          ⭐ {rating}
-        </div>
-        <div className="text-[10px] text-green-500 font-semibold flex items-center gap-1">
-          <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
-          مفتوح
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
 // ─── Home page ────────────────────────────────────────────
 export default function Home() {
   const { user } = useAuth();
+  const { t, dir, locale } = useLanguage();
 
   const [stats, setStats] = useState({ schools: null, students: null, teachers: null });
   const [statsLoading, setStatsLoading] = useState(true);
@@ -168,8 +137,16 @@ export default function Home() {
     return () => { cancelled = true; };
   }, []);
 
+  const featureIcons = [Shield, Clock, TrendingUp];
+  const featureColors = [
+    "bg-blue-50 text-blue-600",
+    "bg-violet-50 text-violet-600",
+    "bg-emerald-50 text-emerald-600",
+  ];
+  const featureItems = t("home.features.items"); // array of { title, desc }
+
   return (
-    <div className="min-h-screen bg-[#fafafa] text-slate-900 overflow-hidden" dir="rtl">
+    <div className="min-h-screen bg-[#fafafa] text-slate-900 overflow-hidden" dir={dir}>
 
       {/* Keyframes + small utility animations used across the page */}
       <style>{`
@@ -224,34 +201,32 @@ export default function Home() {
             className="text-center lg:text-right">
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 }}
               className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-4 py-1.5 text-sm font-semibold text-blue-700">
-              <Sparkles className="h-4 w-4" /> منصة تعليمية جزائرية حديثة
+              <Sparkles className="h-4 w-4" /> {t("home.hero.badge")}
             </motion.div>
 
             <motion.h2 initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.55, delay: 0.15 }}
               className="mb-5 text-5xl font-extrabold leading-[1.15] tracking-tight text-slate-900 md:text-6xl">
-              ابحث عن{" "}
+              {t("home.hero.titleLine1")}{" "}
               <span className="relative">
-                <span className="relative z-10 text-blue-600">أفضل مدارس</span>
+                <span className="relative z-10 text-blue-600">{t("home.hero.titleHighlight")}</span>
                 <svg className="absolute -bottom-1 right-0 left-0 w-full" viewBox="0 0 200 8" preserveAspectRatio="none" style={{ height: 8 }}>
                   <path className="hero-underline" d="M0 6 Q50 0 100 5 Q150 10 200 4" fill="none" stroke="#BFDBFE" strokeWidth="4" strokeLinecap="round" />
                 </svg>
               </span>
-              <br />الدعم في مدينتك
+              <br />{t("home.hero.titleLine2")}
             </motion.h2>
-
-           
 
             {/* CTAs */}
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.45 }}
               className="flex flex-col gap-3 sm:flex-row sm:justify-center lg:justify-start " style={{marginTop:"70px"}} >
               <Link to="/schools">
                 <Button className="h-12 rounded-xl bg-blue-600 px-7 text-sm font-bold hover:bg-blue-700 gap-2 transition-transform hover:scale-[1.03] active:scale-95" >
-                  تصفح المدارس <ArrowLeft className="h-4 w-4" />
+                  {t("home.hero.ctaBrowse")} <ArrowLeft className="h-4 w-4" />
                 </Button>
               </Link>
               <Link to="/schoolregister">
                 <Button variant="outline" className="h-12 rounded-xl border-slate-200 px-7 text-sm font-semibold text-slate-700 hover:bg-slate-50 gap-2 transition-transform hover:scale-[1.03] active:scale-95">
-                  <BookOpen className="h-4 w-4 text-blue-500" /> سجّل مدرستك
+                  <BookOpen className="h-4 w-4 text-blue-500" /> {t("home.hero.ctaRegister")}
                 </Button>
               </Link>
             </motion.div>
@@ -270,7 +245,9 @@ export default function Home() {
                   {[...Array(5)].map((_, i) => <Star key={i} className="h-3 w-3 fill-amber-400 text-amber-400" />)}
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  {statsLoading ? "جاري التحميل..." : `+${formatNumber(stats.students ?? 0)} طالب يثقون في منصتنا`}
+                  {statsLoading
+                    ? t("home.hero.loading")
+                    : t("home.hero.socialProof", { count: formatNumber(stats.students ?? 0, locale) })}
                 </p>
               </div>
             </motion.div>
@@ -284,8 +261,8 @@ export default function Home() {
                 <School className="h-4 w-4" />
               </div>
               <div>
-                <p className="text-xs font-bold text-slate-900">{statsLoading ? "…" : formatNumber(stats.schools ?? 0)}</p>
-                <p className="text-[10px] text-slate-400">مدرسة</p>
+                <p className="text-xs font-bold text-slate-900">{statsLoading ? "…" : formatNumber(stats.schools ?? 0, locale)}</p>
+                <p className="text-[10px] text-slate-400">{t("home.badges.schools")}</p>
               </div>
             </motion.div>
 
@@ -295,8 +272,8 @@ export default function Home() {
                 <Users className="h-4 w-4" />
               </div>
               <div>
-                <p className="text-xs font-bold text-slate-900">{statsLoading ? "…" : formatNumber(stats.students ?? 0)}</p>
-                <p className="text-[10px] text-slate-400">طالب</p>
+                <p className="text-xs font-bold text-slate-900">{statsLoading ? "…" : formatNumber(stats.students ?? 0, locale)}</p>
+                <p className="text-[10px] text-slate-400">{t("home.badges.students")}</p>
               </div>
             </motion.div>
 
@@ -306,8 +283,8 @@ export default function Home() {
                 <PresentationIcon className="h-4 w-4" />
               </div>
               <div>
-                <p className="text-xs font-bold text-slate-900">{statsLoading ? "…" : formatNumber(stats.teachers ?? 0)}</p>
-                <p className="text-[10px] text-slate-400">أستاذ</p>
+                <p className="text-xs font-bold text-slate-900">{statsLoading ? "…" : formatNumber(stats.teachers ?? 0, locale)}</p>
+                <p className="text-[10px] text-slate-400">{t("home.badges.teachers")}</p>
               </div>
             </motion.div>
 
@@ -321,30 +298,29 @@ export default function Home() {
       {/* ── Features ── */}
       <section className="container mx-auto px-6 py-24">
         <div className="mb-14 text-center">
-          <span className="inline-block rounded-full border border-blue-100 bg-blue-50 px-4 py-1 text-sm font-semibold text-blue-600 mb-4">لماذا نحن؟</span>
-          <h3 className="mb-3 text-4xl font-extrabold text-slate-900">كل ما تحتاجه في مكان واحد</h3>
-          <p className="mx-auto max-w-xl text-base leading-7 text-slate-500">منصة مصممة خصيصاً لربط الطلاب بأفضل مدارس الدعم في الجزائر</p>
+          <span className="inline-block rounded-full border border-blue-100 bg-blue-50 px-4 py-1 text-sm font-semibold text-blue-600 mb-4">{t("home.features.tag")}</span>
+          <h3 className="mb-3 text-4xl font-extrabold text-slate-900">{t("home.features.title")}</h3>
+          <p className="mx-auto max-w-xl text-base leading-7 text-slate-500">{t("home.features.subtitle")}</p>
         </div>
         <div className="grid gap-5 md:grid-cols-3">
-          {[
-            { icon: Shield,     title: "مدارس معتمدة",   desc: "جميع المدارس يتم التحقق منها لضمان أعلى مستوى من الجودة.", color: "bg-blue-50 text-blue-600" },
-            { icon: Clock,      title: "تسجيل سريع",     desc: "عملية تسجيل بسيطة لا تتجاوز دقيقتين للطلاب والمدارس.",    color: "bg-violet-50 text-violet-600" },
-            { icon: TrendingUp, title: "تقييمات حقيقية", desc: "اقرأ تقييمات الطلاب الحقيقية وقارن قبل اتخاذ قرارك.",     color: "bg-emerald-50 text-emerald-600" },
-          ].map((item, i) => (
-            <motion.div key={item.title}
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-60px" }}
-              transition={{ duration: 0.5, delay: i * 0.1 }}
-              whileHover={{ y: -4 }}
-              className="rounded-3xl border border-slate-200 bg-white p-7 shadow-sm hover:shadow-md transition-shadow">
-              <div className={`mb-5 flex h-14 w-14 items-center justify-center rounded-2xl ${item.color}`}>
-                <item.icon className="h-7 w-7" />
-              </div>
-              <h4 className="mb-2.5 text-xl font-bold text-slate-900">{item.title}</h4>
-              <p className="leading-7 text-slate-500 text-sm">{item.desc}</p>
-            </motion.div>
-          ))}
+          {featureItems.map((item, i) => {
+            const Icon = featureIcons[i];
+            return (
+              <motion.div key={item.title}
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-60px" }}
+                transition={{ duration: 0.5, delay: i * 0.1 }}
+                whileHover={{ y: -4 }}
+                className="rounded-3xl border border-slate-200 bg-white p-7 shadow-sm hover:shadow-md transition-shadow">
+                <div className={`mb-5 flex h-14 w-14 items-center justify-center rounded-2xl ${featureColors[i]}`}>
+                  <Icon className="h-7 w-7" />
+                </div>
+                <h4 className="mb-2.5 text-xl font-bold text-slate-900">{item.title}</h4>
+                <p className="leading-7 text-slate-500 text-sm">{item.desc}</p>
+              </motion.div>
+            );
+          })}
         </div>
       </section>
 
@@ -352,19 +328,19 @@ export default function Home() {
       <section className="border-y border-slate-200 bg-white py-20">
         <div className="container mx-auto px-6">
           <div className="mb-12 text-center">
-            <span className="inline-block rounded-full border border-blue-100 bg-blue-50 px-4 py-1 text-sm font-semibold text-blue-600 mb-4">أرقامنا</span>
-            <h3 className="text-3xl font-extrabold text-slate-900">مجتمع ينمو كل يوم</h3>
+            <span className="inline-block rounded-full border border-blue-100 bg-blue-50 px-4 py-1 text-sm font-semibold text-blue-600 mb-4">{t("home.stats.tag")}</span>
+            <h3 className="text-3xl font-extrabold text-slate-900">{t("home.stats.title")}</h3>
           </div>
 
           {statsError ? (
             <div className="mx-auto max-w-md rounded-2xl border border-red-100 bg-red-50 px-6 py-4 text-center text-sm text-red-600">
-              تعذر تحميل الإحصائيات في الوقت الحالي. حاول تحديث الصفحة.
+              {t("home.stats.error")}
             </div>
           ) : (
             <div className="grid gap-6 md:grid-cols-3">
-              <StatCard icon={School}  value={stats.schools}  label="مدرسة مسجلة" loading={statsLoading} delay={0} />
-              <StatCard icon={Users}   value={stats.students} label="طالب مسجل"   loading={statsLoading} delay={0.1} />
-              <StatCard icon={PresentationIcon} value={stats.teachers} label="أستاذ منضم" loading={statsLoading} delay={0.2} />
+              <StatCard icon={School}  value={stats.schools}  label={t("home.stats.schools")}  loading={statsLoading} delay={0}   locale={locale} />
+              <StatCard icon={Users}   value={stats.students} label={t("home.stats.students")} loading={statsLoading} delay={0.1} locale={locale} />
+              <StatCard icon={PresentationIcon} value={stats.teachers} label={t("home.stats.teachers")} loading={statsLoading} delay={0.2} locale={locale} />
             </div>
           )}
         </div>
@@ -383,12 +359,12 @@ export default function Home() {
             <div className="absolute left-0 bottom-0 h-72 w-72 rounded-full bg-violet-600/20 blur-3xl glow-pulse" style={{ animationDelay: "1s" }} />
           </div>
           <div className="relative">
-            <span className="mb-6 inline-block rounded-full border border-white/10 bg-white/10 px-4 py-1 text-sm font-semibold text-blue-300">ابدأ مجاناً</span>
-            <h3 className="mb-4 text-4xl font-extrabold leading-tight">ابدأ رحلتك التعليمية اليوم</h3>
-            <p className="mx-auto mb-10 max-w-xl text-base leading-7 text-slate-300">انضم إلى آلاف الطلاب الذين يستخدمون منصتنا.</p>
+            <span className="mb-6 inline-block rounded-full border border-white/10 bg-white/10 px-4 py-1 text-sm font-semibold text-blue-300">{t("home.cta.tag")}</span>
+            <h3 className="mb-4 text-4xl font-extrabold leading-tight">{t("home.cta.title")}</h3>
+            <p className="mx-auto mb-10 max-w-xl text-base leading-7 text-slate-300">{t("home.cta.subtitle")}</p>
             <Link to="/schools">
               <Button className="h-12 rounded-xl bg-blue-600 px-8 text-sm font-bold hover:bg-blue-500 gap-2 transition-transform hover:scale-[1.03] active:scale-95">
-                تصفح المدارس الآن <ArrowLeft className="h-4 w-4" />
+                {t("home.cta.button")} <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
           </div>
@@ -403,14 +379,14 @@ export default function Home() {
               <GraduationCap className="h-5 w-5" />
             </div>
             <div>
-              <p className="font-bold text-slate-900 text-sm">منصة مدارس الدعم</p>
-              <p className="text-xs text-slate-400">© 2026 جميع الحقوق محفوظة</p>
+              <p className="font-bold text-slate-900 text-sm">{t("home.footer.platformName")}</p>
+              <p className="text-xs text-slate-400">{t("home.footer.rights")}</p>
             </div>
           </div>
           <nav className="flex gap-6 text-sm text-slate-400">
-            <Link to="/"        className="hover:text-slate-700 transition">الرئيسية</Link>
-            <Link to="/schools" className="hover:text-slate-700 transition">المدارس</Link>
-            <Link to="/login"   className="hover:text-slate-700 transition">تسجيل الدخول</Link>
+            <Link to="/"        className="hover:text-slate-700 transition">{t("home.footer.nav.home")}</Link>
+            <Link to="/schools" className="hover:text-slate-700 transition">{t("home.footer.nav.schools")}</Link>
+            <Link to="/login"   className="hover:text-slate-700 transition">{t("home.footer.nav.login")}</Link>
           </nav>
         </div>
       </footer>

@@ -6,17 +6,20 @@ import {
   ChevronsRight, Menu, X
 } from "lucide-react";
 import { useAuth } from "../context/authContext";
+import { useLanguage } from "../context/LanguageContext";
 
+// `key` maps to sidebar.nav.<key> in translations.js
+// `section` maps to sidebar.sections.<section> in translations.js
 const NAV = [
-  { to: "/home",                icon: Home,            label: "الصفحة الرئيسية", section: null },
-  { to: "/dashboard",           icon: LayoutDashboard, label: "لوحة التحكم",     section: null },
-  { to: "/students",            icon: Users,           label: "التلاميذ",        section: "الإدارة" },
-  { to: "/requests",            icon: UserPlus,        label: "طلبات الانضمام",  section: null },
-  { to: "/teachers",            icon: GraduationCap,   label: "الأساتذة",        section: null },
-  { to: "/schedule",            icon: CalendarDays,    label: "الجدول الأسبوعي", section: null },
-  { to: "/subjectandclassroom", icon: BookOpen,        label: "المواد والفصول",  section: null },
-  { to: "/createmodule",        icon: BookOpen,        label: "حصص",             section: null },
-  { to: "/settings",            icon: Settings,        label: "إعدادات المدرسة", section: "الإعدادات" },
+  { to: "/home",                icon: Home,            key: "home",               section: null },
+  { to: "/dashboard",           icon: LayoutDashboard, key: "dashboard",          section: null },
+  { to: "/students",            icon: Users,           key: "students",           section: "management" },
+  { to: "/requests",            icon: UserPlus,        key: "requests",           section: null },
+  { to: "/teachers",            icon: GraduationCap,   key: "teachers",           section: null },
+  { to: "/schedule",            icon: CalendarDays,    key: "schedule",           section: null },
+  { to: "/subjectandclassroom", icon: BookOpen,        key: "subjectsClassrooms", section: null },
+  { to: "/createmodule",        icon: BookOpen,        key: "sessions",           section: null },
+  { to: "/settings",            icon: Settings,        key: "settings",           section: "settingsSection" },
 ];
 
 function hexToRgb(hex = "#185FA5") {
@@ -31,6 +34,7 @@ const COLLAPSED = 76;
 export default function Sidebar() {
   const { user, school, logout } = useAuth();
   const navigate = useNavigate();
+  const { t, dir } = useLanguage();
 
   // desktop collapse/expand
   const [collapsed, setCollapsed] = useState(() => {
@@ -60,7 +64,7 @@ export default function Sidebar() {
   const p = school?.primaryColor || "#185FA5";
   const rgb = hexToRgb(p);
 
-  const schoolName = school?.schoolName || user?.fullName || "المدرسة";
+  const schoolName = school?.schoolName || user?.fullName || t("sidebar.schoolFallback");
   const initials = schoolName
     .split(" ")
     .filter(Boolean)
@@ -76,6 +80,13 @@ export default function Sidebar() {
 
   const width = collapsed && !isMobile ? COLLAPSED : EXPANDED;
   const showLabels = !collapsed || isMobile;
+
+  // NOTE: this sidebar's positioning (right:0, borderLeft, translateX direction,
+  // tooltip offset from the right edge, etc.) was built RTL-first. Switching
+  // `dir` correctly flips text and native scrollbars, but a fully mirrored
+  // LTR layout (icons/tooltips on the left, drawer sliding from the left)
+  // would need those positional values swapped per-direction — happy to do
+  // that pass separately if you want true layout mirroring for en/fr.
 
   return (
     <>
@@ -174,7 +185,7 @@ export default function Sidebar() {
         <button
           onClick={() => setMobileOpen(true)}
           className="sb-fab"
-          aria-label="فتح القائمة"
+          aria-label={t("sidebar.openMenuAria")}
           style={{
             position: "fixed", top: 14, right: 14, zIndex: 60,
             width: 44, height: 44, borderRadius: 12,
@@ -201,7 +212,7 @@ export default function Sidebar() {
       )}
 
       <aside
-        dir="rtl"
+        dir={dir}
         style={{
           width: isMobile ? EXPANDED : width,
           display: "flex",
@@ -229,7 +240,7 @@ export default function Sidebar() {
           minHeight: 70,
         }}>
           {school?.logoUrl ? (
-            <img src={school.logoUrl} alt="شعار"
+            <img src={school.logoUrl} alt={t("sidebar.logoAlt")}
               style={{ width: 38, height: 38, borderRadius: 10, objectFit: "cover", flexShrink: 0 }} />
           ) : (
             <div style={{
@@ -244,14 +255,16 @@ export default function Sidebar() {
               <p style={{ fontSize: 13, fontWeight: 700, color: "#fff", lineHeight: 1.2, margin: 0, whiteSpace: "nowrap" }}>
                 {schoolName}
               </p>
-              <p style={{ fontSize: 10, color: "#64748B", marginTop: 2, margin: 0, whiteSpace: "nowrap" }}>لوحة التحكم</p>
+              <p style={{ fontSize: 10, color: "#64748B", marginTop: 2, margin: 0, whiteSpace: "nowrap" }}>
+                {t("sidebar.controlPanelSubtitle")}
+              </p>
             </div>
           )}
 
           {isMobile && (
             <button
               onClick={closeMobile}
-              aria-label="إغلاق القائمة"
+              aria-label={t("sidebar.closeMenuAria")}
               style={{
                 marginRight: "auto", background: "none", border: "none",
                 color: "#64748B", cursor: "pointer", padding: 6,
@@ -284,7 +297,9 @@ export default function Sidebar() {
               <p style={{ fontSize: 12, fontWeight: 600, color: "#E2E8F0", margin: 0, whiteSpace: "nowrap" }}>
                 {user?.fullName || schoolName}
               </p>
-              <p style={{ fontSize: 10, color: "#1D9E75", marginTop: 2, margin: 0, whiteSpace: "nowrap" }}>مدير المدرسة ✓</p>
+              <p style={{ fontSize: 10, color: "#1D9E75", marginTop: 2, margin: 0, whiteSpace: "nowrap" }}>
+                {t("sidebar.schoolAdminBadge")}
+              </p>
             </div>
           )}
         </div>
@@ -293,6 +308,7 @@ export default function Sidebar() {
         <nav className="sb-scroll" style={{ flex: 1, padding: "8px 0", overflowY: "auto", overflowX: "hidden" }}>
           {NAV.map((item) => {
             const Icon = item.icon;
+            const label = t(`sidebar.nav.${item.key}`);
             return (
               <div key={item.to} style={{ position: "relative" }}>
                 {item.section && showLabels && (
@@ -301,7 +317,7 @@ export default function Sidebar() {
                     letterSpacing: ".12em", textTransform: "uppercase",
                     padding: "16px 16px 6px", margin: 0, whiteSpace: "nowrap",
                   }}>
-                    {item.section}
+                    {t(`sidebar.sections.${item.section}`)}
                   </p>
                 )}
                 {item.section && !showLabels && (
@@ -319,7 +335,7 @@ export default function Sidebar() {
                   <span className="sb-icon-wrap">
                     <Icon size={16} />
                   </span>
-                  {showLabels && <span className="sb-label">{item.label}</span>}
+                  {showLabels && <span className="sb-label">{label}</span>}
                 </NavLink>
 
                 {!showLabels && hoveredTip === item.to && (
@@ -332,7 +348,7 @@ export default function Sidebar() {
                     border: "1px solid rgba(255,255,255,0.08)",
                     pointerEvents: "none",
                   }}>
-                    {item.label}
+                    {label}
                   </div>
                 )}
               </div>
@@ -360,7 +376,7 @@ export default function Sidebar() {
                 size={16}
                 style={{ transform: collapsed ? "rotate(180deg)" : "rotate(0deg)", flexShrink: 0 }}
               />
-              {showLabels && <span>طي القائمة</span>}
+              {showLabels && <span>{t("sidebar.collapseMenu")}</span>}
             </button>
           </div>
         )}
@@ -388,7 +404,7 @@ export default function Sidebar() {
             }}
           >
             <LogOut size={15} />
-            {showLabels && "تسجيل الخروج"}
+            {showLabels && t("sidebar.logout")}
           </button>
         </div>
       </aside>

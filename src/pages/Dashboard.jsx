@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useAuth } from "../context/authContext";
+import { useLanguage } from "../context/LanguageContext";
 import api from "../api";
 import { RefreshCw, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -7,33 +8,26 @@ import { RefreshCw, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react"
 //  CONSTANTS & HELPERS
 // ══════════════════════════════════════════════════════════════════
 const DAY_ORDER = ["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"];
-const DAY_AR = {
-  SUNDAY:    "الأحد",
-  MONDAY:    "الاثنين",
-  TUESDAY:   "الثلاثاء",
-  WEDNESDAY: "الأربعاء",
-  THURSDAY:  "الخميس",
-  FRIDAY:    "الجمعة",
-  SATURDAY:  "السبت",
-};
-const PRICING_META = {
-  MONTHLY_FLAT: { label: "شهري ثابت", bg: "#EBF4FE", color: "#185FA5", border: "#B5D4F4" },
-  PER_SESSION:  { label: "لكل حصة",   bg: "#FAEEDA", color: "#854F0B", border: "#F0C87A" },
+
+// styling only — the display label now comes from t(`dashboard.pricing.${key}`)
+const PRICING_STYLE = {
+  MONTHLY_FLAT: { key: "monthlyFlat", bg: "#EBF4FE", color: "#185FA5", border: "#B5D4F4" },
+  PER_SESSION:  { key: "perSession",  bg: "#FAEEDA", color: "#854F0B", border: "#F0C87A" },
 };
 
 const todayDayKey = () => DAY_ORDER[new Date().getDay()];
-const toLocalDate  = (d) => d.toLocaleDateString("fr-CA");         // YYYY-MM-DD
+const toLocalDate  = (d) => d.toLocaleDateString("fr-CA");         // YYYY-MM-DD (technical key, not display)
 const todayDate    = () => toLocalDate(new Date());
 const todayYM      = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 };
 const fmtTime = (t) => t ? String(t).slice(0, 5) : "—";
-const fmtDateRange = (s, e) => {
+const fmtDateRange = (s, e, locale) => {
   if (!s) return "";
   const opts1 = { day: "numeric", month: "short" };
   const opts2 = { day: "numeric", month: "short", year: "numeric" };
-  return `${new Date(s).toLocaleDateString("ar-DZ", opts1)} – ${new Date(e).toLocaleDateString("ar-DZ", opts2)}`;
+  return `${new Date(s).toLocaleDateString(locale, opts1)} – ${new Date(e).toLocaleDateString(locale, opts2)}`;
 };
 
 // ══════════════════════════════════════════════════════════════════
@@ -84,7 +78,7 @@ function StatCard({ emoji, label, value, sub, subNeutral, accent, iconBg }) {
 }
 
 // ── Bar chart ─────────────────────────────────────────────────────
-function IncomeChart({ data, color }) {
+function IncomeChart({ data, color, locale, incomeLabel, currencySuffix }) {
   const ref = useRef(null);
   const chartRef = useRef(null);
 
@@ -98,7 +92,7 @@ function IncomeChart({ data, color }) {
       data: {
         labels: data.map(m => m.period ? String(m.period).slice(0, 7) : m.month ?? ""),
         datasets: [{
-          label: "الدخل",
+          label: incomeLabel,
           data: amounts,
           backgroundColor: amounts.map((_, i) => i === maxIdx ? color : "#B5D4F4"),
           borderRadius: 6, borderSkipped: false,
@@ -108,7 +102,7 @@ function IncomeChart({ data, color }) {
         responsive: true, maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
-          tooltip: { callbacks: { label: v => v.raw.toLocaleString("ar-DZ") + " دج" } },
+          tooltip: { callbacks: { label: v => v.raw.toLocaleString(locale) + currencySuffix } },
         },
         scales: {
           x: { ticks: { font: { family: "Cairo", size: 10 }, maxRotation: 0 }, grid: { display: false }, border: { display: false } },
@@ -117,7 +111,7 @@ function IncomeChart({ data, color }) {
       },
     });
     return () => chartRef.current?.destroy();
-  }, [data, color]);
+  }, [data, color, locale, incomeLabel, currencySuffix]);
 
   return <div style={{ position: "relative", height: 190, width: "100%" }}><canvas ref={ref} /></div>;
 }
@@ -168,6 +162,7 @@ function InfoItem({ label, value, highlight }) {
 
 // ── Attendance badge ──────────────────────────────────────────────
 function AttBadge({ marked }) {
+  const { t } = useLanguage();
   return marked ? (
     <span style={{
       fontSize: 10, fontWeight: 600, padding: "2px 8px",
@@ -175,7 +170,7 @@ function AttBadge({ marked }) {
       color: "#0F6E56", border: "1px solid #5DCAA5",
       whiteSpace: "nowrap",
     }}>
-      ✓ حضور مسجّل
+      {t("dashboard.week.attendanceMarkedBadge")}
     </span>
   ) : (
     <span style={{
@@ -184,7 +179,7 @@ function AttBadge({ marked }) {
       color: "#BA7517", border: "1px solid #F0C87A",
       whiteSpace: "nowrap",
     }}>
-      ⏳ لم يُسجّل
+      {t("dashboard.week.attendanceNotMarkedBadge")}
     </span>
   );
 }
@@ -199,8 +194,9 @@ const ROW_COLORS = [
 ];
 
 function SessionRow({ session, isLast }) {
+  const { t } = useLanguage();
   const c  = ROW_COLORS[(session.id || 0) % ROW_COLORS.length];
-  const pm = PRICING_META[session.pricingModel];
+  const pmStyle = PRICING_STYLE[session.pricingModel];
 
   return (
     <div style={{
@@ -223,12 +219,12 @@ function SessionRow({ session, isLast }) {
         background: c.bg, color: c.color, border: `1px solid ${c.border}`,
         whiteSpace: "nowrap",
       }}>
-        {session.moduleName ?? `وحدة #${session.moduleId}`}
+        {session.moduleName ?? t("dashboard.week.moduleFallback", { id: session.moduleId })}
       </span>
 
       {/* Teacher */}
       <span style={{ flex: 1, fontSize: 12, color: "#64748B", minWidth: 80 }}>
-        {session.teacherName ?? "—"}
+        {session.teacherName ?? t("dashboard.week.teacherFallback")}
       </span>
 
       {/* Level */}
@@ -250,13 +246,13 @@ function SessionRow({ session, isLast }) {
       )}
 
       {/* Pricing model */}
-      {pm && (
+      {pmStyle && (
         <span style={{
           fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 20,
-          background: pm.bg, color: pm.color, border: `1px solid ${pm.border}`,
+          background: pmStyle.bg, color: pmStyle.color, border: `1px solid ${pmStyle.border}`,
           whiteSpace: "nowrap",
         }}>
-          {pm.label}
+          {t(`dashboard.pricing.${pmStyle.key}`)}
         </span>
       )}
 
@@ -274,6 +270,7 @@ function SessionRow({ session, isLast }) {
 //  Uses GET /api/sessions/week?schoolId={id}&date={date}
 // ══════════════════════════════════════════════════════════════════
 function WeekSchedule({ schoolId }) {
+  const { t, locale } = useLanguage();
   const [weekDate,  setWeekDate]  = useState(new Date());
   const [schedule,  setSchedule]  = useState(null);
   const [loading,   setLoading]   = useState(false);
@@ -343,7 +340,7 @@ function WeekSchedule({ schoolId }) {
       }}>
         <div>
           <span style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>
-            الحصص الأسبوعية
+            {t("dashboard.week.title")}
           </span>
           {isCurrentWeek && (
             <span style={{
@@ -352,7 +349,7 @@ function WeekSchedule({ schoolId }) {
               border: "1px solid #5DCAA5",
               padding: "2px 8px", borderRadius: 20,
             }}>
-              الأسبوع الحالي
+              {t("dashboard.week.currentWeek")}
             </span>
           )}
         </div>
@@ -360,7 +357,7 @@ function WeekSchedule({ schoolId }) {
         {/* Week navigation */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 12, color: "#64748B" }}>
-            {fmtDateRange(schedule?.weekStart, schedule?.weekEnd)}
+            {fmtDateRange(schedule?.weekStart, schedule?.weekEnd, locale)}
           </span>
           <button
             onClick={prevWeek}
@@ -428,10 +425,10 @@ function WeekSchedule({ schoolId }) {
                   flexShrink: 0,
                 }}
               >
-                {DAY_AR[day]}
+                {t(`dashboard.days.${day}`)}
                 {isToday && !isActive && (
                   <span style={{ fontSize: 9, background: "#185FA5", color: "#fff", padding: "1px 5px", borderRadius: 99 }}>
-                    اليوم
+                    {t("dashboard.week.today")}
                   </span>
                 )}
                 <span style={{
@@ -458,21 +455,21 @@ function WeekSchedule({ schoolId }) {
             border: "2px solid #185FA5", borderTopColor: "transparent",
             animation: "spin 1s linear infinite",
           }} />
-          جارٍ التحميل...
+          {t("dashboard.week.loading")}
         </div>
       ) : sortedDays.length === 0 ? (
         <div style={{
           textAlign: "center", color: "#94A3B8",
           fontSize: 13, padding: "2.5rem 0",
         }}>
-          لا توجد حصص مجدولة هذا الأسبوع
+          {t("dashboard.week.noSessionsWeek")}
         </div>
       ) : sessions.length === 0 ? (
         <div style={{
           textAlign: "center", color: "#94A3B8",
           fontSize: 13, padding: "2rem 0",
         }}>
-          لا توجد حصص يوم {activeDay ? DAY_AR[activeDay] : ""}
+          {t("dashboard.week.noSessionsDay", { day: activeDay ? t(`dashboard.days.${activeDay}`) : "" })}
         </div>
       ) : (
         <>
@@ -483,13 +480,13 @@ function WeekSchedule({ schoolId }) {
             borderRadius: 8, border: "1px solid #F1F5F9",
           }}>
             <span style={{ fontSize: 11, color: "#64748B" }}>
-              <strong style={{ color: "#0F172A" }}>{sessions.length}</strong> حصص
+              <strong style={{ color: "#0F172A" }}>{sessions.length}</strong> {t("dashboard.week.sessionsCount")}
             </span>
             <span style={{ fontSize: 11, color: "#0F6E56" }}>
-              ✓ <strong>{sessions.filter(s => s.attendanceMarked).length}</strong> مسجّل
+              ✓ <strong>{sessions.filter(s => s.attendanceMarked).length}</strong> {t("dashboard.week.marked")}
             </span>
             <span style={{ fontSize: 11, color: "#BA7517" }}>
-              ⏳ <strong>{sessions.filter(s => !s.attendanceMarked).length}</strong> لم يُسجّل
+              ⏳ <strong>{sessions.filter(s => !s.attendanceMarked).length}</strong> {t("dashboard.week.notMarked")}
             </span>
           </div>
 
@@ -512,6 +509,7 @@ function WeekSchedule({ schoolId }) {
 // ══════════════════════════════════════════════════════════════════
 export default function Dashboard() {
   const { user } = useAuth();
+  const { t, dir, locale } = useLanguage();
   const BLUE = "#185FA5";
 
   const [schoolInfo,  setSchoolInfo]  = useState(null);
@@ -539,7 +537,7 @@ export default function Dashboard() {
       setMonthlyList([revenueRes.data]);
 
     } catch (err) {
-      setError(err?.response?.data?.message || "خطأ في تحميل البيانات");
+      setError(err?.response?.data?.message || t("dashboard.error"));
     } finally {
       setLoading(false);
     }
@@ -550,7 +548,7 @@ export default function Dashboard() {
   // ── Loading ──
   if (loading) {
     return (
-      <div dir="rtl" style={{
+      <div dir={dir} style={{
         padding: "2rem", fontFamily: "'Cairo', sans-serif",
         color: "#64748B", fontSize: 15,
         display: "flex", alignItems: "center", gap: 10,
@@ -561,7 +559,7 @@ export default function Dashboard() {
           border: "2px solid #185FA5", borderTopColor: "transparent",
           animation: "spin 1s linear infinite",
         }} />
-        جارٍ تحميل البيانات...
+        {t("dashboard.loading")}
       </div>
     );
   }
@@ -569,7 +567,7 @@ export default function Dashboard() {
   // ── Error ──
   if (error) {
     return (
-      <div dir="rtl" style={{
+      <div dir={dir} style={{
         padding: "2rem", fontFamily: "'Cairo', sans-serif",
         display: "flex", flexDirection: "column", alignItems: "center", gap: 12,
       }}>
@@ -585,18 +583,19 @@ export default function Dashboard() {
             fontFamily: "inherit",
           }}
         >
-          <RefreshCw size={13} /> إعادة المحاولة
+          <RefreshCw size={13} /> {t("dashboard.retry")}
         </button>
       </div>
     );
   }
 
-  const schoolName = schoolInfo?.schoolName ?? user?.schoolName ?? "المدرسة";
+  const schoolName = schoolInfo?.schoolName ?? user?.schoolName ?? t("sidebar.schoolFallback");
   const wilaya     = schoolInfo?.wilaya ?? user?.wilaya ?? "";
+  const currencySuffix = t("dashboard.currencySuffix");
 
   return (
     <div
-      dir="rtl"
+      dir={dir}
       style={{
         padding: "1.5rem",
         display: "flex", flexDirection: "column", gap: "1.25rem",
@@ -610,7 +609,7 @@ export default function Dashboard() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
           <div style={{ fontSize: 20, fontWeight: 700, color: "#0F172A" }}>
-            لوحة التحكم — {schoolName}
+            {t("dashboard.headerTitle", { school: schoolName })}
           </div>
           <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 3 }}>{wilaya}</div>
         </div>
@@ -624,27 +623,27 @@ export default function Dashboard() {
             fontFamily: "inherit",
           }}
         >
-          <RefreshCw size={13} /> تحديث
+          <RefreshCw size={13} /> {t("dashboard.refresh")}
         </button>
       </div>
 
       {/* ── Stat cards row 1 ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
         <StatCard
-          emoji="💰" label="إجمالي المحصّل هذا الشهر"
-          value={(revenue?.totalCollected ?? 0).toLocaleString("ar-DZ") + " دج"}
-          sub="هذا الشهر" accent={BLUE} iconBg="#EBF4FE"
+          emoji="💰" label={t("dashboard.stat.totalCollected.label")}
+          value={(revenue?.totalCollected ?? 0).toLocaleString(locale) + currencySuffix}
+          sub={t("dashboard.stat.totalCollected.sub")} accent={BLUE} iconBg="#EBF4FE"
         />
         <StatCard
-          emoji="🎓" label="عدد الطلاب"
+          emoji="🎓" label={t("dashboard.stat.students.label")}
           value={schoolInfo?.totalStudents ?? "—"}
-          sub="طالب مسجّل" accent="#0F6E56" iconBg="#E1F5EE"
+          sub={t("dashboard.stat.students.sub")} accent="#0F6E56" iconBg="#E1F5EE"
           subNeutral={!schoolInfo?.totalStudents}
         />
         <StatCard
-          emoji="👨‍🏫" label="عدد الأساتذة"
+          emoji="👨‍🏫" label={t("dashboard.stat.teachers.label")}
           value={schoolInfo?.totalTeachers ?? "—"}
-          sub="أستاذ نشط" accent="#534AB7" iconBg="#EEEDFE"
+          sub={t("dashboard.stat.teachers.sub")} accent="#534AB7" iconBg="#EEEDFE"
           subNeutral={!schoolInfo?.totalTeachers}
         />
       </div>
@@ -652,67 +651,71 @@ export default function Dashboard() {
       {/* ── Stat cards row 2 ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
         <StatCard
-          emoji="⏳" label="المبلغ المعلق"
-          value={(revenue?.totalPending ?? 0).toLocaleString("ar-DZ") + " دج"}
-          sub="فواتير معلقة" accent="#BA7517" iconBg="#FAEEDA"
+          emoji="⏳" label={t("dashboard.stat.pending.label")}
+          value={(revenue?.totalPending ?? 0).toLocaleString(locale) + currencySuffix}
+          sub={t("dashboard.stat.pending.sub")} accent="#BA7517" iconBg="#FAEEDA"
           subNeutral={!revenue?.totalPending}
         />
         <StatCard
-          emoji="🔴" label="المبلغ المتأخر"
-          value={(revenue?.totalOverdue ?? 0).toLocaleString("ar-DZ") + " دج"}
-          sub="فواتير متأخرة" accent="#DC2626" iconBg="#FEE2E2"
+          emoji="🔴" label={t("dashboard.stat.overdue.label")}
+          value={(revenue?.totalOverdue ?? 0).toLocaleString(locale) + currencySuffix}
+          sub={t("dashboard.stat.overdue.sub")} accent="#DC2626" iconBg="#FEE2E2"
           subNeutral={!revenue?.totalOverdue}
         />
         <StatCard
-          emoji="📄" label="عدد الفواتير"
+          emoji="📄" label={t("dashboard.stat.invoiceCount.label")}
           value={revenue?.invoiceCount ?? "—"}
-          sub="هذا الشهر" accent="#64748B" iconBg="#F1F5F9" subNeutral
+          sub={t("dashboard.stat.invoiceCount.sub")} accent="#64748B" iconBg="#F1F5F9" subNeutral
         />
       </div>
 
       {/* ── Chart + School info ── */}
       <div style={{ display: "grid", gridTemplateColumns: "1.65fr 1fr", gap: 12 }}>
-        <Card title="ملخص الدخل الشهري" sub="الدينار الجزائري">
+        <Card title={t("dashboard.chart.title")} sub={t("dashboard.chart.sub")}>
           {monthlyList.length > 0 && (revenue?.totalCollected ?? 0) > 0
-            ? <IncomeChart data={monthlyList} color={BLUE} />
+            ? <IncomeChart
+                data={monthlyList} color={BLUE} locale={locale}
+                incomeLabel={t("dashboard.chart.incomeLabel")}
+                currencySuffix={currencySuffix}
+              />
             : (
               <div style={{
                 height: 190, display: "flex",
                 alignItems: "center", justifyContent: "center",
                 color: "#94A3B8", fontSize: 13,
               }}>
-                لا توجد بيانات دخل بعد
+                {t("dashboard.chart.noData")}
               </div>
             )
           }
         </Card>
 
-        <Card title="معلومات المدرسة">
+        <Card title={t("dashboard.schoolInfo.title")}>
           <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 8 }}>
-            <InfoItem label="اسم المدرسة"       value={schoolInfo?.schoolName} />
-            <InfoItem label="المالك"             value={schoolInfo?.ownerName} />
-            <InfoItem label="الولاية"            value={schoolInfo?.wilaya} />
-            <InfoItem label="البريد"             value={schoolInfo?.email} />
+            <InfoItem label={t("dashboard.schoolInfo.name")}   value={schoolInfo?.schoolName} />
+            <InfoItem label={t("dashboard.schoolInfo.owner")}  value={schoolInfo?.ownerName} />
+            <InfoItem label={t("dashboard.schoolInfo.wilaya")} value={schoolInfo?.wilaya} />
+            <InfoItem label={t("dashboard.schoolInfo.email")}  value={schoolInfo?.email} />
             <InfoItem
-              label="حالة الاشتراك"
+              label={t("dashboard.schoolInfo.subscriptionStatus")}
               value={schoolInfo?.subscriptionStatus}
               highlight
             />
             <InfoItem
-              label="انتهاء الاشتراك"
+              label={t("dashboard.schoolInfo.subscriptionExpiry")}
               value={
                 schoolInfo?.subscriptionExpiresAt
-                  ? new Date(schoolInfo.subscriptionExpiresAt).toLocaleDateString("ar-MA", {
+                  ? new Date(schoolInfo.subscriptionExpiresAt).toLocaleDateString(locale, {
                       year: "numeric", month: "long", day: "numeric",
                     })
                   : "—"
               }
             />
             <InfoItem
-              label="دخل هذا الشهر"
+              label={t("dashboard.schoolInfo.monthIncome")}
               value={
                 schoolInfo?.currentMonthRevenue != null
-                  ? Number(schoolInfo.currentMonthRevenue).toLocaleString("ar-DZ") + " دج"
+                  ? Number(schoolInfo.currentMonthRevenue).toLocaleString(locale) + currencySuffix
                   : "—"
               }
               highlight={!!schoolInfo?.currentMonthRevenue}
@@ -728,14 +731,17 @@ export default function Dashboard() {
 
       {/* ── Revenue invoices list ── */}
       {revenue?.invoices?.length > 0 && (
-        <Card title="فواتير هذا الشهر" sub={`${revenue.invoices.length} فاتورة`}>
+        <Card
+          title={t("dashboard.invoices.title")}
+          sub={`${revenue.invoices.length} ${t("dashboard.invoices.countSuffix")}`}
+        >
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {revenue.invoices.slice(0, 8).map((inv, i) => {
               const st = inv.status === "PAID"
-                ? { bg: "#E1F5EE", color: "#085041", label: "مدفوعة" }
+                ? { bg: "#E1F5EE", color: "#085041", label: t("dashboard.invoices.status.paid") }
                 : inv.status === "OVERDUE"
-                ? { bg: "#FEE2E2", color: "#DC2626", label: "متأخرة" }
-                : { bg: "#FAEEDA", color: "#BA7517", label: "معلقة" };
+                ? { bg: "#FEE2E2", color: "#DC2626", label: t("dashboard.invoices.status.overdue") }
+                : { bg: "#FAEEDA", color: "#BA7517", label: t("dashboard.invoices.status.pending") };
 
               return (
                 <div key={inv.id ?? i} style={{
@@ -745,14 +751,14 @@ export default function Dashboard() {
                 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>
-                      {inv.studentName ?? "—"}
+                      {inv.studentName ?? t("dashboard.invoices.fallbackName")}
                     </div>
                     <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
-                      {inv.moduleName ?? "—"}
+                      {inv.moduleName ?? t("dashboard.invoices.fallbackModule")}
                     </div>
                   </div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
-                    {(inv.amount ?? 0).toLocaleString("ar-DZ")} دج
+                    {(inv.amount ?? 0).toLocaleString(locale)}{currencySuffix}
                   </div>
                   <span style={{
                     fontSize: 10, fontWeight: 600,

@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Users, GraduationCap,
   CalendarDays, Settings, LogOut, School, UserPlus, BookOpen, Home,
-  ChevronsRight, Menu, X
+  ChevronsRight, Menu, X,Book
 } from "lucide-react";
 import { useAuth } from "../context/authContext";
 
@@ -15,7 +15,8 @@ const NAV = [
   { to: "/teachers",            icon: GraduationCap,   label: "الأساتذة",        section: null },
   { to: "/schedule",            icon: CalendarDays,    label: "الجدول الأسبوعي", section: null },
   { to: "/subjectandclassroom", icon: BookOpen,        label: "المواد والفصول",  section: null },
-  { to: "/createmodule",        icon: BookOpen,        label: "حصص",             section: null },
+  { to: "/createmodule",icon: BookOpen,        label: "حصص",             section: null },
+  { to: "/course",icon: Book,        label: "دورات",             section: null },
   { to: "/settings",            icon: Settings,        label: "إعدادات المدرسة", section: "الإعدادات" },
 ];
 

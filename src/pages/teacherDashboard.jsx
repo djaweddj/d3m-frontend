@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { useNavigate , Link} from "react-router-dom";
 import {
-  LayoutDashboard, User, Users, CalendarDays, Wallet, LogOut, School,
+  LayoutDashboard, User, Users, CalendarDays, Wallet, LogOut, School, ClipboardCheck,
+  Home,
 } from "lucide-react";
 import { useAuth } from "../context/authContext";
 
-const API = "http://localhost:8080/api";
+const API = import.meta.env.VITE_API_URL+`/api`;
 
 function getToken() {
   return localStorage.getItem("accessToken");
@@ -98,6 +99,33 @@ async function fetchStudentsByModule(moduleId) {
 async function fetchMyPayouts() {
   const res = await fetch(`${API}/payouts/mine`, { headers: authHeaders() });
   if (!res.ok) throw new Error("فشل تحميل المستحقات");
+  return res.json();
+}
+async function fetchMyCoursePayouts() {
+  const res = await fetch(`${API}/courses/payouts/mine`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("فشل تحميل مستحقات الدورات");
+  return res.json();
+}
+
+async function fetchMySessionsByDate(date) {
+  const res = await fetch(`${API}/sessions/my-sessions?date=${date}`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("فشل تحميل حصص اليوم");
+  return res.json();
+}
+
+async function fetchAttendanceSheet(sessionId) {
+  const res = await fetch(`${API}/sessions/${sessionId}/my-attendance-sheet`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("فشل تحميل ورقة الحضور");
+  return res.json();
+}
+
+async function markAttendance(sessionId, entries) {
+  const res = await fetch(`${API}/sessions/${sessionId}/teacher-attendance`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(entries),
+  });
+  if (!res.ok) throw new Error("فشل تسجيل الحضور");
   return res.json();
 }
 
@@ -721,11 +749,208 @@ function SchedulePage() {
     </div>
   );
 }
+function AttendanceModal({ session, onClose }) {
+  const [students, setStudents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetchAttendanceSheet(session.id)
+      .then((data) => setStudents(data.students || []))
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [session.id]);
+
+  const setStatus = (studentId, status) => {
+    setStudents((prev) =>
+      prev.map((s) => (s.studentId === studentId ? { ...s, status } : s))
+    );
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const entries = students.map((s) => ({ studentId: s.studentId, status: s.status }));
+      await markAttendance(session.id, entries);
+      onClose();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-[32px] border border-slate-200 bg-white p-8 shadow-2xl"
+      >
+        <div className="mb-6 flex items-start justify-between">
+          <div>
+            <h2 className="text-2xl font-extrabold text-slate-900">{session.moduleName}</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {formatTime(session.startTime)} – {formatTime(session.endTime)}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="h-11 w-11 shrink-0 rounded-2xl bg-slate-100 text-lg font-bold transition hover:bg-red-50 hover:text-red-500"
+          >
+            ✕
+          </button>
+        </div>
+
+        <ErrorBanner message={error} />
+
+        {loading ? (
+          <Spinner label="جاري تحميل قائمة التلاميذ..." />
+        ) : (
+          <>
+            <div className="space-y-3">
+              {students.map((s) => (
+                <div
+                  key={s.studentId}
+                  className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/70 p-4"
+                >
+                  <span className="font-semibold text-slate-800">{s.fullName}</span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setStatus(s.studentId, "PRESENT")}
+                      className={`rounded-xl px-4 py-2 text-sm font-bold transition ${
+                        s.status === "PRESENT"
+                          ? "bg-emerald-500 text-white shadow-md"
+                          : "bg-white text-slate-500 border border-slate-200"
+                      }`}
+                    >
+                      حاضر
+                    </button>
+                    <button
+                      onClick={() => setStatus(s.studentId, "ABSENT")}
+                      className={`rounded-xl px-4 py-2 text-sm font-bold transition ${
+                        s.status === "ABSENT"
+                          ? "bg-red-500 text-white shadow-md"
+                          : "bg-white text-slate-500 border border-slate-200"
+                      }`}
+                    >
+                      غائب
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="mt-6 w-full rounded-2xl bg-gradient-to-br from-emerald-500 to-green-500 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-200 disabled:opacity-60"
+            >
+              {saving ? "جاري الحفظ..." : "✓ حفظ الحضور"}
+            </button>
+          </>
+        )}
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// Attendance page 
+function AttendancePage() {
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [sessions, setSessions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [activeSession, setActiveSession] = useState(null);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    fetchMySessionsByDate(date)
+      .then(setSessions)
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [date]);
+
+  return (
+    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-8" dir="rtl">
+      <Blob className="right-[-100px] top-[-100px] h-[350px] w-[350px] bg-blue-100/60" />
+      <Blob className="bottom-[-100px] left-[-100px] h-[320px] w-[320px] bg-emerald-100/50" />
+
+      <div className="relative z-10 mx-auto max-w-5xl">
+        <div className="mb-10 flex flex-wrap items-end justify-between gap-6">
+          <PageHeader
+            badge="✅ تسجيل الحضور"
+            title="حصص اليوم"
+            subtitle="اختر حصة لتسجيل حضور التلاميذ."
+          />
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 outline-none transition focus:border-blue-400"
+          />
+        </div>
+
+        <ErrorBanner message={error} />
+
+        {loading ? (
+          <Spinner />
+        ) : sessions.length === 0 ? (
+          <div className="rounded-3xl border border-slate-100 bg-white/80 p-16 text-center shadow-sm">
+            <p className="mb-2 text-5xl">📭</p>
+            <p className="text-lg font-bold text-slate-700">لا توجد حصص في هذا اليوم</p>
+          </div>
+        ) : (
+          <div className="grid gap-5 md:grid-cols-2">
+            {sessions.map((s) => (
+              <motion.button
+                key={s.id}
+                whileHover={{ y: -4, scale: 1.01 }}
+                onClick={() => setActiveSession(s)}
+                className="rounded-3xl border border-slate-100 bg-white/80 p-6 text-right shadow-sm backdrop-blur-sm transition-all hover:shadow-xl"
+              >
+                <div className="mb-4 flex items-center justify-between">
+                  <span className="text-sm font-extrabold text-blue-600">
+                    {formatTime(s.startTime)} – {formatTime(s.endTime)}
+                  </span>
+                  {s.attendanceMarked ? (
+                    <span className="rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-600">
+                      تم التسجيل ✓
+                    </span>
+                  ) : (
+                    <span className="rounded-full border border-amber-100 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-600">
+                      لم يُسجل بعد
+                    </span>
+                  )}
+                </div>
+                <h3 className="mb-1 text-lg font-bold text-slate-900">{s.moduleName}</h3>
+                <p className="text-sm text-slate-500">{s.subjectName} · {s.level}</p>
+                <p className="mt-2 text-xs text-slate-400">{s.enrolledCount} تلميذ مسجل</p>
+              </motion.button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <AnimatePresence>
+        {activeSession && (
+          <AttendanceModal session={activeSession} onClose={() => setActiveSession(null)} />
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 // ─── Payouts page (real data via /payouts/mine + /payouts/mine/month) ─────────
 
 function PayoutsPage() {
   const [payouts, setPayouts] = useState([]);
+  const [coursePayouts, setCoursePayouts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedPeriod, setSelectedPeriod] = useState(""); // "" = show full history
@@ -739,9 +964,12 @@ function PayoutsPage() {
       ? fetchMyPayoutForMonth(selectedPeriod).then((p) => (p ? [p] : []))
       : fetchMyPayouts();
 
-    load
-      .then((data) => {
-        if (!cancelled) setPayouts(data);
+    Promise.all([load, fetchMyCoursePayouts()])
+      .then(([moduleData, courseData]) => {
+        if (!cancelled) {
+          setPayouts(moduleData);
+          setCoursePayouts(courseData);
+        }
       })
       .catch((e) => {
         if (!cancelled) setError(e.message);
@@ -772,7 +1000,7 @@ function PayoutsPage() {
             </span>
             <h1 className="mb-4 mt-2 text-5xl font-extrabold text-slate-900">سجل المستحقات</h1>
             <p className="max-w-2xl text-lg leading-8 text-slate-500">
-              تفاصيل مستحقاتك الشهرية بناءً على نسبتك من إيرادات أقسامك.
+              تفاصيل مستحقاتك الشهرية بناءً على نسبتك من إيرادات أقسامك ودوراتك.
             </p>
           </div>
 
@@ -802,48 +1030,102 @@ function PayoutsPage() {
 
         {loading ? (
           <Spinner />
-        ) : payouts.length === 0 ? (
-          <div className="rounded-3xl border border-slate-100 bg-white/80 p-16 text-center shadow-sm">
-            <p className="mb-2 text-5xl">💤</p>
-            <p className="text-lg font-bold text-slate-700">
-              {selectedPeriod ? "لا توجد مستحقات لهذا الشهر" : "لا توجد مستحقات محسوبة بعد"}
-            </p>
-            <p className="mt-1 text-sm text-slate-400">تُحسب المستحقات تلقائياً في بداية كل شهر.</p>
-          </div>
         ) : (
-          <div className="space-y-4">
-            {payouts.map((p, i) => {
-              const status = PAYOUT_STATUS[p.status] || { label: p.status, classes: "bg-slate-50 text-slate-600 border-slate-100" };
-              return (
-                <motion.div
-                  key={p.id}
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                  className="rounded-3xl border border-slate-100 bg-white/80 p-6 shadow-sm backdrop-blur-sm"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-4">
-                    <div>
-                      <h3 className="text-lg font-extrabold text-slate-900">{formatPeriod(p.period)}</h3>
-                      <p className="mt-1 text-sm text-slate-400">
-                        إيرادات أقسامك: {formatMoney(p.totalModuleRevenue)} · نسبتك: {p.percentage}%
-                      </p>
-                      {p.paidAt && (
-                        <p className="mt-1 text-xs text-slate-400">تاريخ الدفع: {formatDate(p.paidAt)}</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <span className="text-2xl font-extrabold text-emerald-600">
-                        {formatMoney(p.payoutAmount)}
-                      </span>
-                      <span className={`rounded-full border px-4 py-1.5 text-sm font-semibold ${status.classes}`}>
-                        {status.label}
-                      </span>
-                    </div>
-                  </div>
-                </motion.div>
-              );
-            })}
+          <div className="space-y-10">
+            {/* Module payouts */}
+            <div>
+              <h2 className="mb-4 text-xl font-extrabold text-slate-900">مستحقات الأقسام</h2>
+              {payouts.length === 0 ? (
+                <div className="rounded-3xl border border-slate-100 bg-white/80 p-16 text-center shadow-sm">
+                  <p className="mb-2 text-5xl">💤</p>
+                  <p className="text-lg font-bold text-slate-700">
+                    {selectedPeriod ? "لا توجد مستحقات لهذا الشهر" : "لا توجد مستحقات محسوبة بعد"}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-400">تُحسب المستحقات تلقائياً في بداية كل شهر.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {payouts.map((p, i) => {
+                    const status = PAYOUT_STATUS[p.status] || { label: p.status, classes: "bg-slate-50 text-slate-600 border-slate-100" };
+                    return (
+                      <motion.div
+                        key={p.id}
+                        initial={{ opacity: 0, y: 15 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.05 }}
+                        className="rounded-3xl border border-slate-100 bg-white/80 p-6 shadow-sm backdrop-blur-sm"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-4">
+                          <div>
+                            <h3 className="text-lg font-extrabold text-slate-900">{formatPeriod(p.period)}</h3>
+                            <p className="mt-1 text-sm text-slate-400">
+                              إيرادات أقسامك: {formatMoney(p.totalModuleRevenue)} · نسبتك: {p.percentage}%
+                            </p>
+                            {p.paidAt && (
+                              <p className="mt-1 text-xs text-slate-400">تاريخ الدفع: {formatDate(p.paidAt)}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <span className="text-2xl font-extrabold text-emerald-600">
+                              {formatMoney(p.payoutAmount)}
+                            </span>
+                            <span className={`rounded-full border px-4 py-1.5 text-sm font-semibold ${status.classes}`}>
+                              {status.label}
+                            </span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Course payouts */}
+            <div>
+              <h2 className="mb-4 text-xl font-extrabold text-slate-900">مستحقات الدورات</h2>
+              {coursePayouts.length === 0 ? (
+                <div className="rounded-3xl border border-slate-100 bg-white/80 p-16 text-center shadow-sm">
+                  <p className="mb-2 text-5xl">💤</p>
+                  <p className="text-lg font-bold text-slate-700">لا توجد مستحقات دورات محسوبة بعد</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {coursePayouts.map((p, i) => {
+                    const status = PAYOUT_STATUS[p.status] || { label: p.status, classes: "bg-slate-50 text-slate-600 border-slate-100" };
+                    return (
+                      <motion.div
+                        key={p.id}
+                        initial={{ opacity: 0, y: 15 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.05 }}
+                        className="rounded-3xl border border-slate-100 bg-white/80 p-6 shadow-sm backdrop-blur-sm"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-4">
+                          <div>
+                            <h3 className="text-lg font-extrabold text-slate-900">{p.courseName}</h3>
+                            <p className="mt-1 text-sm text-slate-400">
+                              إيرادات الدورة: {formatMoney(p.totalCourseRevenue)} · نسبتك: {p.percentage}%
+                            </p>
+                            {p.paidAt && (
+                              <p className="mt-1 text-xs text-slate-400">تاريخ الدفع: {formatDate(p.paidAt)}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <span className="text-2xl font-extrabold text-emerald-600">
+                              {formatMoney(p.payoutAmount)}
+                            </span>
+                            <span className={`rounded-full border px-4 py-1.5 text-sm font-semibold ${status.classes}`}>
+                              {status.label}
+                            </span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -854,10 +1136,11 @@ function PayoutsPage() {
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
 const NAV = [
-  { id: "home", label: "الرئيسية", icon: LayoutDashboard },
+  { id: "home", label: "لوحة التحكم", icon: LayoutDashboard },
   { id: "profile", label: "بروفايلي", icon: User },
   { id: "students", label: "تلاميذي", icon: Users },
   { id: "schedule", label: "جدولي", icon: CalendarDays },
+    { id: "attendance", label: "الحضور", icon: ClipboardCheck },
   { id: "payouts", label: "مستحقاتي", icon: Wallet },
 ];
 
@@ -946,6 +1229,33 @@ function Sidebar({ active, onNav, onLogoutClick, profile }) {
 
       {/* ── Navigation ── */}
       <nav style={{ flex: 1, padding: "8px 0", overflowY: "auto" }}>
+        <Link to={"/home"}>
+            <button
+         
+              style={{
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "10px 16px", fontSize: 13, fontWeight: 500,
+                color:  "#94A3B8",
+                background:  `rgba(${rgb},0.35)` ,
+                borderRight: `3px solid`  ,
+                borderTop: "none",
+                borderBottom: "none",
+                borderLeft: "none",
+                width: "calc(100% - 8px)",
+                textAlign: "right",
+                borderRadius: "0 8px 8px 0",
+                marginLeft: 8,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                transition: "background 0.15s, color 0.15s, border-color 0.15s",
+                marginBottom:"10px"
+              }}
+            
+            >
+            <Home/>
+              الصفحة الرئيسية
+            </button>
+            </Link>
         {NAV.map((item) => {
           const Icon = item.icon;
           const isActive = active === item.id;
@@ -1141,6 +1451,7 @@ export default function TeacherDashboard() {
           {page === "profile" && <ProfilePage profile={profile} onSaved={setProfile} />}
           {page === "students" && <StudentsPage />}
           {page === "schedule" && <SchedulePage />}
+          {page === "attendance" && <AttendancePage />}
           {page === "payouts" && <PayoutsPage />}
         </>
       )}

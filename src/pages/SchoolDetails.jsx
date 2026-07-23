@@ -89,6 +89,14 @@ function GlobalStyles() {
         70%  { transform: scale(1.2) rotate(4deg); }
         100% { transform: scale(1) rotate(0deg); opacity: 1; }
       }
+      @keyframes ribbonIn {
+        from { opacity: 0; transform: translateY(-6px) rotate(-2deg); }
+        to   { opacity: 1; transform: translateY(0) rotate(-2deg); }
+      }
+      @keyframes glowPulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(214,140,52,.35); }
+        50%      { box-shadow: 0 0 0 7px rgba(214,140,52,0); }
+      }
 
       * { box-sizing: border-box; }
       .sd-root { font-family: 'Tajawal', 'Segoe UI', system-ui, Arial, sans-serif; }
@@ -130,6 +138,25 @@ function GlobalStyles() {
         border-color: ${T.ink}22;
         transform: translateY(-2px);
       }
+
+      .sd-event-card {
+        transition: transform .28s cubic-bezier(.22,1,.36,1), box-shadow .28s ease, border-color .28s ease;
+        position: relative;
+      }
+      .sd-event-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 18px 40px rgba(11,61,92,.14);
+        border-color: ${T.amber}66 !important;
+      }
+      .sd-event-ribbon { animation: ribbonIn .4s cubic-bezier(.22,1,.36,1) both; }
+      .sd-event-glow { animation: glowPulse 2.4s ease-in-out infinite; }
+      .sd-event-scroll {
+        display: flex; gap: 16px; overflow-x: auto; padding-bottom: 10px;
+        scroll-snap-type: x proximity;
+      }
+      .sd-event-scroll::-webkit-scrollbar { height: 6px; }
+      .sd-event-scroll::-webkit-scrollbar-thumb { background: ${T.line}; border-radius: 99px; }
+      .sd-event-card-wrap { scroll-snap-align: start; flex-shrink: 0; width: 300px; }
 
       .sd-btn-primary {
         transition: transform .15s ease, box-shadow .2s ease, filter .15s ease;
@@ -176,7 +203,7 @@ function GlobalStyles() {
 
       @media (prefers-reduced-motion: reduce) {
         .sd-fade-up, .sd-scale-in, .sd-modal-card, .sd-toast, .sd-check-badge,
-        .sd-orb1, .sd-orb2, .sd-pill-pending, .sd-skel { animation: none !important; }
+        .sd-orb1, .sd-orb2, .sd-pill-pending, .sd-skel, .sd-event-glow, .sd-event-ribbon { animation: none !important; }
       }
 
       /* ---- Responsive grid ---- */
@@ -222,6 +249,7 @@ function GlobalStyles() {
         }
         .sd-hero-logo { display: none; }
         .sd-hero-title { font-size: 24px !important; }
+        .sd-event-card-wrap { width: 260px; }
       }
 
       @media (max-width: 480px) {
@@ -471,7 +499,200 @@ function ModuleRow({ mod, onEnroll, isEnrolled, isPending }) {
 }
 
 /* ============================================================
-   Enroll modal
+   Course EVENT card
+   Courses are date-bound (one or more specific sessions), so they
+   are presented as event cards — not folded into the weekly
+   day-tab grid used for recurring modules.
+   ============================================================ */
+const EVENT_MONTHS_AR = [
+  "جانفي","فيفري","مارس","أفريل","ماي","جوان",
+  "جويلية","أوت","سبتمبر","أكتوبر","نوفمبر","ديسمبر",
+];
+
+function nextUpcomingSession(sessions) {
+  if (!sessions?.length) return null;
+  const now = new Date();
+  const withDates = sessions
+    .map((s) => ({ ...s, _dt: s.date ? new Date(`${s.date}T${(s.startTime || "00:00:00")}`) : null }))
+    .filter((s) => s._dt)
+    .sort((a, b) => a._dt - b._dt);
+  const upcoming = withDates.find((s) => s._dt >= now);
+  return upcoming || withDates[withDates.length - 1] || sessions[0];
+}
+
+function CourseEventCard({ course, onEnroll, isEnrolled, isPending }) {
+  const isFull = course.maxStudents != null && course.enrolledCount >= course.maxStudents;
+  const pct = course.maxStudents
+    ? Math.min(100, Math.round((course.enrolledCount / course.maxStudents) * 100))
+    : 0;
+  const firstSession = nextUpcomingSession(course.sessions);
+  const sessionCount = course.sessions?.length || 0;
+
+  const dateDay = firstSession?.date ? new Date(firstSession.date).getDate() : null;
+  const dateMonth = firstSession?.date ? EVENT_MONTHS_AR[new Date(firstSession.date).getMonth()] : null;
+
+  return (
+    <div className="sd-event-card-wrap">
+      <div className="sd-event-card" style={{
+        background: T.white, border: `1.5px solid ${T.line}`,
+        borderRadius: 16, overflow: "hidden", height: "100%",
+        display: "flex", flexDirection: "column",
+      }}>
+        {/* Event banner */}
+        <div style={{
+          background: `linear-gradient(120deg, ${T.ink} 0%, ${T.inkDeep} 100%)`,
+          padding: "1rem 1.1rem", position: "relative",
+          display: "flex", alignItems: "center", gap: 14,
+        }}>
+          <div className="sd-event-ribbon" style={{
+            background: T.white, borderRadius: 10,
+            width: 52, height: 52, flexShrink: 0,
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 6px 16px rgba(0,0,0,.25)",
+          }}>
+            {dateDay ? (
+              <>
+                <span className="sd-serif" style={{ fontSize: 19, fontWeight: 700, color: T.ink, lineHeight: 1 }}>{dateDay}</span>
+                <span style={{ fontSize: 9.5, color: T.amberDeep, fontWeight: 700, marginTop: 2 }}>{dateMonth}</span>
+              </>
+            ) : (
+              <span style={{ fontSize: 18 }}>🎟️</span>
+            )}
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <span style={{
+              display: "inline-block", background: `${T.amber}2e`, color: "#fff",
+              border: "1px solid rgba(255,255,255,.35)", borderRadius: 99,
+              padding: "2px 10px", fontSize: 10, fontWeight: 700, marginBottom: 5,
+            }}>
+              📌 دورة تدريبية
+            </span>
+            <div style={{
+              fontWeight: 700, fontSize: 14.5, color: "#fff",
+              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            }}>
+              {course.name}
+            </div>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: "1.1rem", display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+            <span style={{
+              background: T.paperDim, color: T.text, borderRadius: 7,
+              padding: "3px 10px", fontSize: 11.5, fontWeight: 600,
+            }}>
+              {course.subjectName}
+            </span>
+            {course.level && (
+              <span style={{
+                background: "#EAF2F8", color: T.ink, borderRadius: 7,
+                padding: "3px 10px", fontSize: 11.5, fontWeight: 600,
+              }}>
+                {course.level}
+              </span>
+            )}
+          </div>
+
+          <div style={{ fontSize: 12.5, color: T.textMute, display: "flex", alignItems: "center", gap: 6 }}>
+            <span>👨‍🏫</span> {course.teacherName || "—"}
+            {course.externalTeacher && (
+              <span style={{ fontSize: 10, color: T.amberDeep, fontWeight: 700 }}>· أستاذ خارجي</span>
+            )}
+          </div>
+
+          {course.description && (
+            <p style={{
+              fontSize: 12, color: T.textMute, lineHeight: 1.6, margin: 0,
+              display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
+            }}>
+              {course.description}
+            </p>
+          )}
+
+          {/* Session schedule strip */}
+          <div style={{
+            background: T.paper, border: `1px dashed ${T.line}`, borderRadius: 10,
+            padding: "0.6rem 0.75rem", display: "flex", flexDirection: "column", gap: 4,
+          }}>
+            <div style={{ fontSize: 10.5, color: T.textFaint, fontWeight: 700, display: "flex", alignItems: "center", gap: 5 }}>
+              <span>🗓️</span> {sessionCount > 1 ? `${sessionCount} حصص مبرمجة` : "موعد الحصة"}
+            </div>
+            {firstSession && (
+              <div style={{ fontSize: 12, color: T.text, fontWeight: 600 }}>
+                {firstSession.date ? new Date(firstSession.date).toLocaleDateString("ar-DZ", { weekday: "long", day: "numeric", month: "long" }) : "—"}
+                {" · "}
+                {firstSession.startTime?.slice(0, 5)}–{firstSession.endTime?.slice(0, 5)}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div style={{ background: T.paperDim, borderRadius: 99, height: 5, overflow: "hidden" }}>
+              <div className="sd-cap-bar-fill" style={{
+                width: `${pct}%`, height: "100%",
+                background: isFull ? T.red : `linear-gradient(90deg, ${T.ink}, ${T.amber})`,
+                borderRadius: 99,
+              }} />
+            </div>
+            <div style={{ fontSize: 10.5, color: T.textMute, marginTop: 4 }}>
+              {course.enrolledCount} / {course.maxStudents ?? "∞"} طالب
+              {isFull && <span style={{ color: T.red, marginRight: 6, fontWeight: 600 }}>· ممتلئ</span>}
+            </div>
+          </div>
+
+          {/* Price + CTA */}
+          <div style={{
+            marginTop: "auto", paddingTop: 10, borderTop: `1px solid ${T.lineSoft}`,
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
+          }}>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: T.ink }}>
+                {course.totalPrice?.toLocaleString()}
+              </div>
+              <div style={{ fontSize: 9.5, color: T.textMute }}>دج / الدورة كاملة</div>
+            </div>
+
+            {isEnrolled ? (
+              <span className="sd-check-badge" style={{
+                background: T.greenBg, color: T.green,
+                border: `1px solid ${T.green}30`, borderRadius: 7,
+                padding: "6px 13px", fontSize: 11.5, fontWeight: 700,
+                display: "inline-flex", alignItems: "center", gap: 5,
+              }}>✓ مسجّل</span>
+            ) : isPending ? (
+              <span className="sd-pill-pending" style={{
+                background: "#FCF1E2", color: T.amberDeep,
+                border: `1px solid ${T.amberDeep}30`, borderRadius: 7,
+                padding: "6px 13px", fontSize: 11.5, fontWeight: 700,
+              }}>⏳ قيد المراجعة</span>
+            ) : (
+              <button
+                className={`sd-btn-primary${!isFull ? " sd-event-glow" : ""}`}
+                disabled={isFull}
+                onClick={() => onEnroll(course)}
+                style={{
+                  background: isFull ? T.paperDim : T.amber,
+                  color: isFull ? T.textFaint : "#fff",
+                  border: "none", borderRadius: 8,
+                  padding: "8px 18px", fontSize: 12.5, fontWeight: 700,
+                  cursor: isFull ? "not-allowed" : "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                {isFull ? "ممتلئ" : "🎟️ احجز مكانك"}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   Enroll modal (module — recurring weekly unit)
    ============================================================ */
 function EnrollModal({ mod, schoolName, onConfirm, onCancel, loading }) {
   return (
@@ -551,6 +772,90 @@ function EnrollModal({ mod, schoolName, onConfirm, onCancel, loading }) {
 }
 
 /* ============================================================
+   Enroll modal (course — event, date-bound)
+   ============================================================ */
+function CourseEnrollModal({ course, schoolName, onConfirm, onCancel, loading }) {
+  const sessionCount = course?.sessions?.length || 0;
+  const firstSession = nextUpcomingSession(course?.sessions);
+
+  return (
+    <div className="sd-modal-overlay" style={{
+      position: "fixed", inset: 0, background: "rgba(8,44,67,.5)",
+      backdropFilter: "blur(2px)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      zIndex: 300, padding: "1rem",
+    }}>
+      <div className="sd-modal-card" style={{
+        background: T.white, borderRadius: 18, padding: "2rem",
+        maxWidth: 400, width: "100%", border: `1px solid ${T.line}`,
+      }}>
+        <div style={{
+          width: 52, height: 52, borderRadius: 14, margin: "0 auto 1rem",
+          background: `linear-gradient(135deg, ${T.amber}, ${T.ink})`,
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24,
+        }}>🎟️</div>
+        <h2 className="sd-serif" style={{ fontSize: 18, fontWeight: 700, color: T.text, margin: "0 0 6px", textAlign: "center" }}>
+          تأكيد الحجز في الدورة
+        </h2>
+        <p style={{ fontSize: 13, color: T.textMute, textAlign: "center", margin: "0 0 1.5rem", lineHeight: 1.7 }}>
+          هل تريد إرسال طلب التسجيل في دورة <strong style={{ color: T.text }}>{course?.name}</strong>؟<br />
+          ستنتظر موافقة إدارة <strong style={{ color: T.text }}>{schoolName}</strong>.
+        </p>
+
+        {course && (
+          <div style={{ background: T.paper, borderRadius: 12, border: `1px solid ${T.line}`, padding: "0.85rem 1rem", marginBottom: "1.5rem" }}>
+            {[
+              ["المادة", course.subjectName],
+              ["الأستاذ", course.teacherName],
+              ["عدد الحصص", `${sessionCount} حصة`],
+              firstSession ? ["أول موعد", `${firstSession.date ? new Date(firstSession.date).toLocaleDateString("ar-DZ", { day: "numeric", month: "long" }) : "—"} · ${firstSession.startTime?.slice(0,5)}–${firstSession.endTime?.slice(0,5)}`] : null,
+            ].filter(Boolean).map(([k,v]) => (
+              <div key={k} style={{ display: "flex", justifyContent: "space-between", marginBottom: 7 }}>
+                <span style={{ fontSize: 12, color: T.textMute }}>{k}</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: T.text }}>{v}</span>
+              </div>
+            ))}
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 12, color: T.textMute }}>السعر</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: T.ink }}>
+                {course.totalPrice?.toLocaleString()} دج / الدورة كاملة
+              </span>
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <button className="sd-btn-ghost" onClick={onCancel} style={{
+            flex: 1, padding: "11px 0", borderRadius: 9,
+            background: T.paper, color: T.textMute,
+            border: `1px solid ${T.line}`, fontSize: 13, fontWeight: 700,
+            cursor: "pointer", fontFamily: "inherit",
+          }}>
+            إلغاء
+          </button>
+          <button className="sd-btn-primary" onClick={onConfirm} disabled={loading} style={{
+            flex: 1, padding: "11px 0", borderRadius: 9,
+            background: loading ? `${T.amber}99` : T.amber,
+            color: "#fff", border: "none", fontSize: 13, fontWeight: 700,
+            cursor: loading ? "not-allowed" : "pointer", fontFamily: "inherit",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+          }}>
+            {loading && (
+              <span className="sd-spinner" style={{
+                width: 13, height: 13, borderRadius: "50%",
+                border: "2px solid rgba(255,255,255,.4)", borderTopColor: "#fff",
+                display: "inline-block",
+              }} />
+            )}
+            {loading ? "جارٍ الإرسال..." : "تأكيد الحجز"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
    Toast
    ============================================================ */
 function Toast({ message, type = "success" }) {
@@ -603,6 +908,14 @@ export default function SchoolDetails() {
   const [pendingIds, setPendingIds] = useState([]);
   const [enrolledIds, setEnrolledIds] = useState([]);
 
+  // ---- Courses (events) — separate domain from weekly modules ----
+  const [courses, setCourses]               = useState([]);
+  const [coursesLoading, setCoursesLoading]  = useState(true);
+  const [courseEnrollModal, setCourseEnrollModal] = useState(null);
+  const [courseEnrollLoading, setCourseEnrollLoading] = useState(false);
+  const [pendingCourseIds, setPendingCourseIds]   = useState([]);
+  const [enrolledCourseIds, setEnrolledCourseIds] = useState([]);
+
   const [toast, setToast] = useState(null);
   const [activeDay, setActiveDay] = useState(null);
 
@@ -633,6 +946,24 @@ export default function SchoolDetails() {
     }
   }, [id, user]);
 
+  // ---- Load courses (events) for this school ----
+  // NOTE: GET /api/courses/browse requires a `level` param on the backend.
+  // Until there's a level filter UI here, "all" is sent and courses whose
+  // `level` doesn't match are filtered out client-side below — if the
+  // backend already treats a missing/blank level as "no filter", this
+  // still works unchanged; if it 400s on blank level, tell me and I'll
+  // switch this to loop over the known LEVELS or add a filter control.
+  useEffect(() => {
+    setCoursesLoading(true);
+    api.get("/api/courses/browse", { params: { schoolId: id, level: "" } })
+      .then((res) =>{
+        console.log("dorat",res.data)
+         setCourses(res.data || [])})
+      
+      .catch(() => setCourses([]))
+      .finally(() => setCoursesLoading(false));
+  }, [id]);
+
   const sortedDays = useMemo(
     () => Object.keys(school?.modulesByDay || {}).sort((a, b) => DAY_ORDER.indexOf(a) - DAY_ORDER.indexOf(b)),
     [school]
@@ -651,6 +982,23 @@ export default function SchoolDetails() {
       showToast(msg, "error");
     } finally {
       setEnrollLoading(false);
+    }
+  };
+
+  // ---- Course (event) enroll — POST /api/courses/{id}/enroll-request ----
+  const handleCourseEnrollConfirm = async () => {
+    if (!courseEnrollModal) return;
+    setCourseEnrollLoading(true);
+    try {
+      await api.post(`/api/courses/${courseEnrollModal.id}/enroll-request`);
+      setPendingCourseIds((p) => [...p, courseEnrollModal.id]);
+      showToast(`تم إرسال طلب الحجز في دورة "${courseEnrollModal.name}" بنجاح!`);
+      setCourseEnrollModal(null);
+    } catch (err) {
+      const msg = err?.response?.data?.message || "حدث خطأ، حاول مرة أخرى.";
+      showToast(msg, "error");
+    } finally {
+      setCourseEnrollLoading(false);
     }
   };
 
@@ -716,6 +1064,15 @@ export default function SchoolDetails() {
           onConfirm={handleEnrollConfirm}
           onCancel={() => setEnrollModal(null)}
           loading={enrollLoading}
+        />
+      )}
+      {courseEnrollModal && (
+        <CourseEnrollModal
+          course={courseEnrollModal}
+          schoolName={school.schoolName}
+          onConfirm={handleCourseEnrollConfirm}
+          onCancel={() => setCourseEnrollModal(null)}
+          loading={courseEnrollLoading}
         />
       )}
 
@@ -823,6 +1180,42 @@ export default function SchoolDetails() {
             </div>
           </Reveal>
 
+          {/* Courses — presented as EVENTS, distinct from the recurring weekly modules below */}
+          {!coursesLoading && courses.length > 0 && (
+            <Reveal delay={0.06}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
+                  <div>
+                    <h2 className="sd-serif" style={{ fontSize: 17, fontWeight: 700, color: T.text, margin: "0 0 3px" }}>
+                      🎟️ دورات وفعاليات
+                    </h2>
+                    <p style={{ fontSize: 11.5, color: T.textMute, margin: 0 }}>
+                      دورات مبرمجة بتواريخ محددة — احجز مكانك قبل الامتلاء
+                    </p>
+                  </div>
+                  <span style={{ background: `${T.amber}1e`, color: T.amberDeep, borderRadius: 99, padding: "3px 13px", fontSize: 12, fontWeight: 700 }}>
+                    {courses.length} دورة
+                  </span>
+                </div>
+
+                <div className="sd-event-scroll">
+                  {courses.map((course) => (
+                    <CourseEventCard
+                      key={course.id}
+                      course={course}
+                      isEnrolled={enrolledCourseIds.includes(course.id)}
+                      isPending={pendingCourseIds.includes(course.id)}
+                      onEnroll={(c) => {
+                        if (!isStudent) { navigate("/login"); return; }
+                        setCourseEnrollModal(c);
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </Reveal>
+          )}
+
           {/* Teachers */}
           {school.teachers?.length > 0 && (
             <Reveal delay={0.08}>
@@ -925,13 +1318,14 @@ export default function SchoolDetails() {
                     اختر وحدة وسجّل
                   </h2>
                   <p style={{ fontSize: 12.5, color: T.textMute, margin: "0 0 1.25rem", lineHeight: 1.7 }}>
-                    اختر يوماً من الجدول ثم اضغط "التسجيل" في الوحدة التي تريدها.
+                    اختر يوماً من الجدول ثم اضغط "التسجيل" في الوحدة التي تريدها، أو احجز مكانك في إحدى الدورات المبرمجة.
                   </p>
 
                   <div style={{ background: T.paper, borderRadius: 11, border: `1px solid ${T.line}`, padding: "0.8rem 1rem", marginBottom: "1.25rem" }}>
                     {[
                       ["الأيام المتاحة", `${sortedDays.length} أيام`],
                       ["الوحدات التعليمية", `${school.totalModules} وحدة`],
+                      ["الدورات المبرمجة", `${courses.length} دورة`],
                       ["الطلاب المسجلون", `${school.totalStudents} طالب`],
                     ].map(([k, v], i, arr) => (
                       <div key={k} style={{
@@ -944,24 +1338,24 @@ export default function SchoolDetails() {
                     ))}
                   </div>
 
-                  {pendingIds.length > 0 && (
+                  {(pendingIds.length + pendingCourseIds.length) > 0 && (
                     <div style={{
                       background: "#FCF1E2", border: `1px solid ${T.amberDeep}30`, borderRadius: 9,
                       padding: "10px 12px", fontSize: 12, color: T.amberDeep,
                       display: "flex", alignItems: "center", gap: 8, marginBottom: "1rem", fontWeight: 600,
                     }}>
                       <span className="sd-pill-pending">⏳</span>
-                      لديك {pendingIds.length} طلب قيد المراجعة
+                      لديك {pendingIds.length + pendingCourseIds.length} طلب قيد المراجعة
                     </div>
                   )}
 
-                  {enrolledIds.length > 0 && (
+                  {(enrolledIds.length + enrolledCourseIds.length) > 0 && (
                     <div style={{
                       background: T.greenBg, border: `1px solid ${T.green}30`, borderRadius: 9,
                       padding: "10px 12px", fontSize: 12, color: T.green,
                       display: "flex", alignItems: "center", gap: 8, marginBottom: "1rem", fontWeight: 600,
                     }}>
-                      <span>✓</span> مسجّل في {enrolledIds.length} وحدة
+                      <span>✓</span> مسجّل في {enrolledIds.length + enrolledCourseIds.length} وحدة/دورة
                     </div>
                   )}
                 </>
@@ -971,7 +1365,7 @@ export default function SchoolDetails() {
                     سجّل كطالب
                   </h2>
                   <p style={{ fontSize: 12.5, color: T.textMute, margin: "0 0 1.25rem", lineHeight: 1.7 }}>
-                    تحتاج حساب طالب للتسجيل في وحدات هذه المدرسة.
+                    تحتاج حساب طالب للتسجيل في وحدات ودورات هذه المدرسة.
                   </p>
                   <div style={{
                     background: T.paper, border: `1.5px dashed ${T.line}`, borderRadius: 12,

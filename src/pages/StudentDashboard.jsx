@@ -20,6 +20,8 @@ const studentApi = {
   getSessionsBySchool: (schoolId) => api.get(`api/sessions/school/${schoolId}`),
   browseModules: (schoolId, level) =>
     api.get("api/modules/browse", { params: { schoolId, level } }),
+    getCourseEnrollments: () => api.get("api/courses/mine"),
+  getCourseInvoices: () => api.get("api/courses/invoices/mine"),
 };
 
 // ─────────────────────────────────────────────────────────
@@ -57,12 +59,14 @@ const PAGE_TITLES = {
   sessions: "حصصي والفواتير",
   schedule: "برنامجي الأسبوعي",
   schools:  "مدارسي المسجلة",
+  courses:  "دوراتي المسجلة", 
   profile:  "بروفايل شخصي",
 };
 const PAGE_SUBTITLES = {
   sessions: "تابع حصصك القادمة وفواتيرك الشهرية",
   schedule: "نظرة شاملة على أسبوعك الدراسي",
   schools:  "كل المدارس والوحدات المسجل فيها",
+  courses:  "الدورات المسجلة وفواتيرها",
   profile:  "معلوماتك الشخصية وإحصائياتك",
 };
 
@@ -71,6 +75,7 @@ const NAV = [
   { id: "schedule", icon: CalendarDays, label: "الجدول" },
   { id: "schools",  icon: School,       label: "مدارسي" },
   { id: "profile",  icon: User,         label: "بروفايل" },
+    { id: "courses",  icon: GraduationCap, label: "دوراتي" },
 ];
 
 const fmtDate = (d) =>
@@ -116,6 +121,140 @@ function useFetch(fetchFn, deps = []) {
 
   useEffect(() => { load(); }, [load]);
   return { data, loading, error, reload: load };
+}
+// ─────────────────────────────────────────────────────────
+// Page: دوراتي (Course enrollments + course invoices)
+// ─────────────────────────────────────────────────────────
+function PageCourses({ courseEnrollments, courseInvoices }) {
+  const enrollStatusStyle = (status) => {
+    switch (status) {
+     
+      case "ACCEPTED":   return { label: "نشط",          color: SUCCESS, bg: SUCCESS_BG };
+      case "PENDING":  return { label: "قيد الانتظار", color: WARNING, bg: WARNING_BG };
+      case "REJECTED": return { label: "مرفوض",         color: DANGER,  bg: DANGER_BG };
+      default:         return { label: status || "—",  color: "#64748B", bg: "#F1F5F9" };
+    }
+  };
+
+  const totalDue = (courseInvoices || [])
+    .filter((inv) => inv.status !== "PAID")
+    .reduce((s, inv) => s + (Number(inv.amount) || 0), 0);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+      <div className="sd-schools-summary" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <Card style={{ textAlign: "center", padding: "1.15rem 1rem" }}>
+          <div style={{
+            width: 34, height: 34, borderRadius: 10, margin: "0 auto 8px",
+            background: "#F1EEFC", display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <GraduationCap size={16} color="#5142A8" />
+          </div>
+          <div style={{ fontSize: 25, fontWeight: 800, color: "#5142A8" }}>
+            {(courseEnrollments || []).length}
+          </div>
+          <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4, fontWeight: 600 }}>دورات مسجلة</div>
+        </Card>
+        <Card delay={60} style={{ textAlign: "center", padding: "1.15rem 1rem" }}>
+          <div style={{
+            width: 34, height: 34, borderRadius: 10, margin: "0 auto 8px",
+            background: SUCCESS_BG, display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <Wallet size={16} color={SUCCESS} />
+          </div>
+          <div style={{ fontSize: 21, fontWeight: 800, color: SUCCESS }}>
+            {totalDue ? `${totalDue} دج` : "—"}
+          </div>
+          <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4, fontWeight: 600 }}>مستحق الدفع</div>
+        </Card>
+      </div>
+
+      <Card delay={100}>
+        <SecTitle icon={GraduationCap}>الدورات المسجلة</SecTitle>
+        {(courseEnrollments || []).length === 0 ? (
+          <Empty text="لم تسجل في أي دورة بعد" icon={GraduationCap} />
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+            {courseEnrollments.map((enr, i) => {
+              const c  = pal(i);
+              const st = enrollStatusStyle(enr.status);
+              return (
+                <div key={enr.id} className="sd-row sd-slide-in" style={{
+                  display: "flex", alignItems: "center", gap: 13,
+                  padding: "11px 13px", borderRadius: 12,
+                  border: `1px solid ${LINE}`, background: "#FBFCFE",
+                  borderRight: `3px solid ${c.accent}`,
+                  animationDelay: `${i * 35}ms`,
+                }}>
+                  <div style={{
+                    width: 42, height: 42, borderRadius: 11, background: c.bg,
+                    border: `1px solid ${c.border}`, display: "flex",
+                    alignItems: "center", justifyContent: "center",
+                    fontSize: 18, flexShrink: 0,
+                  }}>🎓</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: INK }}>
+                      {enr.courseName || `دورة #${enr.courseId}`}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 3, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      <span>{enr.subjectName || "—"}</span>
+                      <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                        <School size={11} /> {enr.schoolName || "—"}
+                      </span>
+                    </div>
+                  </div>
+                  {enr.totalPrice != null && (
+                    <div style={{ fontSize: 13.5, fontWeight: 800, color: INK, flexShrink: 0 }}>
+                      {enr.totalPrice} دج
+                    </div>
+                  )}
+                  <Tag bg={st.bg} color={st.color}>{st.label}</Tag>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+
+      <Card delay={150}>
+        <SecTitle icon={Wallet}>فواتير الدورات</SecTitle>
+        {(courseInvoices || []).length === 0 ? (
+          <Empty text="لا توجد فواتير دورات" icon={Wallet} />
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+            {courseInvoices.map((inv, i) => {
+              const st = invoiceStyle(inv.status);
+              return (
+                <div key={inv.id} className="sd-row sd-slide-in" style={{
+                  display: "flex", alignItems: "center", gap: 13,
+                  padding: "11px 14px", borderRadius: 12,
+                  border: `1px solid ${LINE}`, background: "#FBFCFE",
+                  borderRight: `3px solid ${st.color}`,
+                  animationDelay: `${i * 35}ms`,
+                }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: INK }}>
+                      {inv.courseName || "—"}
+                    </div>
+                    <div style={{ fontSize: 11, color: "#64748B", marginTop: 3 }}>
+                      {inv.dueDate ? `الاستحقاق: ${new Date(inv.dueDate).toLocaleDateString("ar-MA")}` : ""}
+                      {inv.paidAt ? ` · دُفعت: ${new Date(inv.paidAt).toLocaleDateString("ar-MA")}` : ""}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "center", flexShrink: 0 }}>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: INK, marginBottom: 4 }}>
+                      {inv.amount ? `${inv.amount} دج` : "—"}
+                    </div>
+                    <Tag bg={st.bg} color={st.color}>{st.label}</Tag>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
 }
 
 // ─────────────────────────────────────────────────────────
@@ -1133,6 +1272,19 @@ export default function StudentDashboard() {
   const [transitionKey, setTransitionKey] = useState(0);
 
   useEffect(() => { setTransitionKey((k) => k + 1); }, [active]);
+  const {
+  data: courseEnrollments,
+  loading: courseEnrollLoading,
+  error: courseEnrollError,
+  reload: reloadCourseEnroll,
+} = useFetch(() => studentApi.getCourseEnrollments());
+
+const {
+  data: courseInvoices,
+  loading: courseInvoicesLoading,
+  error: courseInvoicesError,
+  reload: reloadCourseInvoices,
+} = useFetch(() => studentApi.getCourseInvoices());
 
   // ── Core fetches (unchanged) ─────────────────────────
   const {
@@ -1229,9 +1381,11 @@ export default function StudentDashboard() {
     reloadProfile();
     reloadEnroll();
     reloadInvoices();
+     reloadCourseEnroll();     // NEW
+  reloadCourseInvoices(); 
   };
 
-  const isLoading = profileLoading || enrollLoading || invoicesLoading || sessionsLoading || modulesLoading;
+  const isLoading = profileLoading || enrollLoading || invoicesLoading || sessionsLoading || modulesLoading ||courseEnrollLoading || courseInvoicesLoading;
 
   const renderPage = () => {
     if (profileLoading) return <StatSkeleton />;
@@ -1281,6 +1435,16 @@ export default function StudentDashboard() {
             onProfileUpdated={reloadProfile}
           />
         );
+        case "courses":
+  if (courseEnrollLoading || courseInvoicesLoading) return <StatSkeleton />;
+  if (courseEnrollError)   return <ErrorBlock message={courseEnrollError}   onRetry={reloadCourseEnroll} />;
+  if (courseInvoicesError) return <ErrorBlock message={courseInvoicesError} onRetry={reloadCourseInvoices} />;
+  return (
+    <PageCourses
+      courseEnrollments={courseEnrollments || []}
+      courseInvoices={courseInvoices || []}
+    />
+  );
 
       default:
         return null;

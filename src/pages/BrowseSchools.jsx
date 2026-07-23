@@ -3,28 +3,30 @@ import { useNavigate } from "react-router-dom";
 import { Search, MapPin, Star, Building2, AlertCircle } from "lucide-react";
 import { motion } from "framer-motion";
 import api from "../api";
+import { useLanguage } from "../context/LanguageContext";
 
-const STATUS_LABELS = {
-  ACTIVE: { label: "نشط", color: "#0F6E56", bg: "#e6f4f1" },
-  TRIAL: { label: "تجريبي", color: "#BA7517", bg: "#fdf3e3" },
-  EXPIRED: { label: "منتهي", color: "#b91c1c", bg: "#fef2f2" },
-  SUSPENDED: { label: "موقوف", color: "#6b7280", bg: "#f3f4f6" },
-};
-
-function Badge({ status }) {
-  const s = STATUS_LABELS[status] || { label: status, color: "#185FA5", bg: "#eff6ff" };
+function Badge({ status, t }) {
+  const STATUS_KEYS = {
+    ACTIVE:    { color: "#0F6E56", bg: "#e6f4f1" },
+    TRIAL:     { color: "#BA7517", bg: "#fdf3e3" },
+    EXPIRED:   { color: "#b91c1c", bg: "#fef2f2" },
+    SUSPENDED: { color: "#6b7280", bg: "#f3f4f6" },
+  };
+  const s = STATUS_KEYS[status] || { color: "#185FA5", bg: "#eff6ff" };
+  const label = STATUS_KEYS[status] ? t(`browseSchools.status.${status}`) : status;
   return (
     <span
       style={{ color: s.color, background: s.bg, border: `1px solid ${s.color}22` }}
       className="rounded-full px-3 py-1 text-xs font-semibold"
     >
-      {s.label}
+      {label}
     </span>
   );
 }
 
 export default function BrowseSchools() {
   const navigate = useNavigate();
+  const { t, dir } = useLanguage();
   const [search, setSearch] = useState("");
   const [schools, setSchools] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -39,7 +41,7 @@ export default function BrowseSchools() {
       setSchools(data);})
       .catch((err) => {
         console.error(err);
-        setError("تعذّر تحميل بيانات المدارس. تحقق من الاتصال بالخادم.");
+        setError(t("browseSchools.loadError"));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -54,7 +56,7 @@ export default function BrowseSchools() {
 
   return (
     <div
-      dir="rtl"
+      dir={dir}
       className="min-h-screen bg-gradient-to-b from-slate-50 to-white font-sans"
     >
       {/* Hero */}
@@ -71,7 +73,7 @@ export default function BrowseSchools() {
             transition={{ duration: 0.4 }}
             className="mb-4 text-4xl font-extrabold text-white md:text-5xl"
           >
-            اكتشف أفضل مدارس الدعم
+            {t("browseSchools.hero.title")}
           </motion.h1>
 
           <motion.p
@@ -80,7 +82,7 @@ export default function BrowseSchools() {
             transition={{ delay: 0.15, duration: 0.4 }}
             className="mx-auto mb-8 max-w-2xl text-sm leading-7 text-blue-100 md:text-base"
           >
-            ابحث عن مدارس الدعم حسب المدينة أو الولاية وقارن بين الأسعار بسهولة.
+            {t("browseSchools.hero.subtitle")}
           </motion.p>
 
           {/* Search */}
@@ -95,7 +97,7 @@ export default function BrowseSchools() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="ابحث باسم المدرسة أو الولاية أو البلدية..."
+                placeholder={t("browseSchools.hero.searchPlaceholder")}
                 className="w-full bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
               />
             </div>
@@ -108,9 +110,9 @@ export default function BrowseSchools() {
         {/* Top */}
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-slate-900">المدارس المتوفرة</h2>
+            <h2 className="text-2xl font-bold text-slate-900">{t("browseSchools.availableTitle")}</h2>
             <p className="mt-1 text-sm text-slate-500">
-              {loading ? "جارٍ التحميل..." : `وجدنا ${filtered.length} مدرسة`}
+              {loading ? t("browseSchools.loading") : t("browseSchools.resultCount", { count: filtered.length })}
             </p>
           </div>
         </div>
@@ -137,9 +139,9 @@ export default function BrowseSchools() {
           /* Empty */
           <div className="rounded-3xl border border-dashed border-slate-300 bg-white py-20 text-center shadow-sm">
             <Building2 className="mx-auto mb-4 h-12 w-12 text-slate-300" />
-            <p className="text-lg font-medium text-slate-500">لا توجد نتائج مطابقة</p>
+            <p className="text-lg font-medium text-slate-500">{t("browseSchools.emptyTitle")}</p>
             <p className="mt-2 text-sm text-slate-400">
-              جرّب البحث باسم آخر أو ولاية مختلفة
+              {t("browseSchools.emptySubtitle")}
             </p>
           </div>
         ) : (
@@ -160,7 +162,7 @@ export default function BrowseSchools() {
                     background: "linear-gradient(135deg, #185FA5 0%, #0ea5e9 100%)",
                   }}
                 >
-                  <img src={school.logoUrl} className="h-60 w-60 text-white/30" />
+                  <img src={school.logoUrl} className="h-60 w-60 text-white/30" alt={school.schoolName} />
                 
                 </div>
 
@@ -190,10 +192,10 @@ export default function BrowseSchools() {
                     <div>
                     
                       <p className="text-lg font-extrabold text-blue-600">
-                        {school.totalTeachers} ":عدد الأساتدة" 
+                        {t("browseSchools.card.teachersCount", { count: school.totalTeachers })}
                       </p>
                       <p className="text-lg font-extrabold text-blue-600">
-                        {school.totalModules}  ": عدد مواد المدرسة"
+                        {t("browseSchools.card.modulesCount", { count: school.totalModules })}
                       </p>
                     </div>
 
@@ -201,7 +203,7 @@ export default function BrowseSchools() {
                       onClick={() => navigate(`/schools/${school.schoolId}`)}
                       className="rounded-2xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700"
                     >
-                      عرض التفاصيل
+                      {t("browseSchools.card.viewDetails")}
                     </button>
                   </div>
                 </div>

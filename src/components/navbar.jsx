@@ -1,14 +1,58 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { GraduationCap, LayoutDashboard, LogOut } from "lucide-react";
+import { GraduationCap, LayoutDashboard, LogOut, Globe } from "lucide-react";
 import { useAuth } from "../context/authContext";
+import { useLanguage } from "../context/LanguageContext";
 import "../Css/Navbar.css";
 
+import {
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
+  IconButton,
+} from "@mui/material";
+import ReactCountryFlag from "react-country-flag";
+
+const LANGUAGES = [
+  {
+    code: "ar",
+    label: "العربية",
+    country: "DZ",
+  },
+  {
+    code: "en",
+    label: "English",
+    country: "GB",
+  },
+  {
+    code: "fr",
+    label: "Français",
+    country: "FR",
+  },
+];
+
 export default function Navbar() {
-  const { user,logout } = useAuth();
+  const { user, logout } = useAuth();
+  const { t, language, setLanguage, dir } = useLanguage();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
+ const [anchorEl, setAnchorEl] = useState(null);
 
+const open = Boolean(anchorEl);
+
+const handleOpen = (event) => {
+  setAnchorEl(event.currentTarget);
+};
+
+const handleClose = () => {
+  setAnchorEl(null);
+};
+const currentLanguage = LANGUAGES.find(
+  (l) => l.code === language
+);
+
+  const dashboardPath = user?.role === "SCHOOL_ADMIN" ? "/Dashboard" : "/studentdashboard";
 
   const initials =
     user?.avatar ||
@@ -25,32 +69,34 @@ export default function Navbar() {
     navigate(path);
   };
 
+const changeLanguage = (lang) => {
+  setLanguage(lang);
+  handleClose();
+};
+
+
+  const isLoggedIn = user?.role === "STUDENT" || user?.role === "SCHOOL_ADMIN";
+
   return (
-    <header dir="rtl" className="navbar">
+    <header dir={dir} className="navbar">
       {/* Logo */}
       <Link to="/" className="navbar__logo" onClick={closeMenu}>
         <div className="navbar__logo-mark">
           <GraduationCap size={18} strokeWidth={2.4} />
         </div>
-        <span className="navbar__logo-text">منصة مدارس الدعم</span>
+        <span className="navbar__logo-text">{t("navbar.platformName")}</span>
       </Link>
 
       {/* Desktop nav */}
-      <nav className="navbar__nav navbar__nav--desktop "  style={{display:user?.role !="STUDENT"?"none":"flex"}}>
-        {user?.role === "STUDENT"  ? (
+      <nav className="navbar__nav navbar__nav--desktop">
+        {isLoggedIn ? (
           <>
-            <button
-              className="nav-btn nav-btn--dashboard"
-              onClick={() => navigate("/studentdashboard")}
-            >
+            <button className="nav-btn nav-btn--dashboard" onClick={() => navigate(dashboardPath)}>
               <LayoutDashboard size={14} />
-              لوحتي
+              {t("navbar.dashboard")}
             </button>
 
-            <div
-              className="navbar__user"
-              onClick={() => navigate("/studentdashboard")}
-            >
+            <div className="navbar__user" onClick={() => navigate(dashboardPath)}>
               <div className="navbar__avatar">{initials}</div>
               <span className="navbar__user-name">{user.fullName}</span>
             </div>
@@ -58,61 +104,73 @@ export default function Navbar() {
             <button
               className="nav-icon-btn"
               onClick={logout}
-              title="تسجيل الخروج"
-              aria-label="تسجيل الخروج"
+              title={t("navbar.logout")}
+              aria-label={t("navbar.logout")}
             >
               <LogOut size={14} />
             </button>
           </>
         ) : (
           <>
-            <Link to="/login" className="nav-btn nav-btn--ghost">
-              تسجيل الدخول
-            </Link>
-            <Link to="/signup" className="nav-btn nav-btn--solid">
-              إنشاء حساب
-            </Link>
+            <Link to="/login" className="nav-btn nav-btn--ghost">{t("navbar.login")}</Link>
+            <Link to="/signup" className="nav-btn nav-btn--solid">{t("navbar.register")}</Link>
           </>
         )}
-      </nav>
-       <nav className="navbar__nav navbar__nav--desktop" style={{display:user?.role !="SCHOOL_ADMIN" ?"none":"flex"}}>
-        {user?.role === "SCHOOL_ADMIN"  ? (
-          <>
-            <button
-              className="nav-btn nav-btn--dashboard"
-              onClick={() => navigate("/Dashboard")}
-            >
-              <LayoutDashboard size={14} />
-              لوحتي
-            </button>
 
-            <div
-              className="navbar__user"
-              onClick={() => navigate("/Dashboard")}
-            >
-              <div className="navbar__avatar">{initials}</div>
-              <span className="navbar__user-name">{user.fullName}</span>
-            </div>
+        {/* Language switcher */}
+      <div className="navbar__lang">
+ <IconButton
+    onClick={handleOpen}
+    sx={{
+        borderRadius: 3,
+        border: "1px solid #e5e7eb",
+        p: 0.8,
+    }}
+>
+    <ReactCountryFlag
+        countryCode={currentLanguage.country}
+        svg
+        style={{
+            width: "1.8em",
+            height: "1.8em",
+        }}
+    />
+</IconButton>
 
-            <button
-              className="nav-icon-btn"
-              onClick={logout}
-              title="تسجيل الخروج"
-              aria-label="تسجيل الخروج"
-            >
-              <LogOut size={14} />
-            </button>
-          </>
-        ) : (
-          <>
-            <Link to="/login" className="nav-btn nav-btn--ghost">
-              تسجيل الدخول
-            </Link>
-            <Link to="/signup" className="nav-btn nav-btn--solid">
-              إنشاء حساب
-            </Link>
-          </>
-        )}
+  <Menu
+    anchorEl={anchorEl}
+    open={open}
+    onClose={handleClose}
+    PaperProps={{
+      sx: {
+        mt: 1,
+        borderRadius: 3,
+        minWidth: 190,
+      },
+    }}
+  >
+    {LANGUAGES.map((lang) => (
+      <MenuItem
+        key={lang.code}
+        selected={lang.code === language}
+        onClick={() => changeLanguage(lang.code)}
+      >
+        <ListItemIcon>
+          <ReactCountryFlag
+            countryCode={lang.country}
+            svg
+            style={{
+              width: "1.6em",
+              height: "1.6em",
+            }}
+          />
+        </ListItemIcon>
+
+        <ListItemText>{lang.label}</ListItemText>
+      </MenuItem>
+    ))}
+  </Menu>
+</div>
       </nav>
        <nav className="navbar__nav navbar__nav--desktop" style={{display:user?.role !="TEACHER"?"none":"flex"}}>
         {user?.role === "TEACHER"  ? (
@@ -158,7 +216,7 @@ export default function Navbar() {
       <button
         className={`navbar__burger${isOpen ? " is-open" : ""}`}
         onClick={() => setIsOpen((v) => !v)}
-        aria-label="فتح القائمة"
+        aria-label={t("navbar.menuOpenAria")}
         aria-expanded={isOpen}
       >
         <span className="navbar__burger-line" />
@@ -169,39 +227,48 @@ export default function Navbar() {
       {/* Mobile dropdown panel */}
       {isOpen && (
         <div className="navbar__mobile-panel">
-          {user?.role === "STUDENT" ? (
+          {isLoggedIn ? (
             <>
-              <div className="navbar__mobile-user" onClick={() => goTo("/studentdashboard")}>
+              <div className="navbar__mobile-user" onClick={() => goTo(dashboardPath)}>
                 <div className="navbar__avatar">{initials}</div>
                 <span className="navbar__user-name">{user.fullName}</span>
               </div>
 
-              <button
-                className="nav-btn nav-btn--dashboard"
-                onClick={() => goTo("/studentdashboard")}
-              >
+              <button className="nav-btn nav-btn--dashboard" onClick={() => goTo(dashboardPath)}>
                 <LayoutDashboard size={14} />
-                لوحتي
+                {t("navbar.dashboard")}
               </button>
 
               <button
                 className="nav-btn nav-btn--ghost"
-                onClick={() => goTo("/")}
+                onClick={() => { closeMenu(); logout(); }}
               >
                 <LogOut size={14} />
-                تسجيل الخروج
+                {t("navbar.logout")}
               </button>
             </>
           ) : (
             <>
               <Link to="/login" className="nav-btn nav-btn--ghost" onClick={closeMenu}>
-                تسجيل الدخول
+                {t("navbar.login")}
               </Link>
               <Link to="/signup" className="nav-btn nav-btn--solid" onClick={closeMenu}>
-                إنشاء حساب
+                {t("navbar.register")}
               </Link>
             </>
           )}
+
+          <div className="navbar__mobile-lang">
+            {LANGUAGES.map((l) => (
+              <button
+                key={l.code}
+                className={`nav-btn nav-btn--ghost${language === l.code ? " is-active" : ""}`}
+                onClick={() => changeLanguage(l.code)}
+              >
+                {l.label}
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </header>

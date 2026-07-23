@@ -7,6 +7,7 @@ import {
   Wallet, ChevronLeft, Menu, X,Home
 } from "lucide-react";
 import { useAuth } from "../context/authContext";
+import { useLanguage } from "../context/LanguageContext";
 import api from "../api";
 
 // ─────────────────────────────────────────────────────────
@@ -97,10 +98,14 @@ function initials(name = "") {
   return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
 }
 
+function localeForLang(language) {
+  return language === "ar" ? "ar-MA" : language === "fr" ? "fr-FR" : "en-US";
+}
+
 // ─────────────────────────────────────────────────────────
-// useFetch hook (unchanged logic)
+// useFetch hook (unchanged logic, translated fallback error)
 // ─────────────────────────────────────────────────────────
-function useFetch(fetchFn, deps = []) {
+function useFetch(fetchFn, fallbackMsg, deps = []) {
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
@@ -112,7 +117,7 @@ function useFetch(fetchFn, deps = []) {
       const res = await fetchFn();
       setData(res.data?.content ?? res.data);
     } catch (err) {
-      setError(err?.response?.data?.message || err.message || "خطأ في التحميل");
+      setError(err?.response?.data?.message || err.message || fallbackMsg);
     } finally {
       setLoading(false);
     }
@@ -442,6 +447,7 @@ function StatSkeleton() {
 }
 
 function ErrorBlock({ message, onRetry }) {
+  const { t } = useLanguage();
   return (
     <div className="sd-fade-in" style={{
       display: "flex", flexDirection: "column", alignItems: "center", gap: 12,
@@ -462,21 +468,22 @@ function ErrorBlock({ message, onRetry }) {
           color: ACTION, fontSize: 12.5, fontWeight: 700,
           cursor: "pointer", fontFamily: "inherit",
         }}>
-          <RefreshCw size={13} /> إعادة المحاولة
+          <RefreshCw size={13} /> {t("studentDashboard.retry")}
         </button>
       )}
     </div>
   );
 }
 
-function Empty({ text = "لا توجد بيانات", icon: Icon = AlertCircle }) {
+function Empty({ text, icon: Icon = AlertCircle }) {
+  const { t } = useLanguage();
   return (
     <div className="sd-fade-in" style={{
       display: "flex", flexDirection: "column", alignItems: "center", gap: 10,
       color: "#94A3B8", fontSize: 13, textAlign: "center", padding: "2.4rem 1rem",
     }}>
       <Icon size={26} style={{ opacity: .45 }} />
-      {text}
+      {text || t("studentDashboard.common.noData")}
     </div>
   );
 }
@@ -485,8 +492,16 @@ function Empty({ text = "لا توجد بيانات", icon: Icon = AlertCircle }
 // Sidebar (desktop)
 // ─────────────────────────────────────────────────────────
 function Sidebar({ active, setActive, profile, profileLoading, enrollments, onLogout }) {
+  const { t, dir } = useLanguage();
+  const NAV = [
+    { id: "sessions", icon: BookOpen,     label: t("studentDashboard.nav.sessions") },
+    { id: "schedule", icon: CalendarDays, label: t("studentDashboard.nav.schedule") },
+    { id: "schools",  icon: School,       label: t("studentDashboard.nav.schools") },
+    { id: "profile",  icon: User,         label: t("studentDashboard.nav.profile") },
+  ];
+
   return (
-    <aside className="sd-sidebar" style={{
+    <aside className="sd-sidebar" dir={dir} style={{
       width: 232, flexShrink: 0, background: INK,
       display: "flex", flexDirection: "column", height: "100vh",
       position: "sticky", top: 0,
@@ -503,8 +518,8 @@ function Sidebar({ active, setActive, profile, profileLoading, enrollments, onLo
           fontSize: 18, boxShadow: `0 4px 12px -2px ${ACTION}66`,
         }}>🎓</div>
         <div>
-          <div style={{ fontSize: 13.5, fontWeight: 800, color: "#fff", letterSpacing: "-.01em" }}>مدارس الدعم</div>
-          <div style={{ fontSize: 10, color: "#5B7494", marginTop: 1 }}>لوحة الطالب</div>
+          <div style={{ fontSize: 13.5, fontWeight: 800, color: "#fff", letterSpacing: "-.01em" }}>{t("studentDashboard.sidebar.platformName")}</div>
+          <div style={{ fontSize: 10, color: "#5B7494", marginTop: 1 }}>{t("studentDashboard.sidebar.subtitle")}</div>
         </div>
       </div>
 
@@ -544,7 +559,7 @@ function Sidebar({ active, setActive, profile, profileLoading, enrollments, onLo
                   width: 6, height: 6, borderRadius: "50%", background: "#3FBF93",
                   display: "inline-block", animation: "pulseDot 2s ease-in-out infinite",
                 }} />
-                {profile?.level || "طالب مسجل"}
+                {profile?.level || t("studentDashboard.sidebar.enrolledStudentFallback")}
               </div>
             </div>
           </>
@@ -552,12 +567,12 @@ function Sidebar({ active, setActive, profile, profileLoading, enrollments, onLo
       </div>
 
       {/* Nav */}
-        
+
       <nav style={{ flex: 1, padding: "10px 0", overflowY: "auto" }}>
-          <Link to={"/home"}> 
-           
+          <Link to={"/home"}>
+
           <button
-             
+
               className="sd-nav-item"
               onClick={()=>{setActive(true)}}
               style={{
@@ -570,10 +585,10 @@ function Sidebar({ active, setActive, profile, profileLoading, enrollments, onLo
                 fontFamily: "'Cairo',system-ui,sans-serif",
                 textAlign: "right",
               }}
-             
+
             >
               <Home></Home>
-              الصفحةالرئيسية
+              {t("studentDashboard.sidebar.homePage")}
             </button></Link>
         {NAV.map((item) => {
           const Icon = item.icon;
@@ -611,7 +626,7 @@ function Sidebar({ active, setActive, profile, profileLoading, enrollments, onLo
             display: "flex", justifyContent: "space-between", alignItems: "center",
             border: "1px solid rgba(28,111,184,.2)",
           }}>
-            <span>مدارس مسجلة</span>
+            <span>{t("studentDashboard.sidebar.registeredSchools")}</span>
             <span style={{ fontWeight: 800, color: "#fff", fontSize: 13 }}>{enrollments.length}</span>
           </div>
         </div>
@@ -626,7 +641,7 @@ function Sidebar({ active, setActive, profile, profileLoading, enrollments, onLo
           onMouseEnter={(e) => (e.currentTarget.style.color = "#A8C0D9")}
           onMouseLeave={(e) => (e.currentTarget.style.color = "#5B7494")}
         >
-          <LogOut size={14} /> تسجيل الخروج
+          <LogOut size={14} /> {t("studentDashboard.sidebar.logout")}
         </button>
       </div>
     </aside>
@@ -637,6 +652,13 @@ function Sidebar({ active, setActive, profile, profileLoading, enrollments, onLo
 // Mobile bottom tab bar
 // ─────────────────────────────────────────────────────────
 function MobileTabBar({ active, setActive }) {
+  const { t } = useLanguage();
+  const NAV = [
+    { id: "sessions", icon: BookOpen,     label: t("studentDashboard.nav.sessions") },
+    { id: "schedule", icon: CalendarDays, label: t("studentDashboard.nav.schedule") },
+    { id: "schools",  icon: School,       label: t("studentDashboard.nav.schools") },
+    { id: "profile",  icon: User,         label: t("studentDashboard.nav.profile") },
+  ];
   return (
     <nav className="sd-mobile-tabbar" style={{
       position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 50,
@@ -674,6 +696,21 @@ function MobileTabBar({ active, setActive }) {
 // Page: حصصي
 // ─────────────────────────────────────────────────────────
 function PageSessions({ sessions, enrollments, invoices, moduleMap }) {
+  const { t, locale, language } = useLanguage();
+  const dLocale = locale || localeForLang(language);
+
+  const fmtDate = (d) => new Date(d).toLocaleDateString(dLocale, { weekday: "long", month: "long", day: "numeric" });
+  const fmtTime = (tm) => (tm ? String(tm).slice(0, 5) : "—");
+
+  const invoiceStyle = (status) => {
+    switch (status) {
+      case "PAID":    return { label: t("studentDashboard.invoiceStatus.PAID"),    color: SUCCESS, bg: SUCCESS_BG };
+      case "PENDING": return { label: t("studentDashboard.invoiceStatus.PENDING"), color: WARNING, bg: WARNING_BG };
+      case "OVERDUE": return { label: t("studentDashboard.invoiceStatus.OVERDUE"), color: DANGER,  bg: DANGER_BG };
+      default:        return { label: status || "—", color: "#64748B", bg: "#F1F5F9" };
+    }
+  };
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -701,9 +738,9 @@ function PageSessions({ sessions, enrollments, invoices, moduleMap }) {
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
       <div className="sd-stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
         {[
-          { label: "حصص أسبوعية", value: totalWeekly || "—", icon: CalendarDays, color: ACTION_DEEP },
-          { label: "حصص قادمة", value: upcoming.length, icon: BookOpen, color: SUCCESS },
-          { label: "فواتير غير مدفوعة", value: unpaidCount, icon: Wallet, color: unpaidCount > 0 ? DANGER : "#64748B" },
+          { label: t("studentDashboard.sessions.statWeekly"), value: totalWeekly || "—", icon: CalendarDays, color: ACTION_DEEP },
+          { label: t("studentDashboard.sessions.statUpcoming"), value: upcoming.length, icon: BookOpen, color: SUCCESS },
+          { label: t("studentDashboard.sessions.statUnpaid"), value: unpaidCount, icon: Wallet, color: unpaidCount > 0 ? DANGER : "#64748B" },
         ].map((stat, i) => {
           const Icon = stat.icon;
           return (
@@ -725,9 +762,9 @@ function PageSessions({ sessions, enrollments, invoices, moduleMap }) {
       </div>
 
       <Card delay={120}>
-        <SecTitle icon={BookOpen}>الحصص القادمة</SecTitle>
+        <SecTitle icon={BookOpen}>{t("studentDashboard.sessions.upcomingTitle")}</SecTitle>
         {upcoming.length === 0 ? (
-          <Empty text="لا توجد حصص قادمة" icon={CalendarDays} />
+          <Empty text={t("studentDashboard.sessions.noUpcoming")} icon={CalendarDays} />
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
             {upcoming.map((s, i) => {
@@ -758,7 +795,7 @@ function PageSessions({ sessions, enrollments, invoices, moduleMap }) {
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: INK }}>
-                      {mod?.subjectName || mod?.name || `وحدة #${s.moduleId}`}
+                      {mod?.subjectName || mod?.name || t("studentDashboard.sessions.moduleFallback", { id: s.moduleId })}
                     </div>
                     <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 3, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                       <span style={{ display: "flex", alignItems: "center", gap: 3 }}><GraduationCap size={11} /> {mod?.teacherName || "—"}</span>
@@ -774,9 +811,9 @@ function PageSessions({ sessions, enrollments, invoices, moduleMap }) {
       </Card>
 
       <Card delay={170}>
-        <SecTitle icon={Wallet}>الفواتير الشهرية</SecTitle>
+        <SecTitle icon={Wallet}>{t("studentDashboard.sessions.invoicesTitle")}</SecTitle>
         {!invoices || invoices.length === 0 ? (
-          <Empty text="لا توجد فواتير" icon={Wallet} />
+          <Empty text={t("studentDashboard.sessions.noInvoices")} icon={Wallet} />
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
             {invoices.map((inv, i) => {
@@ -795,12 +832,12 @@ function PageSessions({ sessions, enrollments, invoices, moduleMap }) {
                     </div>
                     <div style={{ fontSize: 11, color: "#64748B", marginTop: 3 }}>
                       📅 {inv.period ? String(inv.period).replace("-", "/") : "—"}
-                      {inv.dueDate ? ` · الاستحقاق: ${new Date(inv.dueDate).toLocaleDateString("ar-MA")}` : ""}
+                      {inv.dueDate ? ` · ${t("studentDashboard.sessions.dueDateLabel")} ${new Date(inv.dueDate).toLocaleDateString(dLocale)}` : ""}
                     </div>
                   </div>
                   <div style={{ textAlign: "center", flexShrink: 0 }}>
                     <div style={{ fontSize: 15, fontWeight: 800, color: INK, marginBottom: 4 }}>
-                      {inv.amount ? `${inv.amount} دج` : "—"}
+                      {inv.amount ? `${inv.amount} ${t("studentDashboard.currency")}` : "—"}
                     </div>
                     <Tag bg={st.bg} color={st.color}>{st.label}</Tag>
                   </div>
@@ -818,28 +855,31 @@ function PageSessions({ sessions, enrollments, invoices, moduleMap }) {
 // Page: الجدول الأسبوعي
 // ─────────────────────────────────────────────────────────
 function PageSchedule({ enrollments, moduleMap }) {
+  const { t } = useLanguage();
+  const fmtTime = (tm) => (tm ? String(tm).slice(0, 5) : "—");
+
   const byDay = {};
-  WEEK_ORDER.forEach((d) => { byDay[d] = []; });
+  DAY_KEYS.forEach((d) => { byDay[d] = []; });
 
   (enrollments || []).forEach((enr, idx) => {
     const mod = moduleMap[enr.moduleId ?? enr.module?.id];
     if (!mod) return;
     (mod.schedules || []).forEach((sch) => {
-      const dayAr = WEEK_DAYS_AR[sch.dayOfWeek] || sch.dayOfWeek;
-      if (byDay[dayAr]) byDay[dayAr].push({ ...sch, mod, idx });
+      const dayKey = sch.dayOfWeek;
+      if (byDay[dayKey]) byDay[dayKey].push({ ...sch, mod, idx });
     });
   });
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
       <Card>
-        <SecTitle icon={CalendarDays}>الجدول الأسبوعي</SecTitle>
+        <SecTitle icon={CalendarDays}>{t("studentDashboard.schedule.title")}</SecTitle>
         <div className="sd-week-grid sd-scroll" style={{
           display: "grid",
-          gridTemplateColumns: `repeat(${WEEK_ORDER.length}, 1fr)`,
+          gridTemplateColumns: `repeat(${DAY_KEYS.length}, 1fr)`,
           gap: 7,
         }}>
-          {WEEK_ORDER.map((day, di) => {
+          {DAY_KEYS.map((day, di) => {
             const slots = byDay[day];
             const isToday = false;
             return (
@@ -850,7 +890,7 @@ function PageSchedule({ enrollments, moduleMap }) {
                   borderRadius: 8, marginBottom: 6,
                   background: isToday ? "#EAF3FC" : "transparent",
                 }}>
-                  {day}
+                  {t(`dashboard.days.${day}`)}
                 </div>
                 {slots.length === 0
                   ? <div style={{
@@ -888,9 +928,9 @@ function PageSchedule({ enrollments, moduleMap }) {
       </Card>
 
       <Card delay={100}>
-        <SecTitle icon={BookOpen}>وحداتي الدراسية</SecTitle>
+        <SecTitle icon={BookOpen}>{t("studentDashboard.schedule.myModules")}</SecTitle>
         {(enrollments || []).length === 0
-          ? <Empty text="لا توجد وحدات مسجلة" icon={BookOpen} />
+          ? <Empty text={t("studentDashboard.schedule.noModules")} icon={BookOpen} />
           : (
             <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
               {(enrollments || []).map((enr, i) => {
@@ -915,7 +955,7 @@ function PageSchedule({ enrollments, moduleMap }) {
                       </div>
                       <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 3, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                         <span style={{ display: "flex", alignItems: "center", gap: 3 }}><GraduationCap size={11} /> {mod.teacherName || "—"}</span>
-                        <span>{mod.schedules?.length || 0} حصص/أسبوع</span>
+                        <span>{t("studentDashboard.schedule.sessionsPerWeek", { count: mod.schedules?.length || 0 })}</span>
                       </div>
                     </div>
                     <Tag bg="#fff" color={c.text}>{mod.level}</Tag>
@@ -934,10 +974,12 @@ function PageSchedule({ enrollments, moduleMap }) {
 // Page: مدارسي المسجلة
 // ─────────────────────────────────────────────────────────
 function PageSchools({ enrollments, moduleMap, invoices }) {
+  const { t } = useLanguage();
+
   const bySchool = {};
   (enrollments || []).forEach((enr) => {
     const sid = enr.schoolId ?? enr.school?.id ?? "unknown";
-    if (!bySchool[sid]) bySchool[sid] = { schoolId: sid, schoolName: enr.schoolName || enr.school?.name || `مدرسة #${sid}`, items: [] };
+    if (!bySchool[sid]) bySchool[sid] = { schoolId: sid, schoolName: enr.schoolName || enr.school?.name || t("studentDashboard.schools.schoolFallback", { id: sid }), items: [] };
     bySchool[sid].items.push(enr);
   });
   const schools = Object.values(bySchool);
@@ -957,7 +999,7 @@ function PageSchools({ enrollments, moduleMap, invoices }) {
             <School size={16} color={ACTION_DEEP} />
           </div>
           <div style={{ fontSize: 25, fontWeight: 800, color: ACTION_DEEP }}>{schools.length}</div>
-          <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4, fontWeight: 600 }}>مدارس مسجلة</div>
+          <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4, fontWeight: 600 }}>{t("studentDashboard.schools.registeredSchools")}</div>
         </Card>
         <Card delay={60} style={{ textAlign: "center", padding: "1.15rem 1rem" }}>
           <div style={{
@@ -967,14 +1009,14 @@ function PageSchools({ enrollments, moduleMap, invoices }) {
             <Wallet size={16} color={SUCCESS} />
           </div>
           <div style={{ fontSize: 21, fontWeight: 800, color: SUCCESS }}>
-            {totalInvoiced ? `${totalInvoiced} دج` : "—"}
+            {totalInvoiced ? `${totalInvoiced} ${t("studentDashboard.currency")}` : "—"}
           </div>
-          <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4, fontWeight: 600 }}>مستحق الدفع</div>
+          <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4, fontWeight: 600 }}>{t("studentDashboard.schools.amountDue")}</div>
         </Card>
       </div>
 
       {schools.length === 0
-        ? <Card><Empty text="لم تسجل في أي مدرسة بعد" icon={School} /></Card>
+        ? <Card><Empty text={t("studentDashboard.schools.noSchools")} icon={School} /></Card>
         : schools.map((school, si) => {
             const c = pal(si);
             return (
@@ -990,7 +1032,7 @@ function PageSchools({ enrollments, moduleMap, invoices }) {
                       {school.schoolName}
                     </div>
                     <div style={{ fontSize: 12, color: "#64748B", marginTop: 3 }}>
-                      {school.items.length} وحدة دراسية
+                      {t("studentDashboard.schools.moduleCount", { count: school.items.length })}
                     </div>
                   </div>
                 </div>
@@ -1008,11 +1050,11 @@ function PageSchools({ enrollments, moduleMap, invoices }) {
                       }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13, fontWeight: 700, color: c.text }}>
-                            {mod?.subjectName || mod?.name || `وحدة #${enr.moduleId}`}
+                            {mod?.subjectName || mod?.name || t("studentDashboard.sessions.moduleFallback", { id: enr.moduleId })}
                           </div>
                           {mod && (
                             <div style={{ fontSize: 11, color: "#64748B", marginTop: 3 }}>
-                              👨‍🏫 {mod.teacherName || "—"} · {mod.schedules?.length || 0} حصص/أسبوع
+                              👨‍🏫 {mod.teacherName || "—"} · {t("studentDashboard.schedule.sessionsPerWeek", { count: mod.schedules?.length || 0 })}
                             </div>
                           )}
                         </div>
@@ -1022,7 +1064,9 @@ function PageSchools({ enrollments, moduleMap, invoices }) {
                             bg={enr.status === "ACTIVE" ? SUCCESS_BG : WARNING_BG}
                             color={enr.status === "ACTIVE" ? SUCCESS : WARNING}
                           >
-                            {enr.status === "ACTIVE" ? "نشط" : enr.status === "PENDING" ? "قيد الانتظار" : enr.status}
+                            {enr.status === "ACTIVE" ? t("studentDashboard.enrollmentStatus.ACTIVE")
+                              : enr.status === "PENDING" ? t("studentDashboard.enrollmentStatus.PENDING")
+                              : enr.status}
                           </Tag>
                         )}
                       </div>
@@ -1041,6 +1085,7 @@ function PageSchools({ enrollments, moduleMap, invoices }) {
 // Page: بروفايل شخصي
 // ─────────────────────────────────────────────────────────
 function PageProfile({ profile, enrollments, moduleMap, onProfileUpdated }) {
+  const { t } = useLanguage();
   const [editing, setEditing] = useState(false);
   const [saving,  setSaving]  = useState(false);
   const [saved,   setSaved]   = useState(false);
@@ -1079,7 +1124,7 @@ function PageProfile({ profile, enrollments, moduleMap, onProfileUpdated }) {
       setEditing(false);
       onProfileUpdated?.();
     } catch (err) {
-      setSaveErr(err?.response?.data?.message || "فشل الحفظ، حاول مرة أخرى");
+      setSaveErr(err?.response?.data?.message || t("studentDashboard.profile.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -1122,7 +1167,7 @@ function PageProfile({ profile, enrollments, moduleMap, onProfileUpdated }) {
             color: editing ? "#64748B" : ACTION_DEEP,
             fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
           }}>
-            <Edit3 size={13} /> {editing ? "إلغاء" : "تعديل"}
+            <Edit3 size={13} /> {editing ? t("studentDashboard.profile.cancel") : t("studentDashboard.profile.edit")}
           </button>
         </div>
       </Card>
@@ -1130,17 +1175,17 @@ function PageProfile({ profile, enrollments, moduleMap, onProfileUpdated }) {
       <Card delay={80}>
         <SecTitle icon={User} action={saved && (
           <span className="sd-scale-in" style={{ fontSize: 12, color: SUCCESS, fontWeight: 700, display: "flex", alignItems: "center", gap: 5 }}>
-            <Check size={13} /> تم الحفظ بنجاح
+            <Check size={13} /> {t("studentDashboard.profile.savedSuccess")}
           </span>
         )}>
-          المعلومات الشخصية
+          {t("studentDashboard.profile.personalInfoTitle")}
         </SecTitle>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div className="sd-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <div>
               <label style={{ fontSize: 11, fontWeight: 700, color: "#64748B", display: "block", marginBottom: 5 }}>
-                البريد الإلكتروني
+                {t("studentDashboard.profile.emailLabel")}
               </label>
               <div style={{ fontSize: 13, color: "#94A3B8", padding: "9px 0", borderBottom: `1px solid ${LINE}` }}>
                 {profile?.email || "—"}
@@ -1148,7 +1193,7 @@ function PageProfile({ profile, enrollments, moduleMap, onProfileUpdated }) {
             </div>
             <div>
               <label style={{ fontSize: 11, fontWeight: 700, color: "#64748B", display: "block", marginBottom: 5 }}>
-                المستوى الدراسي
+                {t("studentDashboard.profile.levelLabel")}
               </label>
               <div style={{ fontSize: 13, color: "#94A3B8", padding: "9px 0", borderBottom: `1px solid ${LINE}` }}>
                 {profile?.level || "—"}
@@ -1158,7 +1203,7 @@ function PageProfile({ profile, enrollments, moduleMap, onProfileUpdated }) {
 
           <div>
             <label style={{ fontSize: 11, fontWeight: 700, color: "#64748B", display: "block", marginBottom: 5 }}>
-              الاسم الكامل
+              {t("studentDashboard.profile.fullNameLabel")}
             </label>
             {editing
               ? <input
@@ -1176,7 +1221,7 @@ function PageProfile({ profile, enrollments, moduleMap, onProfileUpdated }) {
           <div className="sd-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <div>
               <label style={{ fontSize: 11, fontWeight: 700, color: "#64748B", display: "block", marginBottom: 5 }}>
-                اسم ولي الأمر
+                {t("studentDashboard.profile.parentNameLabel")}
               </label>
               {editing
                 ? <input
@@ -1192,7 +1237,7 @@ function PageProfile({ profile, enrollments, moduleMap, onProfileUpdated }) {
             </div>
             <div>
               <label style={{ fontSize: 11, fontWeight: 700, color: "#64748B", display: "block", marginBottom: 5 }}>
-                هاتف ولي الأمر
+                {t("studentDashboard.profile.parentPhoneLabel")}
               </label>
               {editing
                 ? <input
@@ -1211,9 +1256,9 @@ function PageProfile({ profile, enrollments, moduleMap, onProfileUpdated }) {
           <hr style={{ border: "none", borderTop: `1px solid ${LINE}` }} />
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
             {[
-              { label: "مدارس مسجلة",  value: [...new Set((enrollments||[]).map(e => e.schoolId ?? e.school?.id))].length },
-              { label: "وحدات دراسية", value: (enrollments || []).length },
-              { label: "حصص أسبوعية", value: totalWeekly },
+              { label: t("studentDashboard.profile.statSchools"),  value: [...new Set((enrollments||[]).map(e => e.schoolId ?? e.school?.id))].length },
+              { label: t("studentDashboard.profile.statModules"), value: (enrollments || []).length },
+              { label: t("studentDashboard.profile.statWeeklySessions"), value: totalWeekly },
             ].map((stat) => (
               <div key={stat.label} style={{
                 background: CANVAS, borderRadius: 11,
@@ -1241,7 +1286,7 @@ function PageProfile({ profile, enrollments, moduleMap, onProfileUpdated }) {
                 border: `1.5px solid ${LINE}`, background: "#fff",
                 color: "#64748B", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
               }}>
-                إلغاء
+                {t("studentDashboard.profile.cancel")}
               </button>
               <button className="sd-btn" onClick={handleSave} disabled={saving} style={{
                 display: "flex", alignItems: "center", gap: 7,
@@ -1252,7 +1297,7 @@ function PageProfile({ profile, enrollments, moduleMap, onProfileUpdated }) {
                 boxShadow: saving ? "none" : `0 4px 12px -3px ${ACTION_DEEP}55`,
               }}>
                 {saving ? <Spinner size={13} color="#fff" /> : <Check size={13} />}
-                {saving ? "جاري الحفظ..." : "حفظ التعديلات"}
+                {saving ? t("studentDashboard.profile.saving") : t("studentDashboard.profile.saveChanges")}
               </button>
             </div>
           )}
@@ -1268,6 +1313,7 @@ function PageProfile({ profile, enrollments, moduleMap, onProfileUpdated }) {
 export default function StudentDashboard() {
   const navigate = useNavigate();
   const { logout } = useAuth?.() || {};
+  const { t, dir } = useLanguage();
   const [active, setActive] = useState("sessions");
   const [transitionKey, setTransitionKey] = useState(0);
 
@@ -1286,27 +1332,40 @@ const {
   reload: reloadCourseInvoices,
 } = useFetch(() => studentApi.getCourseInvoices());
 
+  const PAGE_TITLES = {
+    sessions: t("studentDashboard.pages.sessions.title"),
+    schedule: t("studentDashboard.pages.schedule.title"),
+    schools:  t("studentDashboard.pages.schools.title"),
+    profile:  t("studentDashboard.pages.profile.title"),
+  };
+  const PAGE_SUBTITLES = {
+    sessions: t("studentDashboard.pages.sessions.subtitle"),
+    schedule: t("studentDashboard.pages.schedule.subtitle"),
+    schools:  t("studentDashboard.pages.schools.subtitle"),
+    profile:  t("studentDashboard.pages.profile.subtitle"),
+  };
+
   // ── Core fetches (unchanged) ─────────────────────────
   const {
     data: profile,
     loading: profileLoading,
     error: profileError,
     reload: reloadProfile,
-  } = useFetch(() => studentApi.getProfile());
+  } = useFetch(() => studentApi.getProfile(), t("studentDashboard.errors.profileLoad"));
 
   const {
     data: enrollments,
     loading: enrollLoading,
     error: enrollError,
     reload: reloadEnroll,
-  } = useFetch(() => studentApi.getEnrollments());
+  } = useFetch(() => studentApi.getEnrollments(), t("studentDashboard.errors.enrollmentsLoad"));
 
   const {
     data: invoices,
     loading: invoicesLoading,
     error: invoicesError,
     reload: reloadInvoices,
-  } = useFetch(() => studentApi.getInvoices());
+  } = useFetch(() => studentApi.getInvoices(), t("studentDashboard.errors.invoicesLoad"));
 
   const schoolIds = enrollments
     ? [...new Set(enrollments.map((e) => e.schoolId ?? e.school?.id).filter(Boolean))]
@@ -1452,7 +1511,7 @@ const {
   };
 
   return (
-    <div dir="rtl" style={{
+    <div dir={dir} style={{
       display: "flex", minHeight: "100vh",
       fontFamily: "'Cairo', system-ui, Arial, sans-serif",
       background: CANVAS,
@@ -1487,7 +1546,7 @@ const {
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {isLoading && <Spinner size={16} />}
-            <button className="sd-btn" onClick={reloadAll} title="تحديث" style={{
+            <button className="sd-btn" onClick={reloadAll} title={t("studentDashboard.refresh")} style={{
               display: "flex", alignItems: "center", justifyContent: "center",
               width: 34, height: 34, borderRadius: 10,
               border: `1.5px solid ${LINE}`, background: "#fff",
@@ -1511,13 +1570,13 @@ const {
             borderRadius: "50%", background: "rgba(255,255,255,.05)",
           }} />
           <div style={{ position: "relative", zIndex: 1 }}>
-            <div style={{ fontSize: 11.5, color: "#8FBFEA", marginBottom: 3, fontWeight: 600 }}>مرحباً بك،</div>
+            <div style={{ fontSize: 11.5, color: "#8FBFEA", marginBottom: 3, fontWeight: 600 }}>{t("studentDashboard.welcome.greeting")}</div>
             <h2 style={{ fontSize: 19, fontWeight: 800, color: "#fff", margin: 0, letterSpacing: "-.01em" }}>
-              {profileLoading ? "جاري التحميل..." : (profile?.fullName || "—")}
+              {profileLoading ? t("studentDashboard.common.loading") : (profile?.fullName || "—")}
             </h2>
             {profile?.level && !profileLoading && (
               <div style={{ fontSize: 11.5, color: "#A8CCEC", marginTop: 5, display: "flex", alignItems: "center", gap: 5 }}>
-                <GraduationCap size={12} /> المستوى: {profile.level}
+                <GraduationCap size={12} /> {t("studentDashboard.welcome.levelLabel")} {profile.level}
               </div>
             )}
           </div>

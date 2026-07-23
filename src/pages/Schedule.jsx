@@ -5,6 +5,7 @@ import {
   Calendar, LayoutGrid, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { useAuth } from "../context/authContext";
+import { useLanguage } from "../context/LanguageContext";
 import api from "../api";
 
 // ══════════════════════════════════════════════════════════════════
@@ -28,7 +29,6 @@ const scheduleApi = {
 // ══════════════════════════════════════════════════════════════════
 //  CONSTANTS
 // ══════════════════════════════════════════════════════════════════
-const DAYS_AR = ["الجمعة", "السبت", "الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس"];
 const DAY_TO_IDX = {
   FRIDAY: 0, SATURDAY: 1, SUNDAY: 2,
   MONDAY: 3, TUESDAY: 4, WEDNESDAY: 5, THURSDAY: 6,
@@ -36,7 +36,7 @@ const DAY_TO_IDX = {
 const IDX_TO_DAY = ["FRIDAY","SATURDAY","SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY"];
 
 const fmtTime = (t) => (t ? String(t).slice(0, 5) : "—");
-const toLocalDate = (d) => d.toLocaleDateString("fr-CA"); // YYYY-MM-DD
+const toLocalDate = (d) => d.toLocaleDateString("fr-CA"); // YYYY-MM-DD (ISO key format, not display)
 
 const PALETTE = [
   { bg: "#EEF2FF", text: "#4338CA", border: "#C7D2FE", accent: "#6366F1" },
@@ -51,17 +51,6 @@ const PALETTE = [
 const colFor = (id) => PALETTE[(Number(id) || 0) % PALETTE.length];
 const P = "#185FA5";
 
-const PRICING_BADGE = {
-  MONTHLY_FLAT: { label: "شهري", bg: "#EBF4FE", color: "#185FA5" },
-  PER_SESSION:  { label: "/حصة", bg: "#FAEEDA", color: "#854F0B" },
-};
-
-const inp_css = {
-  padding: "9px 12px", borderRadius: 9, border: "1.5px solid #E2E8F0",
-  fontSize: 13, fontFamily: "'Cairo',sans-serif", color: "#0F172A",
-  background: "#FAFCFF", outline: "none", width: "100%", boxSizing: "border-box",
-};
-
 // ══════════════════════════════════════════════════════════════════
 //  SHARED PRIMITIVES
 // ══════════════════════════════════════════════════════════════════
@@ -75,10 +64,11 @@ function Spinner({ size = 18, color = P }) {
 }
 
 function ModalWrap({ onClose, children, maxWidth = 420 }) {
+  const { dir } = useLanguage();
   return (
     <div onClick={(e) => e.target === e.currentTarget && onClose()}
       style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 300, padding: "1rem", backdropFilter: "blur(2px)" }}>
-      <div dir="rtl" style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth, border: "1.5px solid #E2E8F0", overflow: "hidden", fontFamily: "'Cairo',sans-serif", maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,.18)" }}>
+      <div dir={dir} style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth, border: "1.5px solid #E2E8F0", overflow: "hidden", fontFamily: "'Cairo',sans-serif", maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,.18)" }}>
         {children}
       </div>
     </div>
@@ -130,10 +120,21 @@ function ErrorBox({ msg }) {
   ) : null;
 }
 
+const inp_css = {
+  padding: "9px 12px", borderRadius: 9, border: "1.5px solid #E2E8F0",
+  fontSize: 13, fontFamily: "'Cairo',sans-serif", color: "#0F172A",
+  background: "#FAFCFF", outline: "none", width: "100%", boxSizing: "border-box",
+};
+
 // ══════════════════════════════════════════════════════════════════
-//  ADD SESSION MODAL — unchanged logic, kept as-is
+//  ADD SESSION MODAL
 // ══════════════════════════════════════════════════════════════════
 function AddModal({ modules, defaultDayIdx, onClose, onCreated }) {
+  const { t, locale } = useLanguage();
+  const PRICING_BADGE = {
+    MONTHLY_FLAT: { label: t("schedule.pricing.monthly"), bg: "#EBF4FE", color: "#185FA5" },
+    PER_SESSION:  { label: t("schedule.pricing.perSession"), bg: "#FAEEDA", color: "#854F0B" },
+  };
   const [modName, setModName] = useState("");
   const [date,    setDate]    = useState(() => new Date().toISOString().split("T")[0]);
   const [start,   setStart]   = useState("08:00");
@@ -155,35 +156,35 @@ function AddModal({ modules, defaultDayIdx, onClose, onCreated }) {
   };
 
   const handleSave = async () => {
-    if (!modName)       return setError("اختر وحدة دراسية");
-    if (!date)          return setError("أدخل التاريخ");
-    if (!start || !end) return setError("أدخل وقت البداية والنهاية");
-    if (start >= end)   return setError("وقت البداية يجب أن يكون قبل النهاية");
+    if (!modName)       return setError(t("schedule.addModal.errors.selectModule"));
+    if (!date)          return setError(t("schedule.addModal.errors.enterDate"));
+    if (!start || !end) return setError(t("schedule.addModal.errors.enterTimes"));
+    if (start >= end)   return setError(t("schedule.addModal.errors.startBeforeEnd"));
     setSaving(true); setError("");
     try {
       const res = await scheduleApi.createSession({ courseModuleName: modName, date, startTime: start, endTime: end });
       onCreated(res.data);
       onClose();
     } catch (err) {
-      setError(err?.response?.data?.message || "فشل إنشاء الحصة");
+      setError(err?.response?.data?.message || t("schedule.addModal.errors.createFailed"));
     } finally { setSaving(false); }
   };
 
   return (
     <ModalWrap onClose={onClose} maxWidth={380}>
-      <ModalHeader title="إضافة حصة" onClose={onClose} />
+      <ModalHeader title={t("schedule.addModal.title")} onClose={onClose} />
       <div style={{ padding: "1.1rem 1.25rem", display: "flex", flexDirection: "column", gap: 13, overflowY: "auto" }}>
         <div>
-          <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 5 }}>الوحدة الدراسية *</label>
+          <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 5 }}>{t("schedule.addModal.moduleLabel")}</label>
           <div style={{ position: "relative" }}>
             <button onClick={() => setOpen((p) => !p)}
               style={{ ...inp_css, textAlign: "right", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", border: open ? `1.5px solid ${P}` : "1.5px solid #E2E8F0" }}>
-              <span style={{ color: modName ? "#0F172A" : "#94A3B8" }}>{modName || "اختر وحدة…"}</span>
+              <span style={{ color: modName ? "#0F172A" : "#94A3B8" }}>{modName || t("schedule.addModal.modulePlaceholder")}</span>
               <ChevronDown size={14} color="#94A3B8" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
             </button>
             {open && (
               <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "#fff", border: "1.5px solid #E2E8F0", borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,.12)", zIndex: 50, maxHeight: 200, overflowY: "auto" }}>
-                {modules.length === 0 && <div style={{ padding: "12px 14px", fontSize: 12, color: "#94A3B8" }}>لا توجد وحدات دراسية</div>}
+                {modules.length === 0 && <div style={{ padding: "12px 14px", fontSize: 12, color: "#94A3B8" }}>{t("schedule.addModal.noModules")}</div>}
                 {modules.map((m) => {
                   const c = colFor(m.id); const selected = m.name === modName;
                   return (
@@ -192,7 +193,7 @@ function AddModal({ modules, defaultDayIdx, onClose, onCreated }) {
                       <div style={{ width: 8, height: 8, borderRadius: "50%", background: c.accent, flexShrink: 0 }} />
                       <div>
                         <div style={{ fontWeight: 600 }}>{m.name}</div>
-                        {m.teacherName && <div style={{ fontSize: 10, color: "#94A3B8", marginTop: 1 }}>👨‍🏫 {m.teacherName}</div>}
+                        {m.teacherName && <div style={{ fontSize: 10, color: "#94A3B8", marginTop: 1 }}>{t("schedule.attendance.teacherLabel", { name: m.teacherName })}</div>}
                       </div>
                       {selected && <Check size={13} style={{ marginRight: "auto" }} color={c.text} />}
                     </div>
@@ -203,16 +204,16 @@ function AddModal({ modules, defaultDayIdx, onClose, onCreated }) {
           </div>
         </div>
         <div>
-          <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 5 }}>التاريخ *</label>
+          <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 5 }}>{t("schedule.addModal.dateLabel")}</label>
           <input style={inp_css} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <div>
-            <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 5 }}>وقت البداية *</label>
+            <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 5 }}>{t("schedule.addModal.startLabel")}</label>
             <input style={inp_css} type="time" value={start} onChange={(e) => setStart(e.target.value)} />
           </div>
           <div>
-            <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 5 }}>وقت النهاية *</label>
+            <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 5 }}>{t("schedule.addModal.endLabel")}</label>
             <input style={inp_css} type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
           </div>
         </div>
@@ -220,7 +221,7 @@ function AddModal({ modules, defaultDayIdx, onClose, onCreated }) {
           <div style={{ background: colFor(chosenMod.id).bg, border: `1px solid ${colFor(chosenMod.id).border}`, borderRadius: 10, padding: "10px 14px" }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: colFor(chosenMod.id).text }}>{modName}</div>
             <div style={{ fontSize: 11, color: colFor(chosenMod.id).text, opacity: .7, marginTop: 3 }}>
-              📅 {date ? new Date(date).toLocaleDateString("ar-MA", { weekday: "long", day: "numeric", month: "long" }) : "—"}
+              📅 {date ? new Date(date).toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" }) : "—"}
               &nbsp;&nbsp;🕐 {start} – {end}
             </div>
           </div>
@@ -228,17 +229,18 @@ function AddModal({ modules, defaultDayIdx, onClose, onCreated }) {
         <ErrorBox msg={error} />
       </div>
       <ModalFooter>
-        <BtnGhost onClick={onClose} label="إلغاء" />
-        <BtnPrimary onClick={handleSave} loading={saving} icon={Plus} label={saving ? "جارٍ الحفظ..." : "إضافة الحصة"} />
+        <BtnGhost onClick={onClose} label={t("schedule.addModal.cancel")} />
+        <BtnPrimary onClick={handleSave} loading={saving} icon={Plus} label={saving ? t("schedule.addModal.saving") : t("schedule.addModal.save")} />
       </ModalFooter>
     </ModalWrap>
   );
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  EDIT TIMING MODAL — unchanged
+//  EDIT TIMING MODAL
 // ══════════════════════════════════════════════════════════════════
 function EditModal({ slot, onClose, onSaved }) {
+  const { t } = useLanguage();
   const c = colFor(slot.moduleId);
   const [start,   setStart]   = useState(fmtTime(slot.startTime));
   const [end,     setEnd]     = useState(fmtTime(slot.endTime));
@@ -246,8 +248,8 @@ function EditModal({ slot, onClose, onSaved }) {
   const [error,   setError]   = useState("");
 
   const handleSave = async () => {
-    if (!start || !end) return setError("أكمل جميع الحقول");
-    if (start >= end)   return setError("وقت البداية يجب أن يكون قبل النهاية");
+    if (!start || !end) return setError(t("schedule.editModal.errors.fillAll"));
+    if (start >= end)   return setError(t("schedule.editModal.errors.startBeforeEnd"));
     setSaving(true); setError("");
     try {
       await scheduleApi.updateSchedule(slot.moduleId, slot.day, {
@@ -257,7 +259,7 @@ function EditModal({ slot, onClose, onSaved }) {
       onSaved({ ...slot, startTime: start + ":00", endTime: end + ":00" });
       onClose();
     } catch (err) {
-      setError(err?.response?.data?.message || "فشل تعديل التوقيت");
+      setError(err?.response?.data?.message || t("schedule.editModal.errors.updateFailed"));
     } finally { setSaving(false); }
   };
 
@@ -265,7 +267,7 @@ function EditModal({ slot, onClose, onSaved }) {
     <ModalWrap onClose={onClose} maxWidth={340}>
       <div style={{ padding: "1rem 1.25rem", background: c.bg, borderBottom: `1.5px solid ${c.border}`, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: c.text }}>تعديل التوقيت</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: c.text }}>{t("schedule.editModal.title")}</div>
           <div style={{ fontSize: 11, color: c.text, opacity: .75, marginTop: 2 }}>{slot.subjectName ?? slot.moduleName}</div>
         </div>
         <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${c.border}`, background: "rgba(255,255,255,.5)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -275,31 +277,32 @@ function EditModal({ slot, onClose, onSaved }) {
       <div style={{ padding: "1.1rem 1.25rem", display: "flex", flexDirection: "column", gap: 13 }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <div>
-            <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 5 }}>وقت البداية</label>
+            <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 5 }}>{t("schedule.editModal.startLabel")}</label>
             <input style={inp_css} type="time" value={start} onChange={(e) => setStart(e.target.value)} />
           </div>
           <div>
-            <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 5 }}>وقت النهاية</label>
+            <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 5 }}>{t("schedule.editModal.endLabel")}</label>
             <input style={inp_css} type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
           </div>
         </div>
         <div style={{ fontSize: 11, color: "#94A3B8", background: "#F8FAFC", borderRadius: 8, padding: "8px 12px" }}>
-          ℹ️ سيتم تحديث التوقيت لكل حصص هذا اليوم في قاعدة البيانات
+          {t("schedule.editModal.note")}
         </div>
         <ErrorBox msg={error} />
       </div>
       <ModalFooter>
-        <BtnGhost onClick={onClose} label="إلغاء" />
-        <BtnPrimary onClick={handleSave} loading={saving} icon={Check} label={saving ? "جارٍ الحفظ..." : "حفظ"} />
+        <BtnGhost onClick={onClose} label={t("schedule.editModal.cancel")} />
+        <BtnPrimary onClick={handleSave} loading={saving} icon={Check} label={saving ? t("schedule.editModal.saving") : t("schedule.editModal.save")} />
       </ModalFooter>
     </ModalWrap>
   );
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  ARCHIVE MODAL — unchanged
+//  ARCHIVE MODAL
 // ══════════════════════════════════════════════════════════════════
 function ArchiveModal({ slot, onClose, onConfirm }) {
+  const { t } = useLanguage();
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState("");
 
@@ -309,43 +312,43 @@ function ArchiveModal({ slot, onClose, onConfirm }) {
       await scheduleApi.archiveModule(slot.moduleId);
       onConfirm(slot);
     } catch (err) {
-      setError(err?.response?.data?.message || "فشل حذف الوحدة");
+      setError(err?.response?.data?.message || t("schedule.archiveModal.errors.archiveFailed"));
       setSaving(false);
     }
   };
 
   return (
     <ModalWrap onClose={onClose} maxWidth={340}>
-      <ModalHeader title="أرشفة الوحدة الدراسية" onClose={onClose} />
+      <ModalHeader title={t("schedule.archiveModal.title")} onClose={onClose} />
       <div style={{ padding: "1.5rem 1.25rem", display: "flex", flexDirection: "column", alignItems: "center", gap: 14, textAlign: "center" }}>
         <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#FEF2F2", border: "2px solid #FECACA", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Trash2 size={22} color="#DC2626" />
         </div>
         <p style={{ fontSize: 13, color: "#475569", lineHeight: 1.7, margin: 0 }}>
-          هل أنت متأكد من أرشفة وحدة{" "}
-          <strong style={{ color: "#0F172A" }}>{slot.subjectName ?? slot.moduleName}</strong>؟
+          {t("schedule.archiveModal.confirmQuestion", { name: slot.subjectName ?? slot.moduleName })}
           <br />
           <span style={{ fontSize: 11, color: "#94A3B8" }}>
-            سيتم أرشفة الوحدة وجميع حصصها المستقبلية.
+            {t("schedule.archiveModal.note")}
           </span>
         </p>
         <ErrorBox msg={error} />
       </div>
       <ModalFooter>
-        <BtnGhost onClick={onClose} label="إلغاء" />
-        <BtnPrimary onClick={handleConfirm} loading={saving} icon={Trash2} label={saving ? "جارٍ الأرشفة..." : "أرشفة"} danger />
+        <BtnGhost onClick={onClose} label={t("schedule.archiveModal.cancel")} />
+        <BtnPrimary onClick={handleConfirm} loading={saving} icon={Trash2} label={saving ? t("schedule.archiveModal.archiving") : t("schedule.archiveModal.confirm")} danger />
       </ModalFooter>
     </ModalWrap>
   );
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  REAL ATTENDANCE SHEET MODAL — now session-based, not module-based
+//  REAL ATTENDANCE SHEET MODAL — session-based
 //  Uses GET /api/sessions/{id}/attendance-sheet
 //       POST /api/sessions/{id}/attendance
 // ══════════════════════════════════════════════════════════════════
 function AttendanceSheetModal({ session, onClose }) {
   const { user } = useAuth();
+  const { t, locale } = useLanguage();
   const c = colFor(session.moduleId);
 
   const [sheet,     setSheet]     = useState(null);   // AttendanceSheetDto
@@ -361,15 +364,15 @@ function AttendanceSheetModal({ session, onClose }) {
       .then((r) => {
         setSheet(r.data);
         const initMarks = {};
-      
+
         (r.data.students ?? []).forEach((s) => {
           if (s.status) initMarks[s.studentId] = s.status;
-      
+
         });
         setMarks(initMarks);
-   
+
       })
-      .catch((err) => setError(err?.response?.data?.message || "فشل تحميل ورقة الحضور"))
+      .catch((err) => setError(err?.response?.data?.message || t("schedule.attendance.loadFailed")))
       .finally(() => setLoading(false));
   }, [session.id]);
 
@@ -394,23 +397,23 @@ function AttendanceSheetModal({ session, onClose }) {
         .map((s) => ({
           studentId: s.studentId,
           status:    marks[s.studentId],
-        
+
         }));
 
       await scheduleApi.submitAttendance(session.id, entries,user);
       setSubmitted(true);
       setTimeout(onClose, 900);
     } catch (err) {
-      setError(err?.response?.data?.message || "فشل حفظ الحضور");
+      setError(err?.response?.data?.message || t("schedule.attendance.saveFailed"));
     } finally {
       setSaving(false);
     }
   };
 
   const STATUS_BTNS = [
-    { key: "PRESENT", Icon: Check,        activeColor: "#0F6E56", activeBg: "#E1F5EE", title: "حاضر" },
-    { key: "ABSENT",  Icon: XCircle,      activeColor: "#DC2626", activeBg: "#FEE2E2", title: "غائب" },
-   
+    { key: "PRESENT", Icon: Check,        activeColor: "#0F6E56", activeBg: "#E1F5EE", title: t("schedule.attendance.presentTitle") },
+    { key: "ABSENT",  Icon: XCircle,      activeColor: "#DC2626", activeBg: "#FEE2E2", title: t("schedule.attendance.absentTitle") },
+
   ];
 
   return (
@@ -422,9 +425,9 @@ function AttendanceSheetModal({ session, onClose }) {
               {sheet?.subjectName ?? session.subjectName ?? session.moduleName}
             </div>
             <div style={{ fontSize: 11, color: c.text, opacity: .8, marginTop: 3, display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <span>👨‍🏫 {sheet?.teacherName ?? session.teacherName ?? "—"}</span>
+              <span>{t("schedule.attendance.teacherLabel", { name: sheet?.teacherName ?? session.teacherName ?? "—" })}</span>
               <span>🕐 {fmtTime(sheet?.startTime ?? session.startTime)} – {fmtTime(sheet?.endTime ?? session.endTime)}</span>
-              <span>📅 {sheet?.date ? new Date(sheet.date).toLocaleDateString("ar-MA", { day: "numeric", month: "long" }) : "—"}</span>
+              <span>📅 {sheet?.date ? new Date(sheet.date).toLocaleDateString(locale, { day: "numeric", month: "long" }) : "—"}</span>
             </div>
           </div>
           <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${c.border}`, background: "rgba(255,255,255,.5)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -435,19 +438,19 @@ function AttendanceSheetModal({ session, onClose }) {
         {!loading && (
           <div style={{ display: "flex", gap: 7, marginTop: 10, flexWrap: "wrap" }}>
             <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "rgba(255,255,255,.6)", color: c.text, border: `1px solid ${c.border}` }}>
-              👥 {students.length} طالب
+              {t("schedule.attendance.studentsCount", { count: students.length })}
             </span>
             <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "rgba(16,185,129,.15)", color: c.text, border: `1px solid ${c.border}` }}>
-              ✓ {presentCount} حاضر
+              {t("schedule.attendance.presentCount", { count: presentCount })}
             </span>
             <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "rgba(239,68,68,.15)", color: c.text, border: `1px solid ${c.border}` }}>
-              ✗ {absentCount} غائب
+              {t("schedule.attendance.absentCount", { count: absentCount })}
             </span>
-           
+
             {students.length > 0 && (
               <>
-                <button onClick={() => markAll("PRESENT")} style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "#E1F5EE", color: "#0F6E56", border: "1px solid #A7F3D0", cursor: "pointer", fontFamily: "inherit" }}>✓ الكل حاضر</button>
-                <button onClick={() => markAll("ABSENT")} style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "#FEE2E2", color: "#DC2626", border: "1px solid #FECACA", cursor: "pointer", fontFamily: "inherit" }}>✗ الكل غائب</button>
+                <button onClick={() => markAll("PRESENT")} style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "#E1F5EE", color: "#0F6E56", border: "1px solid #A7F3D0", cursor: "pointer", fontFamily: "inherit" }}>{t("schedule.attendance.markAllPresent")}</button>
+                <button onClick={() => markAll("ABSENT")} style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "#FEE2E2", color: "#DC2626", border: "1px solid #FECACA", cursor: "pointer", fontFamily: "inherit" }}>{t("schedule.attendance.markAllAbsent")}</button>
               </>
             )}
           </div>
@@ -465,14 +468,14 @@ function AttendanceSheetModal({ session, onClose }) {
         ) : students.length === 0 ? (
           <div style={{ padding: "2.5rem", textAlign: "center", color: "#94A3B8", fontSize: 13 }}>
             <Users size={32} color="#E2E8F0" style={{ marginBottom: 8 }} />
-            <div>لا يوجد تلاميذ مسجلين في هذه الوحدة</div>
+            <div>{t("schedule.attendance.noStudents")}</div>
           </div>
         ) : students.map((s, i) => {
           const status = marks[s.studentId];
           const rowBg =
             status === "PRESENT" ? "rgba(225,245,238,.55)" :
             status === "ABSENT"  ? "rgba(254,226,226,.45)" :
-          
+
             "#fff";
           return (
             <div key={s.studentId} style={{ padding: "10px 1.25rem", borderBottom: i < students.length - 1 ? "1px solid #F8FAFC" : "none", background: rowBg, transition: "background .2s" }}>
@@ -493,7 +496,7 @@ function AttendanceSheetModal({ session, onClose }) {
                   ))}
                 </div>
               </div>
-         
+
             </div>
           );
         })}
@@ -502,10 +505,10 @@ function AttendanceSheetModal({ session, onClose }) {
       {error && sheet && <div style={{ padding: "0 1.25rem" }}><ErrorBox msg={error} /></div>}
 
       <div style={{ padding: ".85rem 1.25rem", borderTop: "1.5px solid #F1F5F9", background: "#FAFCFF", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
-        <span style={{ fontSize: 11, color: "#94A3B8" }}>{markedCount} / {students.length} تم تسجيلهم</span>
+        <span style={{ fontSize: 11, color: "#94A3B8" }}>{t("schedule.attendance.markedCount", { marked: markedCount, total: students.length })}</span>
         <button onClick={handleSave} disabled={submitted || saving || students.length === 0}
           style={{ padding: "8px 20px", borderRadius: 9, border: "none", background: submitted ? "#10B981" : P, color: "#fff", fontSize: 13, fontWeight: 600, cursor: submitted ? "default" : "pointer", fontFamily: "'Cairo',sans-serif", display: "flex", alignItems: "center", gap: 6, transition: "background .3s" }}>
-          {saving ? <Spinner size={14} color="#fff" /> : submitted ? <><Check size={14} /> تم الحفظ</> : "حفظ الحضور"}
+          {saving ? <Spinner size={14} color="#fff" /> : submitted ? <><Check size={14} /> {t("schedule.attendance.saved")}</> : t("schedule.attendance.save")}
         </button>
       </div>
     </ModalWrap>
@@ -517,7 +520,12 @@ function AttendanceSheetModal({ session, onClose }) {
 //  Uses GET /api/sessions/by-date
 // ══════════════════════════════════════════════════════════════════
 function AgendaSessionRow({ session, onAttendance }) {
+  const { t } = useLanguage();
   const c  = colFor(session.moduleId);
+  const PRICING_BADGE = {
+    MONTHLY_FLAT: { label: t("schedule.pricing.monthly"), bg: "#EBF4FE", color: "#185FA5" },
+    PER_SESSION:  { label: t("schedule.pricing.perSession"), bg: "#FAEEDA", color: "#854F0B" },
+  };
   const pm = PRICING_BADGE[session.pricingModel];
 
   return (
@@ -552,8 +560,8 @@ function AgendaSessionRow({ session, onAttendance }) {
           )}
         </div>
         <div style={{ fontSize: 11, color: "#64748B", marginTop: 2, display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <span>👨‍🏫 {session.teacherName}</span>
-          <span>👥 {session.enrolledCount ?? 0} مسجّل</span>
+          <span>{t("schedule.attendance.teacherLabel", { name: session.teacherName })}</span>
+          <span>{t("schedule.agenda.enrolledCount", { count: session.enrolledCount ?? 0 })}</span>
         </div>
       </div>
 
@@ -570,13 +578,14 @@ function AgendaSessionRow({ session, onAttendance }) {
         }}
       >
         <Users size={12} />
-        {session.attendanceMarked ? "✓ تم التسجيل" : "تسجيل الحضور"}
+        {session.attendanceMarked ? t("schedule.agenda.attendanceDone") : t("schedule.agenda.markAttendance")}
       </button>
     </div>
   );
 }
 
 function AgendaView({ schoolId, onAttendance, refreshKey }) {
+  const { t, locale } = useLanguage();
   const [date,     setDate]     = useState(new Date());
   const [sessions, setSessions] = useState([]);
   const [loading,  setLoading]  = useState(true);
@@ -612,11 +621,11 @@ function AgendaView({ schoolId, onAttendance, refreshKey }) {
           </button>
           <div style={{ textAlign: "center", minWidth: 160 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
-              {date.toLocaleDateString("ar-MA", { weekday: "long", day: "numeric", month: "long" })}
+              {date.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" })}
             </div>
             {isToday && (
               <span style={{ fontSize: 9, fontWeight: 600, color: "#0F6E56", background: "#E1F5EE", padding: "1px 8px", borderRadius: 20, border: "1px solid #A7F3D0" }}>
-                اليوم
+                {t("schedule.agenda.today")}
               </span>
             )}
           </div>
@@ -627,7 +636,7 @@ function AgendaView({ schoolId, onAttendance, refreshKey }) {
 
         {!isToday && (
           <button onClick={() => setDate(new Date())} style={{ fontSize: 11, padding: "5px 12px", borderRadius: 8, border: `1.5px solid ${P}`, background: "#EBF4FE", color: P, cursor: "pointer", fontFamily: "inherit" }}>
-            العودة لليوم
+            {t("schedule.agenda.backToToday")}
           </button>
         )}
 
@@ -645,14 +654,14 @@ function AgendaView({ schoolId, onAttendance, refreshKey }) {
       ) : sessions.length === 0 ? (
         <div style={{ textAlign: "center", padding: "3rem", color: "#94A3B8" }}>
           <Calendar size={32} color="#E2E8F0" style={{ marginBottom: 10 }} />
-          <div style={{ fontSize: 13 }}>لا توجد حصص في هذا اليوم</div>
+          <div style={{ fontSize: 13 }}>{t("schedule.agenda.noSessions")}</div>
         </div>
       ) : (
         <>
           <div style={{ display: "flex", gap: 14, marginBottom: 12, fontSize: 11, color: "#64748B" }}>
-            <span>{sessions.length} حصة</span>
-            <span style={{ color: "#0F6E56" }}>✓ {sessions.filter((s) => s.attendanceMarked).length} مسجّل</span>
-            <span style={{ color: "#BA7517" }}>⏳ {sessions.filter((s) => !s.attendanceMarked).length} بانتظار</span>
+            <span>{t("schedule.agenda.sessionsCount", { count: sessions.length })}</span>
+            <span style={{ color: "#0F6E56" }}>{t("schedule.agenda.markedCount", { count: sessions.filter((s) => s.attendanceMarked).length })}</span>
+            <span style={{ color: "#BA7517" }}>{t("schedule.agenda.pendingCount", { count: sessions.filter((s) => !s.attendanceMarked).length })}</span>
           </div>
           {sessions
             .slice()
@@ -670,7 +679,12 @@ function AgendaView({ schoolId, onAttendance, refreshKey }) {
 //  WEEK GRID VIEW — existing drag/drop timetable, kept mostly as-is
 // ══════════════════════════════════════════════════════════════════
 function ModuleChip({ slot, onEdit, onArchive, onDragStart, onDragEnd }) {
+  const { t } = useLanguage();
   const c = colFor(slot.moduleId);
+  const PRICING_BADGE = {
+    MONTHLY_FLAT: { label: t("schedule.pricing.monthly"), bg: "#EBF4FE", color: "#185FA5" },
+    PER_SESSION:  { label: t("schedule.pricing.perSession"), bg: "#FAEEDA", color: "#854F0B" },
+  };
   const pm = PRICING_BADGE[slot.pricingModel];
   const [hov, setHov] = useState(false);
 
@@ -700,8 +714,8 @@ function ModuleChip({ slot, onEdit, onArchive, onDragStart, onDragEnd }) {
       {hov && (
         <div style={{ position: "absolute", bottom: 3, left: 3, display: "flex", gap: 3 }}>
           {[
-            { Icon: Edit2,  color: "#475569", fn: () => onEdit(slot),    title: "تعديل" },
-            { Icon: Trash2, color: "#DC2626", fn: () => onArchive(slot), title: "أرشفة" },
+            { Icon: Edit2,  color: "#475569", fn: () => onEdit(slot),    title: t("schedule.grid.edit") },
+            { Icon: Trash2, color: "#DC2626", fn: () => onArchive(slot), title: t("schedule.grid.archive") },
           ].map(({ Icon, color, fn, title }) => (
             <button key={title} title={title} onClick={(e) => { e.stopPropagation(); fn(); }}
               style={{ width: 22, height: 22, borderRadius: 6, border: "none", background: "rgba(255,255,255,.85)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 4px rgba(0,0,0,.1)" }}>
@@ -726,6 +740,8 @@ function DropCell({ dayIdx, timeSlot, children, onDrop }) {
 }
 
 function WeekGrid({ modules, onAddModal, setEditSlot, setArchiveSlot, onModuleArchived }) {
+  const { t } = useLanguage();
+  const DAYS = t("schedule.days");
   const [slots, setSlots] = useState([]);
   const dragging = useRef(null);
 
@@ -794,14 +810,14 @@ function WeekGrid({ modules, onAddModal, setEditSlot, setArchiveSlot, onModuleAr
           <thead>
             <tr style={{ borderBottom: "1.5px solid #F1F5F9", background: "#FAFCFF" }}>
               <th style={{ padding: "11px 10px", fontSize: 11, fontWeight: 700, color: "#94A3B8", textAlign: "right", width: 70 }}>
-                <Clock size={12} style={{ verticalAlign: "middle", marginLeft: 3 }} /> الوقت
+                <Clock size={12} style={{ verticalAlign: "middle", marginLeft: 3 }} /> {t("schedule.grid.timeHeader")}
               </th>
-              {DAYS_AR.map((d, i) => (
+              {DAYS.map((d, i) => (
                 <th key={d} style={{ padding: "11px 8px", fontSize: 11, fontWeight: 700, color: "#475569", textAlign: "center" }}>
                   <div>{d}</div>
                   <button onClick={() => onAddModal(i)}
                     style={{ marginTop: 4, fontSize: 9, padding: "2px 8px", borderRadius: 20, border: "1px dashed #CBD5E1", background: "transparent", color: "#94A3B8", cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 3 }}>
-                    <Plus size={8} /> حصة
+                    <Plus size={8} /> {t("schedule.grid.addSessionShort")}
                   </button>
                 </th>
               ))}
@@ -812,8 +828,8 @@ function WeekGrid({ modules, onAddModal, setEditSlot, setArchiveSlot, onModuleAr
               <tr>
                 <td colSpan={8} style={{ textAlign: "center", padding: "3rem", color: "#94A3B8", fontSize: 13 }}>
                   <BookOpen size={32} color="#E2E8F0" style={{ marginBottom: 10 }} />
-                  <div>لا توجد حصص في الجدول</div>
-                  <div style={{ fontSize: 11, marginTop: 4 }}>انقر على "إضافة حصة" لتسجيل حصة جديدة</div>
+                  <div>{t("schedule.grid.emptyTitle")}</div>
+                  <div style={{ fontSize: 11, marginTop: 4 }}>{t("schedule.grid.emptyHint")}</div>
                 </td>
               </tr>
             ) : allTimes.map((time, ri) => (
@@ -821,7 +837,7 @@ function WeekGrid({ modules, onAddModal, setEditSlot, setArchiveSlot, onModuleAr
                 <td style={{ padding: "6px 10px", whiteSpace: "nowrap", verticalAlign: "top", paddingTop: 10 }}>
                   <span style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8" }}>{time}</span>
                 </td>
-                {DAYS_AR.map((_, dayIdx) => {
+                {DAYS.map((_, dayIdx) => {
                   const key    = `${dayIdx}_${time}`;
                   const inCell = byDayTime[key] ?? [];
                   return (
@@ -842,7 +858,7 @@ function WeekGrid({ modules, onAddModal, setEditSlot, setArchiveSlot, onModuleAr
       {slots.length > 0 && (
         <div style={{ fontSize: 11, color: "#94A3B8", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 5, marginTop: 12 }}>
           <GripVertical size={11} />
-          اسحب أي حصة إلى يوم أو وقت آخر لإعادة جدولتها
+          {t("schedule.grid.dragHint")}
         </div>
       )}
     </>
@@ -854,6 +870,7 @@ function WeekGrid({ modules, onAddModal, setEditSlot, setArchiveSlot, onModuleAr
 // ══════════════════════════════════════════════════════════════════
 export default function Schedule() {
   const { user } = useAuth();
+  const { t, dir } = useLanguage();
   const schoolId = user?.schoolId;
 
   const [view, setView] = useState("agenda"); // "agenda" | "grid"
@@ -868,14 +885,14 @@ export default function Schedule() {
   const [attendanceSession, setAttendanceSession] = useState(null);
 
   const loadModules = useCallback(async () => {
-    if (!schoolId) { setLoading(false); setError("لم يتم تحديد المدرسة، يرجى تسجيل الدخول مجدداً"); return; }
+    if (!schoolId) { setLoading(false); setError(t("schedule.errors.noSchool")); return; }
     setLoading(true); setError(null);
     try {
       const res  = await scheduleApi.getModules();
       const mods = res.data?.content ?? res.data ?? [];
       setModules(mods.filter((m) => !m.archived));
     } catch (err) {
-      setError(err?.response?.data?.message || "خطأ في تحميل البيانات");
+      setError(err?.response?.data?.message || t("schedule.errors.loadFailed"));
     } finally { setLoading(false); }
   }, [schoolId]);
 
@@ -893,14 +910,14 @@ export default function Schedule() {
   const totalSessions = modules.reduce((sum, m) => sum + (m.schedules?.length ?? 0), 0);
 
   return (
-    <div dir="rtl" style={{ padding: "1.25rem 1.5rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+    <div dir={dir} style={{ padding: "1.25rem 1.5rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
         <div>
-          <h1 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0 }}>الجدول الدراسي</h1>
+          <h1 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("schedule.title")}</h1>
           <p style={{ fontSize: 12, color: "#94A3B8", margin: "3px 0 0" }}>
-            {loading ? "..." : `${totalSessions} حصة أسبوعية عبر ${modules.length} وحدة`}
+            {loading ? t("schedule.loading") : t("schedule.subtitle", { sessions: totalSessions, modules: modules.length })}
           </p>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -908,18 +925,18 @@ export default function Schedule() {
           <div style={{ display: "flex", padding: 3, borderRadius: 10, background: "#fff", border: "1.5px solid #E2E8F0" }}>
             <button onClick={() => setView("agenda")}
               style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, fontFamily: "inherit", background: view === "agenda" ? P : "transparent", color: view === "agenda" ? "#fff" : "#64748B" }}>
-              <Calendar size={12} /> أجندة
+              <Calendar size={12} /> {t("schedule.views.agenda")}
             </button>
             <button onClick={() => setView("grid")}
               style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, fontFamily: "inherit", background: view === "grid" ? P : "transparent", color: view === "grid" ? "#fff" : "#64748B" }}>
-              <LayoutGrid size={12} /> جدول
+              <LayoutGrid size={12} /> {t("schedule.views.grid")}
             </button>
           </div>
           <button onClick={loadModules} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-            <RefreshCw size={13} /> تحديث
+            <RefreshCw size={13} /> {t("schedule.actions.refresh")}
           </button>
           <button onClick={() => setAddModal({ defaultDayIdx: null })} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 9, border: "none", background: P, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-            <Plus size={14} /> إضافة حصة
+            <Plus size={14} /> {t("schedule.actions.addSession")}
           </button>
         </div>
       </div>
@@ -931,7 +948,7 @@ export default function Schedule() {
           <AlertCircle size={36} color="#E2A84B" />
           <p style={{ color: "#64748B", fontSize: 13, margin: 0 }}>{error}</p>
           <button onClick={loadModules} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 9, border: `1.5px solid ${P}`, background: "#EBF4FE", color: P, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-            <RefreshCw size={13} /> إعادة المحاولة
+            <RefreshCw size={13} /> {t("schedule.actions.retry")}
           </button>
         </div>
       ) : view === "agenda" ? (

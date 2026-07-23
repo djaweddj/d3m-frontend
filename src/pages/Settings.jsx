@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import { Upload, School, Save, Loader2, X, Lock, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 import { useAuth } from "../context/authContext";
-import { uploadSchoolLogo} from "../api";
+import { useLanguage } from "../context/LanguageContext";
+import api, { uploadSchoolLogo } from "../api";
 import { toast } from "sonner";
-import {useSchool} from "../context/SchoolContext" 
+import { useSchool } from "../context/SchoolContext";
 
 // Keep these in sync with the backend's FileValidator
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
@@ -12,12 +13,14 @@ const ALLOWED_TYPES = ["image/png", "image/svg+xml"];
 const BRAND = "#185FA5";
 
 export default function Settings() {
+  const { t, dir } = useLanguage();
+
   // useAuth gives: { user, school, updateSchool }
-  const { user,  updateSchool } = useAuth();
-  const {school}=useSchool();
-  console.log("school",school)
+  const { user, updateSchool } = useAuth();
+  const { school } = useSchool();
+
   const changePassword = (data) =>
-  api.put("/auth/change-password", data);
+    api.put("/auth/change-password", data);
 
   // ── Logo upload state — driven by the backend ──
   const [uploading, setUploading] = useState(false);
@@ -36,11 +39,11 @@ export default function Settings() {
 
   const validateFile = (file) => {
     if (!ALLOWED_TYPES.includes(file.type)) {
-      toast.error("صيغة الملف غير مدعومة — PNG أو SVG فقط");
+      toast.error(t("settings.logo.toasts.invalidFormat"));
       return false;
     }
     if (file.size > MAX_FILE_SIZE) {
-      toast.error("حجم الملف يتجاوز 2 ميغابايت");
+      toast.error(t("settings.logo.toasts.fileTooLarge"));
       return false;
     }
     return true;
@@ -63,7 +66,7 @@ export default function Settings() {
       setLocalPreview(null);
       updateSchool?.({ logoUrl: updatedLogoUrl });
 
-      toast.success("تم تحديث شعار المدرسة بنجاح");
+      toast.success(t("settings.logo.toasts.uploadSuccess"));
     } catch (err) {
       URL.revokeObjectURL(objectUrl);
       setLocalPreview(null);
@@ -72,13 +75,13 @@ export default function Settings() {
       const serverMessage = err?.response?.data?.error;
 
       if (status === 413) {
-        toast.error("حجم الملف يتجاوز الحد المسموح به");
+        toast.error(t("settings.logo.toasts.tooLarge413"));
       } else if (status === 400) {
-        toast.error(serverMessage || "الملف غير صالح");
+        toast.error(serverMessage || t("settings.logo.toasts.invalidFile400"));
       } else if (status === 401 || status === 403) {
-        toast.error("غير مصرح لك برفع الشعار");
+        toast.error(t("settings.logo.toasts.unauthorized"));
       } else {
-        toast.error("تعذر رفع الشعار — حاول مرة أخرى");
+        toast.error(t("settings.logo.toasts.uploadFailedGeneric"));
       }
     } finally {
       setUploading(false);
@@ -104,19 +107,19 @@ export default function Settings() {
     // NOTE: this only clears local UI state. For real deletion on the backend
     // (removing the Cloudinary asset + clearing logoUrl), wire this to a
     // DELETE /schools/logo endpoint instead.
-    toast.info("للحذف الفعلي يرجى التواصل مع الدعم");
+    toast.info(t("settings.logo.toasts.removeInfo"));
   };
 
-  const schoolName = school?.schoolName ?? user?.fullName ?? "المدرسة";
+  const schoolName = school?.schoolName ?? user?.fullName ?? t("settings.logo.schoolFallback");
 
   return (
-    <div dir="rtl" style={{ padding: "1.25rem", fontFamily: "'Cairo', sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
+    <div dir={dir} style={{ padding: "1.25rem", fontFamily: "'Cairo', sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
 
       {/* Page title */}
       <div style={{ marginBottom: "1.25rem" }}>
-        <h1 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0 }}>إعدادات المدرسة</h1>
+        <h1 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("settings.pageTitle")}</h1>
         <p style={{ fontSize: 12, color: "#94A3B8", marginTop: 3, margin: 0 }}>
-          شعار المدرسة وإعدادات الأمان الخاصة بحسابك
+          {t("settings.pageSubtitle")}
         </p>
       </div>
 
@@ -135,7 +138,7 @@ export default function Settings() {
           onRemove={removeLogo}
         />
 
-        <PasswordCard />
+        <PasswordCard changePassword={changePassword} />
 
       </div>
 
@@ -159,6 +162,8 @@ function LogoCard({
   schoolName, logoUrl, uploading, uploadProgress,
   dragActive, setDragActive, fileRef, onFile, onDrop, onRemove,
 }) {
+  const { t } = useLanguage();
+
   return (
     <div style={{
       background: "#fff", borderRadius: 16, border: "1px solid #E8EEF6",
@@ -172,8 +177,8 @@ function LogoCard({
           <School size={15} color={BRAND} />
         </div>
         <div>
-          <p style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", margin: 0 }}>شعار المدرسة</p>
-          <p style={{ fontSize: 11, color: "#94A3B8", margin: 0 }}>PNG أو SVG · حد أقصى 2 ميغابايت</p>
+          <p style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("settings.logo.title")}</p>
+          <p style={{ fontSize: 11, color: "#94A3B8", margin: 0 }}>{t("settings.logo.subtitle")}</p>
         </div>
       </div>
 
@@ -191,7 +196,7 @@ function LogoCard({
           overflow: "hidden", boxShadow: logoUrl ? "0 1px 3px rgba(15,23,42,0.06)" : "none",
         }}>
           {logoUrl ? (
-            <img src={logoUrl} alt="الشعار" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+            <img src={logoUrl} alt={t("settings.logo.altText")} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
           ) : (
             <School size={22} color="#fff" />
           )}
@@ -201,13 +206,13 @@ function LogoCard({
             {schoolName}
           </p>
           <p style={{ fontSize: 10.5, color: "#94A3B8", margin: 0 }}>
-            {logoUrl ? "الشعار الحالي" : "لا يوجد شعار مرفوع بعد"}
+            {logoUrl ? t("settings.logo.currentLogo") : t("settings.logo.noLogoYet")}
           </p>
         </div>
         {logoUrl && !uploading && (
           <button
             onClick={onRemove}
-            title="حذف الشعار"
+            title={t("settings.logo.removeTitle")}
             style={{
               width: 28, height: 28, borderRadius: 8, flexShrink: 0,
               background: "#fff", border: "1px solid #FECACA", color: "#DC2626",
@@ -244,7 +249,7 @@ function LogoCard({
           <>
             <Loader2 size={24} color={BRAND} style={{ margin: "0 auto 8px", animation: "spin 1s linear infinite" }} />
             <p style={{ fontSize: 12, color: BRAND, margin: 0, fontWeight: 700 }}>
-              جاري الرفع... {uploadProgress}%
+              {t("settings.logo.dropzoneUploading", { percent: uploadProgress })}
             </p>
             <div style={{ width: "60%", margin: "10px auto 0", height: 5, borderRadius: 4, background: "#E8EEF6", overflow: "hidden" }}>
               <div style={{ height: "100%", width: `${uploadProgress}%`, background: BRAND, transition: "width .2s ease", borderRadius: 4 }} />
@@ -258,8 +263,8 @@ function LogoCard({
             }}>
               <Upload size={18} color="#94A3B8" />
             </div>
-            <p style={{ fontSize: 12.5, color: "#334155", margin: 0, fontWeight: 600 }}>اسحب الصورة هنا أو اضغط للاختيار</p>
-            <p style={{ fontSize: 10.5, color: "#CBD5E1", margin: "3px 0 0" }}>PNG · SVG — حتى 2MB</p>
+            <p style={{ fontSize: 12.5, color: "#334155", margin: 0, fontWeight: 600 }}>{t("settings.logo.dropzoneIdleTitle")}</p>
+            <p style={{ fontSize: 10.5, color: "#CBD5E1", margin: "3px 0 0" }}>{t("settings.logo.dropzoneHint")}</p>
           </>
         )}
       </button>
@@ -318,7 +323,9 @@ function PasswordField({ label, value, onChange, show, toggleShow, placeholder, 
   );
 }
 
-function PasswordCard() {
+function PasswordCard({ changePassword }) {
+  const { t } = useLanguage();
+
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -341,27 +348,27 @@ function PasswordCard() {
   })();
 
   const strengthMeta = [
-    { label: "ضعيفة جدًا", color: "#DC2626" },
-    { label: "ضعيفة", color: "#DC2626" },
-    { label: "متوسطة", color: "#D97706" },
-    { label: "جيدة", color: "#059669" },
-    { label: "قوية", color: "#059669" },
+    { label: t("settings.password.strength.veryWeak"), color: "#DC2626" },
+    { label: t("settings.password.strength.weak"), color: "#DC2626" },
+    { label: t("settings.password.strength.medium"), color: "#D97706" },
+    { label: t("settings.password.strength.good"), color: "#059669" },
+    { label: t("settings.password.strength.strong"), color: "#059669" },
   ][strength];
 
   const validate = () => {
     const next = {};
-    if (!oldPassword) next.oldPassword = "أدخل كلمة المرور الحالية";
+    if (!oldPassword) next.oldPassword = t("settings.password.errors.oldRequired");
     if (!newPassword) {
-      next.newPassword = "أدخل كلمة مرور جديدة";
+      next.newPassword = t("settings.password.errors.newRequired");
     } else if (newPassword.length < MIN_LEN) {
-      next.newPassword = `يجب ألا تقل عن ${MIN_LEN} أحرف`;
+      next.newPassword = t("settings.password.errors.newTooShort", { min: MIN_LEN });
     } else if (newPassword === oldPassword) {
-      next.newPassword = "يجب أن تختلف عن كلمة المرور الحالية";
+      next.newPassword = t("settings.password.errors.newSameAsOld");
     }
     if (!confirmPassword) {
-      next.confirmPassword = "أعد إدخال كلمة المرور الجديدة";
+      next.confirmPassword = t("settings.password.errors.confirmRequired");
     } else if (confirmPassword !== newPassword) {
-      next.confirmPassword = "كلمتا المرور غير متطابقتين";
+      next.confirmPassword = t("settings.password.errors.confirmMismatch");
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -384,7 +391,7 @@ function PasswordCard() {
       // { oldPassword, newPassword } and return 200 on success —
       // matches ChangePassword DTO + AuthController#changePassword.
       await changePassword({ oldPassword, newPassword });
-      toast.success("تم تغيير كلمة المرور بنجاح");
+      toast.success(t("settings.password.successToast"));
       reset();
     } catch (err) {
       const status = err?.response?.status;
@@ -392,11 +399,11 @@ function PasswordCard() {
 
       if (status === 400) {
         // Backend returns "Old password is incorrect" as plain text on 400
-        setErrors({ oldPassword: "كلمة المرور الحالية غير صحيحة" });
+        setErrors({ oldPassword: t("settings.password.errors.wrongOldPassword") });
       } else if (status === 401) {
-        toast.error("انتهت الجلسة — الرجاء تسجيل الدخول من جديد");
+        toast.error(t("settings.password.errors.sessionExpired"));
       } else {
-        toast.error(serverMessage || "تعذر تغيير كلمة المرور — حاول مرة أخرى");
+        toast.error(serverMessage || t("settings.password.errors.genericError"));
       }
     } finally {
       setSubmitting(false);
@@ -416,30 +423,30 @@ function PasswordCard() {
           <Lock size={14} color={BRAND} />
         </div>
         <div>
-          <p style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", margin: 0 }}>تغيير كلمة المرور</p>
-          <p style={{ fontSize: 11, color: "#94A3B8", margin: 0 }}>حافظ على أمان حسابك بكلمة مرور قوية</p>
+          <p style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("settings.password.title")}</p>
+          <p style={{ fontSize: 11, color: "#94A3B8", margin: 0 }}>{t("settings.password.subtitle")}</p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <PasswordField
-          label="كلمة المرور الحالية"
+          label={t("settings.password.currentLabel")}
           value={oldPassword}
           onChange={(e) => { setOldPassword(e.target.value); if (errors.oldPassword) setErrors((p) => ({ ...p, oldPassword: undefined })); }}
           show={showOld}
           toggleShow={() => setShowOld((s) => !s)}
-          placeholder="••••••••"
+          placeholder={t("settings.password.currentPlaceholder")}
           error={errors.oldPassword}
         />
 
         <div>
           <PasswordField
-            label="كلمة المرور الجديدة"
+            label={t("settings.password.newLabel")}
             value={newPassword}
             onChange={(e) => { setNewPassword(e.target.value); if (errors.newPassword) setErrors((p) => ({ ...p, newPassword: undefined })); }}
             show={showNew}
             toggleShow={() => setShowNew((s) => !s)}
-            placeholder="8 أحرف على الأقل"
+            placeholder={t("settings.password.newPlaceholder")}
             error={errors.newPassword}
           />
           {newPassword && (
@@ -461,18 +468,18 @@ function PasswordCard() {
         </div>
 
         <PasswordField
-          label="تأكيد كلمة المرور الجديدة"
+          label={t("settings.password.confirmLabel")}
           value={confirmPassword}
           onChange={(e) => { setConfirmPassword(e.target.value); if (errors.confirmPassword) setErrors((p) => ({ ...p, confirmPassword: undefined })); }}
           show={showConfirm}
           toggleShow={() => setShowConfirm((s) => !s)}
-          placeholder="••••••••"
+          placeholder={t("settings.password.confirmPlaceholder")}
           error={errors.confirmPassword}
         />
         {confirmPassword && confirmPassword === newPassword && !errors.confirmPassword && (
           <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: -8, animation: "fadeSlideIn .15s ease" }}>
             <CheckCircle2 size={12} color="#059669" />
-            <span style={{ fontSize: 10.5, color: "#059669", fontWeight: 600 }}>متطابقتان</span>
+            <span style={{ fontSize: 10.5, color: "#059669", fontWeight: 600 }}>{t("settings.password.matchLabel")}</span>
           </div>
         )}
 
@@ -490,7 +497,7 @@ function PasswordCard() {
           onMouseLeave={(e) => { if (!submitting) e.currentTarget.style.opacity = "1"; }}
         >
           {submitting ? <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> : <Save size={15} />}
-          {submitting ? "جاري الحفظ..." : "حفظ كلمة المرور الجديدة"}
+          {submitting ? t("settings.password.submitting") : t("settings.password.submit")}
         </button>
       </form>
     </div>

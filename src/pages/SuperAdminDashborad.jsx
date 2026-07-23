@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/authContext";
 import api from "../api";
 
 // ══════════════════════════════════════════════════════════════════
@@ -1151,6 +1153,10 @@ const NAV = [
 export default function SuperAdminDashboard() {
   const [activePage, setActivePage] = useState("overview");
   const [pendingCount, setPendingCount] = useState(null);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const { user, logout } = useAuth();
+  const routerNavigate = useNavigate();
 
   useEffect(() => {
     api.get("/api/platform/dashboard")
@@ -1168,6 +1174,16 @@ export default function SuperAdminDashboard() {
   const navigate = (key) => {
     setActivePage(key);
     if (key === "overview" || key === "requests") refreshBadge();
+  };
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await logout();
+    } finally {
+      setLoggingOut(false);
+      routerNavigate("/login");
+    }
   };
 
   return (
@@ -1243,15 +1259,37 @@ export default function SuperAdminDashboard() {
           })}
         </nav>
 
-        {/* Footer */}
+        {/* Footer — user info + logout */}
         <div style={{
           padding: "12px 18px",
           borderTop: `0.5px solid ${T.border}`,
         }}>
           <div style={{ fontSize: 10, color: T.textMuted }}>Signed in as</div>
-          <div style={{ fontSize: 12, fontWeight: 500, color: T.text, marginTop: 2 }}>
-            Super Admin
+          <div style={{
+            fontSize: 12, fontWeight: 500, color: T.text,
+            marginTop: 2, marginBottom: 10,
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}>
+            {user?.fullName || user?.email || "Super Admin"}
           </div>
+          <button
+            onClick={handleLogout}
+            disabled={loggingOut}
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+              width: "100%", padding: "7px 10px",
+              border: `0.5px solid ${T.border}`, borderRadius: 8,
+              background: "transparent", color: T.red600,
+              fontFamily: "inherit", fontSize: 12, fontWeight: 500,
+              cursor: loggingOut ? "not-allowed" : "pointer",
+              opacity: loggingOut ? 0.6 : 1,
+              transition: "background .1s",
+            }}
+            onMouseEnter={e => { if (!loggingOut) e.currentTarget.style.background = T.red50; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+          >
+            {loggingOut ? <Spinner size={12} color={T.red600} /> : "🚪"} Logout
+          </button>
         </div>
       </aside>
 

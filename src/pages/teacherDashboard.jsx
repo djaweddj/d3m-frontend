@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../context/authContext";
 
-const API = import.meta.env.VITE_API_URL+`/api`;
+const API = "http://localhost:8080/api";
 
 function getToken() {
   return localStorage.getItem("accessToken");

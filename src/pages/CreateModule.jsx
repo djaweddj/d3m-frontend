@@ -2,21 +2,45 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Trash2, ChevronDown, Check, ArrowRight, AlertCircle, Calendar, CreditCard } from "lucide-react";
 import api from "../api";
+// NOTE: adjust this path to wherever your LanguageProvider file actually lives
+// (the same one Students.jsx / Schedule.jsx / Sidebar.jsx already import).
+import { useLanguage } from "../context/LanguageContext";
 
 const getSubjects   = ()  => api.get("/api/subjects").then(r => r.data);
 const getTeachers   = ()  => api.get("/api/teachers").then(r => r.data?.content ?? r.data ?? []);
 const getClassrooms = ()  => api.get("/api/classrooms").then(r => r.data);
 const postModule    = (d) => api.post("/api/modules", d).then(r => r.data);
 
-const DAYS = [
-  { value: "SATURDAY",  label: "السبت"    },
-  { value: "SUNDAY",    label: "الأحد"    },
-  { value: "MONDAY",    label: "الإثنين"  },
-  { value: "TUESDAY",   label: "الثلاثاء" },
-  { value: "WEDNESDAY", label: "الأربعاء" },
-  { value: "THURSDAY",  label: "الخميس"  },
-  { value: "FRIDAY",    label: "الجمعة"   },
+// Day order is language-agnostic (backend enum values). Labels come from
+// the existing dashboard.days.* keys so we don't duplicate translations.
+const DAY_VALUES = ["SATURDAY", "SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"];
+
+// Level keys are language-agnostic. IMPORTANT: the value actually stored/submitted
+// stays the ORIGINAL ARABIC string (LEVEL_CANONICAL_AR), same as before this change,
+// so existing data/backend/other pages that compare or display `level` keep working
+// no matter which UI language is active. Only the on-screen *label* is translated.
+const LEVEL_KEYS = [
+  "preparatory", "primary1", "primary2", "primary3", "primary4", "primary5",
+  "middle1", "middle2", "middle3", "middle4",
+  "secondary1", "secondary2", "secondary3", "other",
 ];
+const LEVEL_CANONICAL_AR = {
+  preparatory: "التحضيري",
+  primary1: "السنة الأولى ابتدائي",
+  primary2: "السنة الثانية ابتدائي",
+  primary3: "السنة الثالثة ابتدائي",
+  primary4: "السنة الرابعة ابتدائي",
+  primary5: "السنة الخامسة ابتدائي",
+  middle1: "السنة الأولى متوسط",
+  middle2: "السنة الثانية متوسط",
+  middle3: "السنة الثالثة متوسط",
+  middle4: "السنة الرابعة متوسط",
+  secondary1: "السنة الأولى ثانوي",
+  secondary2: "السنة الثانية ثانوي",
+  secondary3: "السنة الثالثة ثانوي (البكالوريا)",
+  other: "مستوى آخر...",
+};
+const OTHER_LEVEL_VALUE = LEVEL_CANONICAL_AR.other;
 
 const P = "#185FA5";
 
@@ -49,6 +73,7 @@ function TextInput({ value, onChange, placeholder, type = "text", min, disabled 
 }
 
 function Select({ value, onChange, options, placeholder }) {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const selected = options.find(o => o.value === value);
   return (
@@ -74,7 +99,7 @@ function Select({ value, onChange, options, placeholder }) {
         }}>
           {options.length === 0 ? (
             <div style={{ padding: "12px 14px", fontSize: 12, color: "#94A3B8", textAlign: "center" }}>
-              لا توجد بيانات
+              {t("createModule.noData")}
             </div>
           ) : options.map(o => (
             <div key={o.value} onClick={() => { onChange(o.value); setOpen(false); }}
@@ -166,8 +191,9 @@ function PricingModelCard({ value, current, onClick, title, desc, icon: Icon, ex
   );
 }
 
-function ScheduleRow({ entry, onChange, onRemove, usedDays }) {
-  const availableDays = DAYS.filter(d => !usedDays.includes(d.value) || d.value === entry.day);
+function ScheduleRow({ entry, onChange, onRemove, usedDays, days }) {
+  const { t } = useLanguage();
+  const availableDays = days.filter(d => !usedDays.includes(d.value) || d.value === entry.day);
   return (
     <div style={{
       display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto",
@@ -176,17 +202,17 @@ function ScheduleRow({ entry, onChange, onRemove, usedDays }) {
       background: "#F8FAFC", border: "1.5px solid #E2E8F0",
     }}>
       <Field>
-        <Label>اليوم</Label>
+        <Label>{t("createModule.schedule.day")}</Label>
         <Select value={entry.day} onChange={v => onChange({ ...entry, day: v })}
           options={availableDays.map(d => ({ value: d.value, label: d.label }))}
-          placeholder="اختر يوماً" />
+          placeholder={t("createModule.schedule.chooseDay")} />
       </Field>
       <Field>
-        <Label>وقت البداية</Label>
+        <Label>{t("createModule.schedule.startTime")}</Label>
         <TextInput type="time" value={entry.startTime} onChange={v => onChange({ ...entry, startTime: v })} />
       </Field>
       <Field>
-        <Label>وقت النهاية</Label>
+        <Label>{t("createModule.schedule.endTime")}</Label>
         <TextInput type="time" value={entry.endTime} onChange={v => onChange({ ...entry, endTime: v })} />
       </Field>
       <button type="button" onClick={onRemove}
@@ -203,6 +229,7 @@ function ScheduleRow({ entry, onChange, onRemove, usedDays }) {
 
 export default function CreateModule() {
   const navigate = useNavigate();
+  const { t, dir } = useLanguage();
 
   const [subjects,    setSubjects]    = useState([]);
   const [teachers,    setTeachers]    = useState([]);
@@ -225,25 +252,16 @@ export default function CreateModule() {
   const [saving,         setSaving]         = useState(false);
   const [error,          setError]          = useState(null);
   const [success,        setSuccess]        = useState(false);
-  
-const [customLevel, setCustomLevel] = useState("");
 
-const levels = [
-  "التحضيري",
-  "السنة الأولى ابتدائي",
-  "السنة الثانية ابتدائي",
-  "السنة الثالثة ابتدائي",
-  "السنة الرابعة ابتدائي",
-  "السنة الخامسة ابتدائي",
-  "السنة الأولى متوسط",
-  "السنة الثانية متوسط",
-  "السنة الثالثة متوسط",
-  "السنة الرابعة متوسط",
-  "السنة الأولى ثانوي",
-  "السنة الثانية ثانوي",
-  "السنة الثالثة ثانوي (البكالوريا)",
-  "مستوى آخر...",
-];
+  const [customLevel, setCustomLevel] = useState("");
+
+  // Labels are translated; the stored/submitted value stays the canonical Arabic
+  // string so it matches what's already in your database and other pages.
+  const DAYS = DAY_VALUES.map(v => ({ value: v, label: t(`dashboard.days.${v}`) }));
+  const levels = LEVEL_KEYS.map(k => ({
+    value: LEVEL_CANONICAL_AR[k],
+    label: t(`createModule.levels.${k}`),
+  }));
 
   useEffect(() => {
     Promise.all([getSubjects(), getTeachers(), getClassrooms()])
@@ -252,16 +270,20 @@ const levels = [
         setTeachers((Array.isArray(t) ? t : []).filter(tc => !tc.archived));
         setClassrooms(c?.content ?? c ?? []);
       })
-      .catch(() => setDataError("فشل تحميل البيانات. أعد تحميل الصفحة."))
+      .catch(() => setDataError(t("createModule.loadError")))
       .finally(() => setDataLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const teacherOptions = teachers
-    .filter(t => !subjectId || !t.subjectIds?.length || t.subjectIds.includes(Number(subjectId)))
-    .map(t => ({ value: String(t.id), label: `${t.fullName}${t.specialization ? " — " + t.specialization : ""}` }));
+    .filter(tc => !subjectId || !tc.subjectIds?.length || tc.subjectIds.includes(Number(subjectId)))
+    .map(tc => ({ value: String(tc.id), label: `${tc.fullName}${tc.specialization ? " — " + tc.specialization : ""}` }));
 
   const subjectOptions   = subjects.map(s => ({ value: String(s.id), label: s.name }));
-  const classroomOptions = classrooms.map(c => ({ value: String(c.id), label: `${c.name} (${c.capacity} طالب)` }));
+  const classroomOptions = classrooms.map(c => ({
+    value: String(c.id),
+    label: t("createModule.assignment.classroomCapacity", { name: c.name, capacity: c.capacity }),
+  }));
 
   const usedDays = schedules.map(s => s.day);
   const weeklySessionCount = schedules.filter(s => s.day).length;
@@ -271,24 +293,24 @@ const levels = [
       : null;
 
   const validate = () => {
-    if (!name.trim())    return "أدخل اسم الوحدة";
-    if (!subjectId)      return "اختر المادة الدراسية";
-    if (!teacherId)      return "اختر الأستاذ";
-    if (!classroomId)    return "اختر الفصل";
-    if (!level.trim())   return "أدخل المستوى";
-    if (!maxStudents || Number(maxStudents) < 1) return "أدخل الحد الأقصى للطلاب";
+    if (!name.trim())    return t("createModule.errors.moduleName");
+    if (!subjectId)      return t("createModule.errors.subject");
+    if (!teacherId)      return t("createModule.errors.teacher");
+    if (!classroomId)    return t("createModule.errors.classroom");
+    if (!level.trim())   return t("createModule.errors.level");
+    if (!maxStudents || Number(maxStudents) < 1) return t("createModule.errors.maxStudents");
     if (pricingModel === "MONTHLY_FLAT" && (!monthlyPrice || Number(monthlyPrice) <= 0))
-      return "أدخل السعر الشهري";
+      return t("createModule.errors.monthlyPrice");
     if (pricingModel === "PER_SESSION" && (!pricePerSession || Number(pricePerSession) <= 0))
-      return "أدخل سعر الحصة الواحدة";
-    if (!periodStart)    return "أدخل تاريخ بداية الفترة";
-    if (!periodEnd)      return "أدخل تاريخ نهاية الفترة";
-    if (periodStart >= periodEnd) return "تاريخ البداية يجب أن يكون قبل تاريخ النهاية";
-    if (schedules.length === 0)   return "أضف يوماً دراسياً على الأقل";
+      return t("createModule.errors.perSessionPrice");
+    if (!periodStart)    return t("createModule.errors.periodStart");
+    if (!periodEnd)      return t("createModule.errors.periodEnd");
+    if (periodStart >= periodEnd) return t("createModule.errors.periodOrder");
+    if (schedules.length === 0)   return t("createModule.errors.atLeastOneDay");
     for (const s of schedules) {
-      if (!s.day)                     return "اختر اليوم لكل صف في الجدول";
-      if (!s.startTime || !s.endTime) return "أدخل الوقت لكل صف في الجدول";
-      if (s.startTime >= s.endTime)   return "وقت البداية يجب أن يكون قبل وقت النهاية";
+      if (!s.day)                     return t("createModule.errors.chooseDayEachRow");
+      if (!s.startTime || !s.endTime) return t("createModule.errors.enterTimeEachRow");
+      if (s.startTime >= s.endTime)   return t("createModule.errors.timeOrder");
     }
     return null;
   };
@@ -303,7 +325,7 @@ const levels = [
         subjectId:      Number(subjectId),
         teacherId:      Number(teacherId),
         classroomId:    Number(classroomId),
-        level:          "مستوى آخر..." ? customLevel : level,
+        level: level === OTHER_LEVEL_VALUE ? customLevel : level,
         maxStudents:    Number(maxStudents),
         pricingModel,
         monthlyprice:    pricingModel === "MONTHLY_FLAT" ? Number(monthlyPrice)    : null,
@@ -319,22 +341,22 @@ const levels = [
       setSuccess(true);
       setTimeout(() => navigate("/schedule"), 1200);
     } catch (err) {
-      setError(err?.response?.data?.message || "فشل إنشاء الوحدة. تحقق من البيانات.");
+      setError(err?.response?.data?.message || t("createModule.errors.submitFailed"));
     } finally { setSaving(false); }
   };
 
   if (dataLoading) return (
-    <div dir="rtl" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh", fontFamily: "'Cairo',sans-serif" }}>
+    <div dir={dir} style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh", fontFamily: "'Cairo',sans-serif" }}>
       <div style={{ textAlign: "center", color: "#94A3B8" }}>
         <div style={{ width: 36, height: 36, borderRadius: "50%", border: `3px solid ${P}`, borderTopColor: "transparent", animation: "spin .8s linear infinite", margin: "0 auto 12px" }} />
-        <div style={{ fontSize: 13 }}>جارٍ تحميل البيانات...</div>
+        <div style={{ fontSize: 13 }}>{t("createModule.loading")}</div>
         <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       </div>
     </div>
   );
 
   if (dataError) return (
-    <div dir="rtl" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh", fontFamily: "'Cairo',sans-serif" }}>
+    <div dir={dir} style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh", fontFamily: "'Cairo',sans-serif" }}>
       <div style={{ textAlign: "center", color: "#EF4444" }}>
         <AlertCircle size={36} style={{ marginBottom: 10 }} />
         <div style={{ fontSize: 13 }}>{dataError}</div>
@@ -343,7 +365,7 @@ const levels = [
   );
 
   return (
-    <div dir="rtl" style={{ padding: "1.5rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
+    <div dir={dir} style={{ padding: "1.5rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
 
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: "1.5rem" }}>
@@ -352,9 +374,9 @@ const levels = [
           <ArrowRight size={16} color="#64748B" />
         </button>
         <div>
-          <h1 style={{ fontSize: 18, fontWeight: 700, color: "#0F172A", margin: 0 }}>إنشاء وحدة دراسية جديدة</h1>
+          <h1 style={{ fontSize: 18, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("createModule.pageTitle")}</h1>
           <p style={{ fontSize: 12, color: "#94A3B8", margin: "3px 0 0" }}>
-            سيتم توليد جميع الحصص تلقائياً بناءً على الجدول والفترة الزمنية
+            {t("createModule.pageSubtitle")}
           </p>
         </div>
       </div>
@@ -362,92 +384,92 @@ const levels = [
       <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 780 }}>
 
         {/* Basic Info */}
-        <SectionCard title="المعلومات الأساسية" subtitle="اسم الوحدة والمستوى الدراسي">
+        <SectionCard title={t("createModule.basicInfo.title")} subtitle={t("createModule.basicInfo.subtitle")}>
           <Row cols={2}>
             <Field>
-              <Label required>اسم الوحدة</Label>
-              <TextInput value={name} onChange={setName} placeholder="مثال: Math 3ème - Group A" />
+              <Label required>{t("createModule.basicInfo.moduleName")}</Label>
+              <TextInput value={name} onChange={setName} placeholder={t("createModule.basicInfo.moduleNamePlaceholder")} />
             </Field>
-           <Field>
-  <Label required>المستوى الدراسي</Label>
+            <Field>
+              <Label required>{t("createModule.basicInfo.level")}</Label>
 
-  <select
-    value={level}
-    onChange={(e) => {
-      setLevel(e.target.value);
+              <select
+                value={level}
+                onChange={(e) => {
+                  setLevel(e.target.value);
 
-      // Clear custom value if another option is selected
-      if (e.target.value !== "مستوى آخر...") {
-        setCustomLevel("");
-      }
-    }}
-    className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-  >
-    <option value="">اختر المستوى الدراسي</option>
+                  // Clear custom value if another option is selected
+                  if (e.target.value !== OTHER_LEVEL_VALUE) {
+                    setCustomLevel("");
+                  }
+                }}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">{t("createModule.basicInfo.levelPlaceholder")}</option>
 
-    {levels.map((item) => (
-      <option key={item} value={item}>
-        {item}
-      </option>
-    ))}
-  </select>
+                {levels.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
 
-  {level === "مستوى آخر..." && (
-    <div className="mt-3">
-      <TextInput
-        value={customLevel}
-        onChange={setCustomLevel}
-        placeholder="أدخل المستوى الدراسي"
-      />
-    </div>
-  )}
-</Field>
+              {level === OTHER_LEVEL_VALUE && (
+                <div className="mt-3">
+                  <TextInput
+                    value={customLevel}
+                    onChange={setCustomLevel}
+                    placeholder={t("createModule.basicInfo.customLevelPlaceholder")}
+                  />
+                </div>
+              )}
+            </Field>
           </Row>
           <Row cols={1}>
             <Field>
-              <Label required>الحد الأقصى للطلاب</Label>
-              <TextInput type="number" value={maxStudents} onChange={setMaxStudents} placeholder="مثال: 25" min="1" />
+              <Label required>{t("createModule.basicInfo.maxStudents")}</Label>
+              <TextInput type="number" value={maxStudents} onChange={setMaxStudents} placeholder={t("createModule.basicInfo.maxStudentsPlaceholder")} min="1" />
             </Field>
           </Row>
         </SectionCard>
 
         {/* Pricing Model */}
-        <SectionCard title="نظام الدفع" subtitle="اختر كيفية احتساب رسوم هذه الوحدة على الطلاب" icon={CreditCard}>
+        <SectionCard title={t("createModule.pricing.title")} subtitle={t("createModule.pricing.subtitle")} icon={CreditCard}>
           <div style={{ display: "flex", gap: 12 }}>
             <PricingModelCard
               value="MONTHLY_FLAT" current={pricingModel}
               onClick={() => setPricingModel("MONTHLY_FLAT")}
               icon={Calendar}
-              title="سعر شهري ثابت"
-              desc="الطالب يدفع نفس المبلغ كل شهر بغض النظر عن عدد الحصص التي حضرها."
-              example="مثال: 2500 دج شهرياً ثابتة"
+              title={t("createModule.pricing.monthlyFlat.title")}
+              desc={t("createModule.pricing.monthlyFlat.desc")}
+              example={t("createModule.pricing.monthlyFlat.example")}
             />
             <PricingModelCard
               value="PER_SESSION" current={pricingModel}
               onClick={() => setPricingModel("PER_SESSION")}
               icon={CreditCard}
-              title="حسب الحضور"
-              desc="الطالب يدفع فقط مقابل الحصص التي حضرها فعلياً خلال الشهر."
-              example="مثال: 400 دج لكل حصة حضرها"
+              title={t("createModule.pricing.perSession.title")}
+              desc={t("createModule.pricing.perSession.desc")}
+              example={t("createModule.pricing.perSession.example")}
             />
           </div>
 
           {pricingModel === "MONTHLY_FLAT" ? (
             <Field>
-              <Label required>السعر الشهري (دج)</Label>
-              <TextInput type="number" value={monthlyPrice} onChange={setMonthlyPrice} placeholder="مثال: 2500" min="0" />
+              <Label required>{t("createModule.pricing.monthlyPriceLabel")}</Label>
+              <TextInput type="number" value={monthlyPrice} onChange={setMonthlyPrice} placeholder={t("createModule.pricing.monthlyPricePlaceholder")} min="0" />
             </Field>
           ) : (
             <>
               <Field>
-                <Label required>سعر الحصة الواحدة (دج)</Label>
-                <TextInput type="number" value={pricePerSession} onChange={setPricePerSession} placeholder="مثال: 400" min="0" />
+                <Label required>{t("createModule.pricing.perSessionPriceLabel")}</Label>
+                <TextInput type="number" value={pricePerSession} onChange={setPricePerSession} placeholder={t("createModule.pricing.perSessionPricePlaceholder")} min="0" />
               </Field>
               {estimatedMonthly && (
                 <div style={{ fontSize: 12, color: "#854F0B", background: "#FAEEDA", border: "1px solid #F0C87A", borderRadius: 9, padding: "10px 14px" }}>
-                  💡 تقدير: إذا حضر الطالب جميع الحصص ({weeklySessionCount} حصة أسبوعياً)، فسيدفع تقريباً{" "}
-                  <strong>{estimatedMonthly.toLocaleString()} دج</strong> شهرياً.
-                  <span style={{ fontSize: 10, opacity: .7 }}> (الفاتورة الفعلية تُحتسب من الحضور الحقيقي فقط)</span>
+                  {t("createModule.pricing.estimateIntro", { count: weeklySessionCount })}{" "}
+                  <strong>{estimatedMonthly.toLocaleString()} {t("students.print.currency")}</strong> {t("createModule.pricing.estimateSuffix")}
+                  <span style={{ fontSize: 10, opacity: .7 }}> {t("createModule.pricing.estimateNote")}</span>
                 </div>
               )}
             </>
@@ -455,46 +477,48 @@ const levels = [
         </SectionCard>
 
         {/* Assignment */}
-        <SectionCard title="التخصيص" subtitle="المادة، الأستاذ، والفصل الدراسي">
+        <SectionCard title={t("createModule.assignment.title")} subtitle={t("createModule.assignment.subtitle")}>
           <Field>
-            <Label required>المادة الدراسية</Label>
+            <Label required>{t("createModule.assignment.subject")}</Label>
             <Select value={subjectId} onChange={v => { setSubjectId(v); setTeacherId(""); }}
-              options={subjectOptions} placeholder="اختر المادة..." />
+              options={subjectOptions} placeholder={t("createModule.assignment.subjectPlaceholder")} />
           </Field>
           <Field>
-            <Label required>الأستاذ</Label>
-            <Select value={teacherId} onChange={setTeacherId} options={teacherOptions} placeholder="اختر الأستاذ..." />
+            <Label required>{t("createModule.assignment.teacher")}</Label>
+            <Select value={teacherId} onChange={setTeacherId} options={teacherOptions} placeholder={t("createModule.assignment.teacherPlaceholder")} />
           </Field>
           <Field>
-            <Label required>الفصل الدراسي</Label>
-            <Select value={classroomId} onChange={setClassroomId} options={classroomOptions} placeholder="اختر الفصل..." />
+            <Label required>{t("createModule.assignment.classroom")}</Label>
+            <Select value={classroomId} onChange={setClassroomId} options={classroomOptions} placeholder={t("createModule.assignment.classroomPlaceholder")} />
           </Field>
         </SectionCard>
 
         {/* Period */}
-        <SectionCard title="الفترة الزمنية" subtitle="بداية ونهاية الوحدة — ستُولَّد الحصص تلقائياً لكل هذه الفترة">
+        <SectionCard title={t("createModule.period.title")} subtitle={t("createModule.period.subtitle")}>
           <Row cols={2}>
             <Field>
-              <Label required>تاريخ البداية</Label>
+              <Label required>{t("createModule.period.startDate")}</Label>
               <TextInput type="date" value={periodStart} onChange={setPeriodStart} />
             </Field>
             <Field>
-              <Label required>تاريخ النهاية</Label>
+              <Label required>{t("createModule.period.endDate")}</Label>
               <TextInput type="date" value={periodEnd} onChange={setPeriodEnd} min={periodStart} />
             </Field>
           </Row>
           {periodStart && periodEnd && periodStart < periodEnd && (
             <div style={{ fontSize: 12, color: "#0F6E56", background: "#ECFDF5", border: "1px solid #A7F3D0", borderRadius: 9, padding: "8px 13px" }}>
-              ✓ مدة الوحدة: {Math.ceil((new Date(periodEnd) - new Date(periodStart)) / (1000 * 60 * 60 * 24 * 7))} أسبوع تقريباً
+              {t("createModule.period.durationText", {
+                weeks: Math.ceil((new Date(periodEnd) - new Date(periodStart)) / (1000 * 60 * 60 * 24 * 7)),
+              })}
             </div>
           )}
         </SectionCard>
 
         {/* Schedule */}
-        <SectionCard title="الجدول الأسبوعي" subtitle="حدد أيام وأوقات الحصص الأسبوعية">
+        <SectionCard title={t("createModule.schedule.title")} subtitle={t("createModule.schedule.subtitle")}>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {schedules.map((entry, idx) => (
-              <ScheduleRow key={idx} entry={entry}
+              <ScheduleRow key={idx} entry={entry} days={DAYS}
                 onChange={updated => setSchedules(prev => prev.map((s, i) => i === idx ? updated : s))}
                 onRemove={() => setSchedules(prev => prev.filter((_, i) => i !== idx))}
                 usedDays={usedDays} />
@@ -504,7 +528,7 @@ const levels = [
             <button type="button"
               onClick={() => setSchedules(prev => [...prev, { day: "", startTime: "08:00", endTime: "09:30" }])}
               style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, border: `1.5px dashed ${P}`, background: "#EBF4FE", color: P, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "'Cairo',sans-serif", width: "fit-content" }}>
-              <Plus size={14} /> إضافة يوم آخر
+              <Plus size={14} /> {t("createModule.schedule.addDay")}
             </button>
           )}
         </SectionCard>
@@ -519,19 +543,19 @@ const levels = [
         <div style={{ display: "flex", gap: 10, paddingBottom: "2rem" }}>
           <button onClick={() => navigate(-1)}
             style={{ flex: 1, padding: "12px", borderRadius: 12, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'Cairo',sans-serif" }}>
-            إلغاء
+            {t("createModule.actions.cancel")}
           </button>
           <button onClick={handleSubmit} disabled={saving || success}
             style={{ flex: 3, padding: "12px", borderRadius: 12, border: "none", background: success ? "#10B981" : saving ? "#94A3B8" : P, color: "#fff", fontSize: 14, fontWeight: 700, cursor: saving || success ? "default" : "pointer", fontFamily: "'Cairo',sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "background .3s" }}>
             {success ? (
-              <><Check size={16} /> تم إنشاء الوحدة بنجاح! جارٍ التحويل...</>
+              <><Check size={16} /> {t("createModule.actions.success")}</>
             ) : saving ? (
               <>
                 <div style={{ width: 16, height: 16, borderRadius: "50%", border: "2px solid rgba(255,255,255,.4)", borderTopColor: "#fff", animation: "spin .8s linear infinite" }} />
-                جارٍ الحفظ...
+                {t("createModule.actions.submitting")}
               </>
             ) : (
-              <><Plus size={16} /> إنشاء الوحدة الدراسية</>
+              <><Plus size={16} /> {t("createModule.actions.submit")}</>
             )}
           </button>
         </div>

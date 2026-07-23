@@ -1,6 +1,6 @@
 // src/pages/Login.jsx
 
-import { useState,useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
@@ -11,157 +11,130 @@ import ArrowForwardOutlinedIcon from "@mui/icons-material/ArrowForwardOutlined";
 
 import backImage from "../assets/back.jpg";
 import { useAuth } from "../context/authContext";
+import { useLanguage } from "../context/LanguageContext";
 
 export default function Login() {
+  const { t, dir } = useLanguage();
+
   const [showPassword, setShowPassword] = useState(false);
-
   const [email, setEmail] = useState("");
-
   const [password, setPassword] = useState("");
-
-
-
   const [error, setError] = useState("");
 
   const navigate = useNavigate();
-  const {login,user,loading}=useAuth();
+  const { login, user, loading } = useAuth();
   const [cooldown, setCooldown] = useState(0); // seconds remaining
 
-const startCooldown = (seconds) => {
-  setCooldown(seconds);
-  const interval = setInterval(() => {
-    setCooldown((prev) => {
-      if (prev <= 1) {
-        clearInterval(interval);
-        setError("");
-        return 0;
-      }
-      return prev - 1;
-    });
-  }, 1000);
-};
+  const startCooldown = (seconds) => {
+    setCooldown(seconds);
+    const interval = setInterval(() => {
+      setCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          setError("");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
 
-useEffect(() => {
-   console.log("🔥 useEffect fired, user:", user);
-  if (user?.role === "SCHOOL_ADMIN") {
-    navigate("/dashboard");
-  } else if (user?.role === "STUDENT") {
-    navigate("/studentdashboard");
-  }else if(user?.role === "TEACHER"){
-        navigate("/teacherDashboard");
-  }else if(user?.role === "SUPER_ADMIN"){
-        navigate("/superadmindashboard");
-  }
-}, [user, navigate]);
-
- const handleSubmit = async (e) => {
-  e.preventDefault();
-  setError("");
-
-  try {
-    await login(email, password);
-  } catch (err) {
-    const status = err?.response?.status;
-
-   if (status === 429) {
-
-  const retryAfter = err?.response?.data?.retryAfter
-    ?? parseInt(err?.response?.headers?.["retry-after"])
-    ?? 60;
-
-  setError("too_many");
-  startCooldown(retryAfter);
-
-    } else if (status === 403 || status === 401) {
-      setError("البريد الإلكتروني أو كلمة المرور غير صحيحة");
-    } else {
-      setError("حدث خطأ في الاتصال، يرجى المحاولة لاحقاً");
+  useEffect(() => {
+    if (user?.role === "SCHOOL_ADMIN") {
+      navigate("/dashboard");
+    } else if (user?.role === "STUDENT") {
+      navigate("/studentdashboard");
+    } else if (user?.role === "TEACHER") {
+      navigate("/teacherDashboard");
+    } else if (user?.role === "SUPER_ADMIN") {
+      navigate("/superadmindashboard");
     }
-  }
-};
+  }, [user, navigate]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    try {
+      await login(email, password);
+    } catch (err) {
+      const status = err?.response?.status;
+
+      if (status === 429) {
+        const retryAfter =
+          err?.response?.data?.retryAfter ??
+          parseInt(err?.response?.headers?.["retry-after"]) ??
+          60;
+
+        setError("too_many");
+        startCooldown(retryAfter);
+      } else if (status === 403 || status === 401) {
+        setError(t("login.errors.invalidCredentials"));
+      } else {
+        setError(t("login.errors.connectionError"));
+      }
+    }
+  };
 
   return (
-    <div style={styles.container}>
+    <div style={styles.container} dir={dir}>
       {/* Alert */}
-    {error && (
-  <div style={styles.alert}>
-    <span>
-      {error === "too_many" ? (
-        <>
-          ⛔ تجاوزت الحد المسموح به من المحاولات.{" "}
-          {cooldown > 0 && (
-            <strong>
-              انتظر {cooldown} ثانية قبل المحاولة مجدداً.
-            </strong>
+      {error && (
+        <div style={styles.alert}>
+          <span>
+            {error === "too_many" ? (
+              <>
+                {t("login.errors.tooManyPrefix")}{" "}
+                {cooldown > 0 && (
+                  <strong>{t("login.errors.waitBeforeRetry", { seconds: cooldown })}</strong>
+                )}
+              </>
+            ) : (
+              error
+            )}
+          </span>
+          {cooldown === 0 && (
+            <button onClick={() => setError("")} style={styles.alertClose}>
+              ×
+            </button>
           )}
-        </>
-      ) : (
-        error
+        </div>
       )}
-    </span>
-    {cooldown === 0 && (
-      <button onClick={() => setError("")} style={styles.alertClose}>
-        ×
-      </button>
-    )}
-  </div>
-)}
 
       {/* Left Side */}
       <div style={styles.leftSide}>
         <div style={styles.formWrapper}>
           {/* Logo */}
           <div style={styles.logoSection}>
-            <div style={styles.logoCircle}>
-              📚
-            </div>
-
-            <p style={styles.logoSubtext}>
-              Dashboard Login
-            </p>
+            <div style={styles.logoCircle}>📚</div>
+            <p style={styles.logoSubtext}>{t("login.logoSubtext")}</p>
           </div>
 
           {/* Welcome */}
           <div style={styles.welcomeSection}>
-            <h1 style={styles.welcomeTitle}>
-              Welcome back
-            </h1>
-
-            <p style={styles.welcomeSubtitle}>
-              Please enter your credentials
-              to access your dashboard
-            </p>
+            <h1 style={styles.welcomeTitle}>{t("login.welcomeTitle")}</h1>
+            <p style={styles.welcomeSubtitle}>{t("login.welcomeSubtitle")}</p>
           </div>
 
           {/* Form */}
-          <form
-            onSubmit={handleSubmit}
-            style={styles.form}
-          >
+          <form onSubmit={handleSubmit} style={styles.form}>
             {/* Email */}
             <div style={styles.inputGroup}>
-              <label
-                htmlFor="email"
-                style={styles.label}
-              >
-                Email Address
+              <label htmlFor="email" style={styles.label}>
+                {t("login.emailLabel")}
               </label>
 
               <div style={styles.inputWrapper}>
                 <div style={styles.inputIcon}>
-                  <MailOutlinedIcon
-                    style={styles.icon}
-                  />
+                  <MailOutlinedIcon style={styles.icon} />
                 </div>
 
                 <input
                   id="email"
                   type="email"
                   value={email}
-                  onChange={(e) =>
-                    setEmail(e.target.value)
-                  }
-                  placeholder="you@example.com"
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder={t("login.emailPlaceholder")}
                   style={styles.input}
                 />
               </div>
@@ -169,103 +142,73 @@ useEffect(() => {
 
             {/* Password */}
             <div style={styles.inputGroup}>
-              <label
-                htmlFor="password"
-                style={styles.label}
-              >
-                Password
+              <label htmlFor="password" style={styles.label}>
+                {t("login.passwordLabel")}
               </label>
 
               <div style={styles.inputWrapper}>
                 <div style={styles.inputIcon}>
-                  <LockOutlinedIcon
-                    style={styles.icon}
-                  />
+                  <LockOutlinedIcon style={styles.icon} />
                 </div>
 
                 <input
                   id="password"
-                  type={
-                    showPassword
-                      ? "text"
-                      : "password"
-                  }
+                  type={showPassword ? "text" : "password"}
                   value={password}
-                  onChange={(e) =>
-                    setPassword(
-                      e.target.value
-                    )
-                  }
-                  placeholder="Enter your password"
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={t("login.passwordPlaceholder")}
                   style={styles.input}
                 />
 
                 <button
                   type="button"
                   style={styles.passwordToggle}
-                  onClick={() =>
-                    setShowPassword(
-                      !showPassword
-                    )
-                  }
+                  onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? (
-                    <VisibilityOffOutlinedIcon
-                      style={styles.icon}
-                    />
+                    <VisibilityOffOutlinedIcon style={styles.icon} />
                   ) : (
-                    <VisibilityOutlinedIcon
-                      style={styles.icon}
-                    />
+                    <VisibilityOutlinedIcon style={styles.icon} />
                   )}
                 </button>
               </div>
             </div>
-          
-                     <Link
-          to="/forgot-password"
-          style={{color:"blue",textDecoration:"underLine"}}
-         
-        >
-          forget password
-        </Link>
-         
-        
+
+            <Link to="/forgot-password" style={{ color: "blue", textDecoration: "underline" }}>
+              {t("login.forgotPassword")}
+            </Link>
 
             {/* Submit */}
-         <button
-  type="submit"
-  disabled={loading || cooldown > 0}
-  style={{
-    ...styles.submitButton,
-    backgroundColor: cooldown > 0 ? "#94a3b8" : "#2563eb",
-    cursor: cooldown > 0 ? "not-allowed" : "pointer",
-  }}
->
-  {loading ? (
-    <>
-      <span style={styles.spinner}></span>
-      Signing in...
-    </>
-  ) : cooldown > 0 ? (
-    `انتظر ${cooldown}s`
-  ) : (
-    <>
-      Sign In
-      <ArrowForwardOutlinedIcon style={styles.buttonIcon} />
-    </>
-  )}
-</button>
+            <button
+              type="submit"
+              disabled={loading || cooldown > 0}
+              style={{
+                ...styles.submitButton,
+                backgroundColor: cooldown > 0 ? "#94a3b8" : "#2563eb",
+                cursor: cooldown > 0 ? "not-allowed" : "pointer",
+              }}
+            >
+              {loading ? (
+                <>
+                  <span style={styles.spinner}></span>
+                  {t("login.signingIn")}
+                </>
+              ) : cooldown > 0 ? (
+                t("login.waitSeconds", { seconds: cooldown })
+              ) : (
+                <>
+                  {t("login.signIn")}
+                  <ArrowForwardOutlinedIcon style={styles.buttonIcon} />
+                </>
+              )}
+            </button>
 
             {/* Signup */}
             <div style={styles.signupContainer}>
               <p style={styles.signupText}>
-                Don't have an account?{" "}
-                <Link
-                  to="/signup"
-                  style={styles.signupLink}
-                >
-                  Sign Up
+                {t("login.noAccount")}{" "}
+                <Link to="/signup" style={styles.signupLink}>
+                  {t("login.signUp")}
                 </Link>
               </p>
             </div>
@@ -279,93 +222,32 @@ useEffect(() => {
 
         <div style={styles.rightSideContent}>
           <div style={styles.rightSideInner}>
-            <h2 style={styles.rightSideTitle}>
-              Manage Your Dashboard
-            </h2>
+            <h2 style={styles.rightSideTitle}>{t("login.rightTitle")}</h2>
 
-            <p
-              style={
-                styles.rightSideDescription
-              }
-            >
-              Access analytics, manage your
-              content, and monitor your
-              platform from one place.
-            </p>
+            <p style={styles.rightSideDescription}>{t("login.rightDescription")}</p>
 
             <div style={styles.featuresList}>
               <div style={styles.featureItem}>
-                <div style={styles.featureIcon}>
-                  ✓
-                </div>
-
+                <div style={styles.featureIcon}>✓</div>
                 <div>
-                  <h3
-                    style={
-                      styles.featureTitle
-                    }
-                  >
-                    Real-time Analytics
-                  </h3>
-
-                  <p
-                    style={
-                      styles.featureDescription
-                    }
-                  >
-                    Monitor activity and
-                    performance instantly.
-                  </p>
+                  <h3 style={styles.featureTitle}>{t("login.features.analytics.title")}</h3>
+                  <p style={styles.featureDescription}>{t("login.features.analytics.desc")}</p>
                 </div>
               </div>
 
               <div style={styles.featureItem}>
-                <div style={styles.featureIcon}>
-                  ✓
-                </div>
-
+                <div style={styles.featureIcon}>✓</div>
                 <div>
-                  <h3
-                    style={
-                      styles.featureTitle
-                    }
-                  >
-                    Easy Management
-                  </h3>
-
-                  <p
-                    style={
-                      styles.featureDescription
-                    }
-                  >
-                    Organize categories and
-                    dashboard data easily.
-                  </p>
+                  <h3 style={styles.featureTitle}>{t("login.features.management.title")}</h3>
+                  <p style={styles.featureDescription}>{t("login.features.management.desc")}</p>
                 </div>
               </div>
 
               <div style={styles.featureItem}>
-                <div style={styles.featureIcon}>
-                  ✓
-                </div>
-
+                <div style={styles.featureIcon}>✓</div>
                 <div>
-                  <h3
-                    style={
-                      styles.featureTitle
-                    }
-                  >
-                    Secure Access
-                  </h3>
-
-                  <p
-                    style={
-                      styles.featureDescription
-                    }
-                  >
-                    Your data is protected and
-                    encrypted securely.
-                  </p>
+                  <h3 style={styles.featureTitle}>{t("login.features.security.title")}</h3>
+                  <p style={styles.featureDescription}>{t("login.features.security.desc")}</p>
                 </div>
               </div>
             </div>
@@ -395,8 +277,7 @@ const styles = {
     alignItems: "center",
     gap: "10px",
     zIndex: 1000,
-    boxShadow:
-      "0 10px 30px rgba(0,0,0,0.08)",
+    boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
   },
 
   alertClose: {
@@ -540,8 +421,7 @@ const styles = {
     border: "2px solid white",
     borderTop: "2px solid transparent",
     borderRadius: "50%",
-    animation:
-      "spin 1s linear infinite",
+    animation: "spin 1s linear infinite",
   },
 
   buttonIcon: {
@@ -630,8 +510,7 @@ const styles = {
     width: "34px",
     height: "34px",
     borderRadius: "50%",
-    backgroundColor:
-      "rgba(255,255,255,0.15)",
+    backgroundColor: "rgba(255,255,255,0.15)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -651,8 +530,7 @@ const styles = {
   },
 };
 
-const styleSheet =
-  document.createElement("style");
+const styleSheet = document.createElement("style");
 
 styleSheet.textContent = `
 @keyframes spin {

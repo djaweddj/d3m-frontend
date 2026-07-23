@@ -11,73 +11,79 @@ import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import VisibilityOffOutlinedIcon from "@mui/icons-material/VisibilityOffOutlined";
 import ArrowForwardOutlinedIcon from "@mui/icons-material/ArrowForwardOutlined";
 import PhoneOutlinedIcon from "@mui/icons-material/PhoneOutlined";
-import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
 import CakeOutlinedIcon from "@mui/icons-material/CakeOutlined";
 import FamilyRestroomOutlinedIcon from "@mui/icons-material/FamilyRestroomOutlined";
 import backImage from "../assets/back.jpg";
+import { useLanguage } from "../context/LanguageContext";
 
+const P = "#2563eb";
 
-function Label({ children, required }) {
-  return (
-    <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>
-      {children} {required && <span style={{ color: "#EF4444" }}>*</span>}
-    </label>
-  );
-}
 function TextInput({ value, onChange, placeholder, type = "text", min, disabled }) {
   return (
     <input
-      type={type} value={value}
-      onChange={e => onChange(e.target.value)}
-      placeholder={placeholder} min={min} disabled={disabled}
+      type={type}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      min={min}
+      disabled={disabled}
       style={{
-        width: "100%", padding: "10px 12px", borderRadius: 10,
-        border: "1.5px solid #E2E8F0", fontSize: 13, color: "#0F172A",
+        width: "100%",
+        padding: "10px 12px",
+        borderRadius: 10,
+        border: "1.5px solid #E2E8F0",
+        fontSize: 13,
+        color: "#0F172A",
         fontFamily: "'Cairo',sans-serif",
         background: disabled ? "#F1F5F9" : "#FAFCFF",
-        outline: "none", boxSizing: "border-box",
+        outline: "none",
+        boxSizing: "border-box",
         opacity: disabled ? 0.6 : 1,
       }}
-      onFocus={e => !disabled && (e.target.style.borderColor = P)}
-      onBlur={e  => (e.target.style.borderColor = "#E2E8F0")}
+      onFocus={(e) => !disabled && (e.target.style.borderColor = P)}
+      onBlur={(e) => (e.target.style.borderColor = "#E2E8F0")}
     />
   );
 }
+
 export default function Signup() {
+  const { t, dir } = useLanguage();
   const [showPassword, setShowPassword] = useState(false);
   const API_URL = import.meta.env.VITE_API_URL;
-  
+
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
     fullName: "",
     email: "",
     Password: "",
-   
     parentName: "",
     parentPhone: "",
     birthDate: "",
   });
-  const [level,          setLevel]          = useState("");
+  const [level, setLevel] = useState("");
   const [customLevel, setCustomLevel] = useState("");
 
-const levels = [
-  "التحضيري",
-  "السنة الأولى ابتدائي",
-  "السنة الثانية ابتدائي",
-  "السنة الثالثة ابتدائي",
-  "السنة الرابعة ابتدائي",
-  "السنة الخامسة ابتدائي",
-  "السنة الأولى متوسط",
-  "السنة الثانية متوسط",
-  "السنة الثالثة متوسط",
-  "السنة الرابعة متوسط",
-  "السنة الأولى ثانوي",
-  "السنة الثانية ثانوي",
-  "السنة الثالثة ثانوي (البكالوريا)",
-  "مستوى آخر...",
-];
-
+  // Reuses the shared study-level list from createModule so labels stay in sync
+  // across the app and automatically follow the active language.
+  const levelKeys = [
+    "preparatory",
+    "primary1",
+    "primary2",
+    "primary3",
+    "primary4",
+    "primary5",
+    "middle1",
+    "middle2",
+    "middle3",
+    "middle4",
+    "secondary1",
+    "secondary2",
+    "secondary3",
+    "other",
+  ];
+  const levels = levelKeys.map((key) => t(`createModule.levels.${key}`));
+  const otherLevelLabel = t("createModule.levels.other");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -92,19 +98,19 @@ const levels = [
       !form.fullName ||
       !form.email ||
       !form.Password ||
-      !form.level ||
+      !level ||
       !form.parentName ||
       !form.parentPhone ||
       !form.birthDate
     ) {
-      return "Please fill in all fields.";
+      return t("signup.errors.fillAll");
     }
     if (form.Password.length < 6) {
-      return "Password must be at least 6 characters.";
+      return t("signup.errors.passwordLength");
     }
     const phoneRegex = /^[0-9+\s\-()]{7,15}$/;
     if (!phoneRegex.test(form.parentPhone)) {
-      return "Enter a valid parent phone number.";
+      return t("signup.errors.invalidPhone");
     }
     return null;
   };
@@ -125,7 +131,7 @@ const levels = [
         fullName: form.fullName,
         email: form.email,
         password: form.Password,
-        level: "مستوى آخر..." ? customLevel : level,
+        level: level === otherLevelLabel ? customLevel : level,
         parentName: form.parentName,
         parentPhone: form.parentPhone,
         birthDate: form.birthDate, // "YYYY-MM-DD" – matches LocalDate
@@ -133,21 +139,15 @@ const levels = [
       navigate("/login");
     } catch (err) {
       const serverMessage =
-        err?.response?.data?.message ||
-        err?.response?.data ||
-        "Registration failed. Please try again.";
-      setError(
-        typeof serverMessage === "string"
-          ? serverMessage
-          : "Registration failed. Please try again."
-      );
+        err?.response?.data?.message || err?.response?.data || t("signup.errors.generic");
+      setError(typeof serverMessage === "string" ? serverMessage : t("signup.errors.generic"));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={styles.container}>
+    <div style={styles.container} dir={dir}>
       {/* Error toast */}
       {error && (
         <div style={styles.alert}>
@@ -164,56 +164,54 @@ const levels = [
           {/* Logo */}
           <div style={styles.logoSection}>
             <div style={styles.logoCircle}>📚</div>
-            <p style={styles.logoSubtext}>Student Registration</p>
+            <p style={styles.logoSubtext}>{t("signup.logoSubtext")}</p>
           </div>
 
           {/* Welcome */}
           <div style={styles.welcomeSection}>
-            <h1 style={styles.welcomeTitle}>Get Started</h1>
-            <p style={styles.welcomeSubtitle}>
-              Fill in your details to create a student account.
-            </p>
+            <h1 style={styles.welcomeTitle}>{t("signup.title")}</h1>
+            <p style={styles.welcomeSubtitle}>{t("signup.subtitle")}</p>
           </div>
 
           {/* Form */}
           <form onSubmit={handleSubmit} style={styles.form}>
             {/* Full Name */}
-            <Field label="Full Name">
+            <Field label={t("signup.fullName")}>
               <InputRow icon={<PersonOutlinedIcon style={styles.icon} />}>
                 <input
                   name="fullName"
                   type="text"
                   value={form.fullName}
                   onChange={handleChange}
-                  placeholder="John Doe"
+                  placeholder={t("signup.fullNamePlaceholder")}
                   style={styles.input}
                 />
               </InputRow>
             </Field>
 
             {/* Email */}
-            <Field label="Email Address">
+            <Field label={t("signup.email")}>
               <InputRow icon={<MailOutlinedIcon style={styles.icon} />}>
                 <input
                   name="email"
                   type="email"
                   value={form.email}
                   onChange={handleChange}
-                  placeholder="you@example.com"
+                  placeholder={t("signup.emailPlaceholder")}
                   style={styles.input}
                 />
               </InputRow>
             </Field>
 
             {/* Password */}
-            <Field label="Password">
+            <Field label={t("signup.password")}>
               <InputRow icon={<LockOutlinedIcon style={styles.icon} />}>
                 <input
                   name="Password"
                   type={showPassword ? "text" : "password"}
                   value={form.Password}
                   onChange={handleChange}
-                  placeholder="At least 6 characters"
+                  placeholder={t("signup.passwordPlaceholder")}
                   style={styles.input}
                 />
                 <button
@@ -231,43 +229,38 @@ const levels = [
             </Field>
 
             {/* Level */}
-           <Field>
-  <Label required>المستوى الدراسي</Label>
+            <Field label={t("signup.level")}>
+              <select
+                value={level}
+                onChange={(e) => {
+                  setLevel(e.target.value);
+                  if (e.target.value !== otherLevelLabel) {
+                    setCustomLevel("");
+                  }
+                }}
+                style={styles.input}
+              >
+                <option value="">{t("signup.selectLevel")}</option>
+                {levels.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
 
-  <select
-    value={level}
-    onChange={(e) => {
-      setLevel(e.target.value);
-
-      // Clear custom value if another option is selected
-      if (e.target.value !== "مستوى آخر...") {
-        setCustomLevel("");
-      }
-    }}
-    className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-  >
-    <option value="">اختر المستوى الدراسي</option>
-
-    {levels.map((item) => (
-      <option key={item} value={item}>
-        {item}
-      </option>
-    ))}
-  </select>
-
-  {level === "مستوى آخر..." && (
-    <div className="mt-3">
-      <TextInput
-        value={customLevel}
-        onChange={setCustomLevel}
-        placeholder="أدخل المستوى الدراسي"
-      />
-    </div>
-  )}
-</Field>
+              {level === otherLevelLabel && (
+                <div style={{ marginTop: 12 }}>
+                  <TextInput
+                    value={customLevel}
+                    onChange={setCustomLevel}
+                    placeholder={t("signup.customLevelPlaceholder")}
+                  />
+                </div>
+              )}
+            </Field>
 
             {/* Birth Date */}
-            <Field label="Date of Birth">
+            <Field label={t("signup.birthDate")}>
               <InputRow icon={<CakeOutlinedIcon style={styles.icon} />}>
                 <input
                   name="birthDate"
@@ -280,47 +273,43 @@ const levels = [
             </Field>
 
             {/* Parent Name */}
-            <Field label="Parent / Guardian Name">
+            <Field label={t("signup.parentName")}>
               <InputRow icon={<FamilyRestroomOutlinedIcon style={styles.icon} />}>
                 <input
                   name="parentName"
                   type="text"
                   value={form.parentName}
                   onChange={handleChange}
-                  placeholder="Parent full name"
+                  placeholder={t("signup.parentNamePlaceholder")}
                   style={styles.input}
                 />
               </InputRow>
             </Field>
 
             {/* Parent Phone */}
-            <Field label="Parent / Guardian Phone">
+            <Field label={t("signup.parentPhone")}>
               <InputRow icon={<PhoneOutlinedIcon style={styles.icon} />}>
                 <input
                   name="parentPhone"
                   type="tel"
                   value={form.parentPhone}
                   onChange={handleChange}
-                  placeholder="+213 6XX XXX XXX"
+                  placeholder={t("signup.parentPhonePlaceholder")}
                   style={styles.input}
                 />
               </InputRow>
             </Field>
 
             {/* Submit */}
-            <button
-              type="submit"
-              disabled={loading}
-              style={styles.submitButton}
-            >
+            <button type="submit" disabled={loading} style={styles.submitButton}>
               {loading ? (
                 <>
                   <span style={styles.spinner}></span>
-                  Creating account…
+                  {t("signup.submitting")}
                 </>
               ) : (
                 <>
-                  Sign Up
+                  {t("signup.submit")}
                   <ArrowForwardOutlinedIcon style={styles.buttonIcon} />
                 </>
               )}
@@ -329,9 +318,9 @@ const levels = [
             {/* Login link */}
             <div style={styles.loginContainer}>
               <p style={styles.loginText}>
-                Already have an account?{" "}
+                {t("signup.haveAccount")}{" "}
                 <Link to="/login" style={styles.loginLink}>
-                  Sign In
+                  {t("signup.signIn")}
                 </Link>
               </p>
             </div>
@@ -344,26 +333,10 @@ const levels = [
         <div style={styles.rightSideOverlay}></div>
         <div style={styles.rightSideContent}>
           <div style={styles.rightSideInner}>
-            <h2 style={styles.rightSideTitle}>Join Our Platform</h2>
-            <p style={styles.rightSideDescription}>
-              Create your account and start managing your school journey with a
-              modern and secure dashboard.
-            </p>
+            <h2 style={styles.rightSideTitle}>{t("signup.rightTitle")}</h2>
+            <p style={styles.rightSideDescription}>{t("signup.rightDescription")}</p>
             <div style={styles.featuresList}>
-              {[
-                {
-                  title: "Fast Registration",
-                  desc: "Create your account in seconds with a simple signup process.",
-                },
-                {
-                  title: "Secure Platform",
-                  desc: "Your data is protected using modern security standards.",
-                },
-                {
-                  title: "Smart Dashboard",
-                  desc: "Access schedules, grades, and manage everything easily.",
-                },
-              ].map((f) => (
+              {t("signup.features").map((f) => (
                 <div key={f.title} style={styles.featureItem}>
                   <div style={styles.featureIcon}>✓</div>
                   <div>

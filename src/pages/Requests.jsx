@@ -1,54 +1,25 @@
 import { useState, useEffect, useCallback } from "react";
 import { Check, X, GraduationCap, RefreshCw, AlertCircle, BookOpen, DollarSign, Mail, Phone, User, Layers, MessageSquare } from "lucide-react";
 import { useAuth } from "../context/authContext";
+import { useLanguage } from "../context/LanguageContext";
+import { LOCALE_MAP } from "../i18n/translations"; // ⚠️ adjust path // ⚠️ adjust to your actual hook/path
 import api from "../api";
 
-// ── API ───────────────────────────────────────────────────
-// The enrollment controller has no "get pending requests" endpoint for admin.
-// The closest is GET /api/enrollments/mine (student-facing).
-// For admin, we use GET /api/modules to see modules, then infer pending
-// enrollments from enrollments data.
-//
-// EnrollmentResponseDto has status field (PENDING | ACTIVE | CANCELLED | REJECTED)
-// We need a way to get all enrollments for the school.
-// Based on the controller: there's no admin "get all" endpoint visible.
-// Best approach: fetch all modules → for each, get students by module —
-// but that only returns active students.
-//
-// REAL approach: We'll call the approve/reject endpoints which exist,
-// and for listing we'll use what's available.
-// Since there's no admin-facing "get pending requests" endpoint in the provided code,
-// we'll show a note and use a polling/manual approach.
-// The page will be ready to consume the data once you add that endpoint.
-//
-// For now: attempt GET /api/enrollments/pending (most likely endpoint name),
-// fall back gracefully with a clear message if 404/403.
-//
-// Backend now returns StudentRequestResponseDto (flat shape):
-// { id, studentId, studentFullName, studentEmail, studentLevel, parentName, parentPhone,
-//   moduleId, moduleName, subjectName, level, monthlyPrice,
-//   status, createdAt, reviewedAt, reviewComment }
-
 const requestsApi = {
-  // Try the most likely endpoint — add it to backend if missing
   getPending: () => api.get("api/enrollments/requests", { params: { status: "PENDING" } }),
   approve:    (id) => api.post(`api/enrollments/requests/${id}/approve`),
-   reject:     (id, comment) => api.post(`api/enrollments/requests/${id}/reject`, null, { params: { comment } }),
+  reject:     (id, comment) => api.post(`api/enrollments/requests/${id}/reject`, null, { params: { comment } }),
 };
 
-// ── Status badge ──────────────────────────────────────────
-const statusStyle = (status) => {
+const statusStyle = (status, t) => {
   switch (status) {
-    case "PENDING":   return { bg: "#FEF3C7", color: "#92400E", label: "قيد الانتظار" };
-    case "ACTIVE":    return { bg: "#E1F5EE", color: "#085041", label: "نشط" };
-    case "CANCELLED": return { bg: "#F1F5F9", color: "#475569", label: "ملغى" };
-    case "REJECTED":  return { bg: "#FEE2E2", color: "#991B1B", label: "مرفوض" };
+    case "PENDING":   return { bg: "#FEF3C7", color: "#92400E", label: t("requests.status.PENDING") };
+    case "ACTIVE":    return { bg: "#E1F5EE", color: "#085041", label: t("requests.status.ACTIVE") };
+    case "CANCELLED": return { bg: "#F1F5F9", color: "#475569", label: t("requests.status.CANCELLED") };
+    case "REJECTED":  return { bg: "#FEE2E2", color: "#991B1B", label: t("requests.status.REJECTED") };
     default:          return { bg: "#F1F5F9", color: "#64748B", label: status ?? "—" };
   }
 };
-
-const formatDate = (value) =>
-  value ? new Date(value).toLocaleDateString("ar-MA", { year: "numeric", month: "long", day: "numeric" }) : null;
 
 function Spinner({ size = 18 }) {
   return (
@@ -59,8 +30,7 @@ function Spinner({ size = 18 }) {
   );
 }
 
-// ── Reject modal ──────────────────────────────────────────
-function RejectModal({ enrollment, onClose, onConfirm }) {
+function RejectModal({ enrollment, onClose, onConfirm, t, dir }) {
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -76,29 +46,31 @@ function RejectModal({ enrollment, onClose, onConfirm }) {
       onClick={(e) => e.target === e.currentTarget && onClose()}
       style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: "1rem" }}
     >
-      <div dir="rtl" style={{ background: "#fff", borderRadius: 14, width: "100%", maxWidth: 360, border: "1.5px solid #E2E8F0", overflow: "hidden", fontFamily: "'Cairo',sans-serif" }}>
+      <div dir={dir} style={{ background: "#fff", borderRadius: 14, width: "100%", maxWidth: 360, border: "1.5px solid #E2E8F0", overflow: "hidden", fontFamily: "'Cairo',sans-serif" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.25rem", borderBottom: "1.5px solid #F1F5F9", background: "#FAFCFF" }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>رفض الطلب</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>{t("requests.rejectModal.title")}</div>
           <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: "1px solid #E2E8F0", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <X size={13} color="#64748B" />
           </button>
         </div>
         <div style={{ padding: "1.25rem" }}>
           <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 6 }}>
-            سبب الرفض (اختياري)
+            {t("requests.rejectModal.commentLabel")}
           </label>
           <textarea
             style={{ width: "100%", padding: "8px 11px", borderRadius: 9, border: "1.5px solid #E2E8F0", fontSize: 13, fontFamily: "inherit", color: "#0F172A", background: "#FAFCFF", outline: "none", resize: "vertical", minHeight: 80, boxSizing: "border-box" }}
-            placeholder="أدخل سبب الرفض..."
+            placeholder={t("requests.rejectModal.commentPlaceholder")}
             value={comment}
             onChange={(e) => setComment(e.target.value)}
           />
         </div>
         <div style={{ display: "flex", gap: 8, padding: "1rem 1.25rem", borderTop: "1.5px solid #F1F5F9", background: "#FAFCFF" }}>
-          <button onClick={onClose} style={{ flex: 1, padding: "8px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>إلغاء</button>
+          <button onClick={onClose} style={{ flex: 1, padding: "8px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+            {t("requests.rejectModal.cancel")}
+          </button>
           <button onClick={handleConfirm} disabled={loading} style={{ flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px", borderRadius: 9, border: "none", background: "#DC2626", color: "#fff", fontSize: 13, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
             {loading ? <Spinner size={13} /> : <X size={13} />}
-            {loading ? "جارٍ الرفض..." : "رفض الطلب"}
+            {loading ? t("requests.rejectModal.confirming") : t("requests.rejectModal.confirm")}
           </button>
         </div>
       </div>
@@ -106,7 +78,6 @@ function RejectModal({ enrollment, onClose, onConfirm }) {
   );
 }
 
-// ── Info row ───────────────────────────────────────────────
 function InfoRow({ icon: Icon, label, value, dir }) {
   if (!value) return null;
   return (
@@ -119,15 +90,13 @@ function InfoRow({ icon: Icon, label, value, dir }) {
   );
 }
 
-// ── Request card ──────────────────────────────────────────
-// Backend DTO (StudentRequestResponseDto):
-// { id, studentId, studentFullName, studentEmail, studentLevel, parentName, parentPhone,
-//   moduleId, moduleName, subjectName, level, monthlyPrice,
-//   status, createdAt, reviewedAt, reviewComment }
-function RequestCard({ enrollment, onApprove, onReject, approving, rejecting }) {
-  const name  = enrollment.studentFullName ?? "طالب";
+function RequestCard({ enrollment, onApprove, onReject, approving, rejecting, t, lang }) {
+  const name  = enrollment.studentFullName ?? t("requests.studentFallback");
   const initials = name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
-  const st = statusStyle(enrollment.status);
+  const st = statusStyle(enrollment.status, t);
+
+  const formatDate = (value) =>
+    value ? new Date(value).toLocaleDateString(LOCALE_MAP[lang] ?? "en-US", { year: "numeric", month: "long", day: "numeric" }) : null;
 
   const requestedDate = formatDate(enrollment.createdAt);
   const reviewedDate  = formatDate(enrollment.reviewedAt);
@@ -137,7 +106,6 @@ function RequestCard({ enrollment, onApprove, onReject, approving, rejecting }) 
       onMouseEnter={(e) => (e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,.07)")}
       onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "none")}
     >
-      {/* Top */}
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ width: 48, height: 48, borderRadius: 14, background: "#EBF4FE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 700, color: "#185FA5", flexShrink: 0, border: "2px solid #B5D4F4" }}>
           {initials}
@@ -153,32 +121,28 @@ function RequestCard({ enrollment, onApprove, onReject, approving, rejecting }) 
         </span>
       </div>
 
-      {/* Student contact */}
       <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", letterSpacing: ".02em" }}>معلومات الطالب</div>
-        <InfoRow icon={Mail} label="البريد الإلكتروني" value={enrollment.studentEmail} dir="ltr" />
-        <InfoRow icon={Layers} label="المستوى" value={enrollment.studentLevel} />
+        <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", letterSpacing: ".02em" }}>{t("requests.sectionStudentInfo")}</div>
+        <InfoRow icon={Mail} label={t("requests.fields.email")} value={enrollment.studentEmail} dir="ltr" />
+        <InfoRow icon={Layers} label={t("requests.fields.level")} value={enrollment.studentLevel} />
       </div>
 
-      {/* Parent contact */}
       {(enrollment.parentName || enrollment.parentPhone) && (
         <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", letterSpacing: ".02em" }}>ولي الأمر</div>
-          <InfoRow icon={User} label="الاسم" value={enrollment.parentName} />
-          <InfoRow icon={Phone} label="الهاتف" value={enrollment.parentPhone} dir="ltr" />
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", letterSpacing: ".02em" }}>{t("requests.sectionParentInfo")}</div>
+          <InfoRow icon={User} label={t("requests.fields.parentName")} value={enrollment.parentName} />
+          <InfoRow icon={Phone} label={t("requests.fields.parentPhone")} value={enrollment.parentPhone} dir="ltr" />
         </div>
       )}
 
-      {/* Module info */}
       <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", letterSpacing: ".02em" }}>تفاصيل الطلب</div>
-        <InfoRow icon={BookOpen} label="الوحدة" value={enrollment.moduleName ?? (enrollment.moduleId ? `#${enrollment.moduleId}` : null)} />
-        <InfoRow icon={GraduationCap} label="المادة" value={enrollment.subjectName} />
-        <InfoRow icon={Layers} label="مستوى الوحدة" value={enrollment.level} />
-        <InfoRow icon={DollarSign} label="الرسوم الشهرية" value={enrollment.monthlyPrice != null ? `${enrollment.monthlyPrice} دج` : null} />
+        <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", letterSpacing: ".02em" }}>{t("requests.sectionRequestDetails")}</div>
+        <InfoRow icon={BookOpen} label={t("requests.fields.module")} value={enrollment.moduleName ?? (enrollment.moduleId ? `#${enrollment.moduleId}` : null)} />
+        <InfoRow icon={GraduationCap} label={t("requests.fields.subject")} value={enrollment.subjectName} />
+        <InfoRow icon={Layers} label={t("requests.fields.moduleLevel")} value={enrollment.level} />
+        <InfoRow icon={DollarSign} label={t("requests.fields.monthlyPrice")} value={enrollment.monthlyPrice != null ? `${enrollment.monthlyPrice} ${t("requests.currency")}` : null} />
       </div>
 
-      {/* Review comment (for reviewed requests) */}
       {enrollment.reviewComment && (
         <div style={{ display: "flex", alignItems: "flex-start", gap: 8, background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 9, padding: "8px 12px" }}>
           <MessageSquare size={13} color="#DC2626" style={{ flexShrink: 0, marginTop: 2 }} />
@@ -186,15 +150,13 @@ function RequestCard({ enrollment, onApprove, onReject, approving, rejecting }) 
         </div>
       )}
 
-      {/* Dates */}
       {(requestedDate || reviewedDate) && (
         <div style={{ display: "flex", justifyContent: "center", gap: 14, fontSize: 10, color: "#94A3B8" }}>
-          {requestedDate && <span>تاريخ الطلب: {requestedDate}</span>}
-          {reviewedDate && <span>تاريخ المراجعة: {reviewedDate}</span>}
+          {requestedDate && <span>{t("requests.requestedDate")} {requestedDate}</span>}
+          {reviewedDate && <span>{t("requests.reviewedDate")} {reviewedDate}</span>}
         </div>
       )}
 
-      {/* Actions (only for PENDING) */}
       {enrollment.status === "PENDING" && (
         <div style={{ display: "flex", gap: 10 }}>
           <button
@@ -203,7 +165,7 @@ function RequestCard({ enrollment, onApprove, onReject, approving, rejecting }) 
             style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px", borderRadius: 12, background: "#059669", border: "none", color: "#fff", fontSize: 13, fontWeight: 600, cursor: approving ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: approving ? .7 : 1 }}
           >
             {approving ? <Spinner size={13} /> : <Check size={14} />}
-            قبول
+            {t("requests.approve")}
           </button>
           <button
             onClick={() => onReject(enrollment)}
@@ -211,7 +173,7 @@ function RequestCard({ enrollment, onApprove, onReject, approving, rejecting }) 
             style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px", borderRadius: 12, background: "#FEF2F2", border: "1px solid #FECACA", color: "#DC2626", fontSize: 13, fontWeight: 600, cursor: rejecting ? "not-allowed" : "pointer", fontFamily: "inherit" }}
           >
             <X size={14} />
-            رفض
+            {t("requests.reject")}
           </button>
         </div>
       )}
@@ -219,16 +181,16 @@ function RequestCard({ enrollment, onApprove, onReject, approving, rejecting }) 
   );
 }
 
-// ── Main ──────────────────────────────────────────────────
 export default function Requests() {
   const { school } = useAuth();
+  const { t, lang, dir } = useLanguage(); // ⚠️ adjust to your actual hook
 
   const [requests,  setRequests]  = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState(null);
   const [approving, setApproving] = useState(null);
   const [rejectTarget, setRejectTarget] = useState(null);
-  const [filter,    setFilter]    = useState("PENDING"); // PENDING | ALL
+  const [filter,    setFilter]    = useState("PENDING");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -240,14 +202,14 @@ export default function Requests() {
     } catch (err) {
       const status = err?.response?.status;
       if (status === 404 || status === 403) {
-        setError("لا يوجد endpoint لعرض الطلبات المعلقة بعد.\nأضف GET /api/enrollments/pending إلى EnrollmentController.");
+        setError(t("requests.errors.noEndpoint"));
       } else {
-        setError(err?.response?.data?.message || "خطأ في تحميل البيانات");
+        setError(err?.response?.data?.message || t("requests.errors.generic"));
       }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -281,22 +243,20 @@ export default function Requests() {
   const pendingCount = requests.filter((r) => r.status === "PENDING").length;
 
   return (
-    <div dir="rtl" style={{ padding: "1.25rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
+    <div dir={dir} style={{ padding: "1.25rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
 
-      {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.25rem" }}>
         <div>
-          <h1 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0 }}>طلبات الانضمام</h1>
+          <h1 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("requests.title")}</h1>
           <p style={{ fontSize: 12, color: "#94A3B8", marginTop: 2, margin: 0 }}>
-            {loading ? "..." : `${pendingCount} طلب معلق`}
+            {loading ? "..." : t("requests.countPending", { count: pendingCount })}
           </p>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {/* Filter pills */}
           {[
-            { key: "PENDING", label: "المعلقة" },
-            { key: "ALL",     label: "الكل" },
+            { key: "PENDING", label: t("requests.filters.pending") },
+            { key: "ALL",     label: t("requests.filters.all") },
           ].map(({ key, label }) => (
             <button
               key={key}
@@ -305,7 +265,7 @@ export default function Requests() {
             >
               {label}
               {key === "PENDING" && pendingCount > 0 && (
-                <span style={{ marginRight: 5, fontSize: 10, background: "#185FA5", color: "#fff", borderRadius: 20, padding: "1px 6px" }}>
+                <span style={{ marginInlineStart: 5, fontSize: 10, background: "#185FA5", color: "#fff", borderRadius: 20, padding: "1px 6px" }}>
                   {pendingCount}
                 </span>
               )}
@@ -317,7 +277,6 @@ export default function Requests() {
         </div>
       </div>
 
-      {/* Body */}
       {loading ? (
         <div style={{ display: "flex", justifyContent: "center", padding: "3rem" }}><Spinner size={28} /></div>
       ) : error ? (
@@ -325,14 +284,14 @@ export default function Requests() {
           <AlertCircle size={36} color="#E2A84B" />
           <p style={{ color: "#64748B", fontSize: 13, textAlign: "center", lineHeight: 1.7, whiteSpace: "pre-line" }}>{error}</p>
           <button onClick={load} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 16px", borderRadius: 9, border: "1.5px solid #185FA5", background: "#EBF4FE", color: "#185FA5", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-            <RefreshCw size={13} /> إعادة المحاولة
+            <RefreshCw size={13} /> {t("requests.retry")}
           </button>
         </div>
       ) : displayed.length === 0 ? (
         <div style={{ background: "#fff", borderRadius: 16, border: "2px dashed #E2E8F0", padding: "4rem 2rem", textAlign: "center" }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>✅</div>
           <p style={{ fontSize: 14, fontWeight: 600, color: "#475569", margin: 0 }}>
-            {filter === "PENDING" ? "لا توجد طلبات معلقة حالياً" : "لا توجد طلبات"}
+            {filter === "PENDING" ? t("requests.emptyPending") : t("requests.emptyAll")}
           </p>
         </div>
       ) : (
@@ -345,17 +304,20 @@ export default function Requests() {
               onReject={(e) => setRejectTarget(e)}
               approving={approving === enr.id}
               rejecting={false}
+              t={t}
+              lang={lang}
             />
           ))}
         </div>
       )}
 
-      {/* Reject modal */}
       {rejectTarget && (
         <RejectModal
           enrollment={rejectTarget}
           onClose={() => setRejectTarget(null)}
           onConfirm={handleReject}
+          t={t}
+          dir={dir}
         />
       )}
     </div>

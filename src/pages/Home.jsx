@@ -49,9 +49,9 @@ function useCountUp(value, duration = 2000) {
   return { display, ref, hasStarted };
 }
 
-function formatNumber(n) {
+function formatNumber(n, locale = "en-US") {
   if (n == null) return "—";
-  return n.toLocaleString("en-US");
+  return n.toLocaleString(locale);
 }
 
 // ─── Animated text component ──────────────────────────────
@@ -83,7 +83,7 @@ function AnimatedText({ text, className = "", delay = 0 }) {
 }
 
 // ─── User pill ────────────────────────────────────────────
-function UserPill({ user }) {
+function UserPill({ user, visitorLabel }) {
   if (user) {
     return (
       <motion.div

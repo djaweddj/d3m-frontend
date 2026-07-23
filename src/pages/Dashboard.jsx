@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { useAuth } from "../context/authContext";
+import { useLanguage } from "../context/LanguageContext";
 import api from "../api";
 import { RefreshCw, AlertCircle, ChevronDown, TrendingUp, TrendingDown } from "lucide-react";
 
@@ -240,6 +241,7 @@ function ComparisonChart({ data, highlightIndex }) {
 // ══════════════════════════════════════════════════════════════════
 export default function Dashboard() {
   const { user } = useAuth();
+  const { t, dir, locale } = useLanguage();
   const BLUE = "#185FA5";
 
   const [schoolInfo, setSchoolInfo] = useState(null);
@@ -264,7 +266,7 @@ export default function Dashboard() {
       setSchoolInfo(schoolRes.data);
       setRangeData(revenueRes.data ?? []);
     } catch (err) {
-      setError(err?.response?.data?.message || "خطأ في تحميل البيانات");
+      setError(err?.response?.data?.message || t("dashboard.error"));
     } finally {
       setLoading(false);
     }
@@ -357,7 +359,7 @@ export default function Dashboard() {
           subNeutral={!current?.totalOverdue}
         />
         <StatCard
-          emoji="🎓" label="عدد الطلاب"
+          emoji="🎓" label={t("dashboard.stat.students.label")}
           value={schoolInfo?.totalStudents ?? "—"}
           sub="طالب مسجّل" accent="#534AB7" iconBg="#EEEDFE"
           subNeutral={!schoolInfo?.totalStudents}
@@ -390,10 +392,10 @@ export default function Dashboard() {
             <InfoItem label="البريد" value={schoolInfo?.email} />
             <InfoItem label="حالة الاشتراك" value={schoolInfo?.subscriptionStatus} highlight />
             <InfoItem
-              label="انتهاء الاشتراك"
+              label={t("dashboard.schoolInfo.subscriptionExpiry")}
               value={
                 schoolInfo?.subscriptionExpiresAt
-                  ? new Date(schoolInfo.subscriptionExpiresAt).toLocaleDateString("ar-MA", {
+                  ? new Date(schoolInfo.subscriptionExpiresAt).toLocaleDateString(locale, {
                       year: "numeric", month: "long", day: "numeric",
                     })
                   : "—"

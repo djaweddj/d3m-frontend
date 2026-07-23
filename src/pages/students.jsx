@@ -3,29 +3,23 @@ import {
   Search, Users, CheckCircle, XCircle, RefreshCw, AlertCircle,
   ChevronDown, ChevronUp, Plus, X, Eye, EyeOff, UserPlus,
   BookOpen, CreditCard, ChevronRight, ArrowLeft, GraduationCap,
-  Clock, Wallet, Printer, History, ClipboardList,
+  Clock, Wallet, Printer, History, ClipboardList, UserMinus,
 } from "lucide-react";
 import { useSchool } from "../context/SchoolContext";
+import { useLanguage } from "../context/LanguageContext";
 import api from "../api";
 
 // ── API ───────────────────────────────────────────────────
-// Every call here is matched 1:1 against the real controllers:
-//   ModuleController, StudentController, EnrollmentController, InvoiceController
 const schoolApi = {
   getModules:          ()                       => api.get("api/modules"),
   getStudentsByModule: (moduleId)               => api.get(`api/students/by-module/${moduleId}`),
   getAllStudents:      ()                       => api.get("api/students"),
   registerStudent:     (data)                   => api.post("api/students/register", data),
-
-  // EnrollmentController
   adminEnroll:         (studentId, moduleId)    =>
     api.post(`api/enrollments/admin-enroll?studentId=${studentId}&moduleId=${moduleId}`),
+  removeEnrollment:    (studentId, moduleId)    =>
+    api.delete(`api/enrollments?studentId=${studentId}&moduleId=${moduleId}`),
   getStudentEnrollments: (studentId)            => api.get(`api/enrollments/student/${studentId}`),
-
-  // InvoiceController
-  // Returns List<StudentInvoiceResponseDto> — every invoice ever issued to this student,
-  // across all periods/modules, most recent first (assumed; we don't re-sort defensively
-  // beyond picking "this month" out of whatever order comes back).
   getStudentInvoices: (studentId)               => api.get(`api/invoices/student/${studentId}`),
   getSchoolRevenue:    (period)                 => api.get(`api/invoices/school/revenue?period=${period}`),
   markInvoicePaid:     (invoiceId)              => api.post(`api/invoices/${invoiceId}/pay`),
@@ -37,10 +31,6 @@ function todayYearMonth() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-// StudentInvoiceResponseDto.period is a java.time.YearMonth, which Jackson serializes as
-// "2026-07" by default — same shape as todayYearMonth(), so plain string equality works
-// whether the field arrives as "2026-07" or (if a toString()-based serializer is ever
-// swapped in) "2026-07". Guard against either an object-with-toString or a raw string.
 function periodToKey(period) {
   if (!period) return null;
   return String(period).slice(0, 7);
@@ -50,15 +40,12 @@ function isCurrentPeriod(invoice) {
   return periodToKey(invoice?.period) === todayYearMonth();
 }
 
-// Picks "this month's" invoice out of a student's full invoice list, if any.
 function currentMonthInvoice(invoices) {
   if (!Array.isArray(invoices)) return null;
   return invoices.find(isCurrentPeriod) ?? null;
 }
 
 // ── Palette ───────────────────────────────────────────────
-// Kept the level-color system already established in the app (blue/violet/green/amber/red
-// rotation), just centralized so drawer, modals, and lists all agree on the same mapping.
 const LEVEL_COLORS = [
   { color: "#3B82F6", light: "#EFF6FF" },
   { color: "#8B5CF6", light: "#F5F3FF" },
@@ -87,8 +74,6 @@ function formatDate(d) {
   catch { return String(d); }
 }
 
-// YearMonth ("2026-07") has no day component, so `new Date("2026-07")` is technically
-// parseable but drifts by timezone in some browsers. Format it directly from the parts.
 function formatPeriod(period) {
   const key = periodToKey(period);
   if (!key) return "—";
@@ -100,33 +85,32 @@ function formatPeriod(period) {
 }
 
 // ── Invoice printing ───────────────────────────────────────
-// Takes a real StudentInvoiceResponseDto (id, studentName, moduleName, period, amount,
-// status, dueDate, paidAt) — no more hand-built snapshots. Only ever called for PAID
-// invoices. No backend PDF endpoint exists, so this renders a print-only sheet directly
-// in the browser and opens the native print dialog — user can pick a physical printer or
-// "Save as PDF" from there.
-function printInvoice({ invoice, student, schoolName }) {
+// `t` is passed in from the caller since this isn't a React component.
+function printInvoice({ invoice, student, schoolName, t }) {
   const w = window.open("", "_blank", "width=800,height=900");
   if (!w) {
-    alert("الرجاء السماح بالنوافذ المنبثقة لطباعة الفاتورة");
+    alert(t("students.print.popupBlockedInvoice"));
     return;
   }
 
   const rows = [
-    ["التلميذ", invoice.studentName || student?.fullName || "—"],
-    ["ولي الأمر", student?.parentName || "—"],
-    ["الوحدة الدراسية", invoice.moduleName ?? "—"],
-    ["الفترة", formatPeriod(invoice.period)],
-    ["تاريخ الاستحقاق", formatDate(invoice.dueDate)],
-    ["تاريخ الدفع", formatDate(invoice.paidAt)],
+    [t("students.print.rowStudent"), invoice.studentName || student?.fullName || "—"],
+    [t("students.print.rowParent"), student?.parentName || "—"],
+    [t("students.print.rowModule"), invoice.moduleName ?? "—"],
+    [t("students.print.rowPeriod"), formatPeriod(invoice.period)],
+    [t("students.print.rowDueDate"), formatDate(invoice.dueDate)],
+    [t("students.print.rowPaidDate"), formatDate(invoice.paidAt)],
   ];
+
+  const fallbackSchool = t("students.print.schoolFallback");
+  const currency = t("students.print.currency");
 
   w.document.write(`
     <!DOCTYPE html>
     <html dir="rtl" lang="ar">
     <head>
       <meta charset="UTF-8" />
-      <title>فاتورة - ${invoice.studentName ?? student?.fullName ?? ""}</title>
+      <title>${t("students.print.invoiceDocTitle", { name: invoice.studentName ?? student?.fullName ?? "" })}</title>
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
         * { box-sizing: border-box; }
@@ -172,37 +156,32 @@ function printInvoice({ invoice, student, schoolName }) {
     <body>
       <div class="header">
         <div>
-          <p class="school-name">${schoolName || "المؤسسة التعليمية"}</p>
-          <p class="doc-label">فاتورة دفع رسوم دراسية</p>
+          <p class="school-name">${schoolName || fallbackSchool}</p>
+          <p class="doc-label">${t("students.print.invoiceDocLabel")}</p>
         </div>
-        <span class="badge">✓ مدفوع</span>
+        <span class="badge">${t("students.print.paidBadge")}</span>
       </div>
       <table>
         ${rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("")}
       </table>
       <div class="amount-box">
-        <span class="amount-label">المبلغ المدفوع</span>
-        <span class="amount-value">${money(invoice.amount)} دج</span>
+        <span class="amount-label">${t("students.print.amountPaidLabel")}</span>
+        <span class="amount-value">${money(invoice.amount)} ${currency}</span>
       </div>
-      <p class="footer">تم إصدار هذه الفاتورة إلكترونياً · ${formatDate(new Date())}</p>
+      <p class="footer">${t("students.print.invoiceIssuedNote", { date: formatDate(new Date()) })}</p>
     </body>
     </html>
   `);
   w.document.close();
   w.focus();
-  // Give fonts/layout a beat to settle before invoking print
   setTimeout(() => { w.print(); }, 350);
 }
 
 // ── Attendance sheet printing ──────────────────────────────
-// Same popup+print mechanism as printInvoice, but fully client-side: no backend endpoint
-// needed. By the time ModuleSection renders the print icon it already has `module`
-// (subjectName/teacherName/level) and `students` (that module's roster) as props, plus
-// `schoolName` passed down from the page — that's everything the sheet needs.
-function printAttendanceSheet({ module, students, schoolName, sessionCount = 8 }) {
+function printAttendanceSheet({ module, students, schoolName, sessionCount = 8, t }) {
   const w = window.open("", "_blank", "width=1000,height=750");
   if (!w) {
-    alert("الرجاء السماح بالنوافذ المنبثقة لطباعة كشف الحضور");
+    alert(t("students.print.popupBlockedAttendance"));
     return;
   }
 
@@ -216,12 +195,14 @@ function printAttendanceSheet({ module, students, schoolName, sessionCount = 8 }
     </tr>
   `).join("");
 
+  const fallbackSchool = t("students.print.schoolFallback");
+
   w.document.write(`
     <!DOCTYPE html>
     <html dir="rtl" lang="ar">
     <head>
       <meta charset="UTF-8" />
-      <title>كشف حضور - ${module.subjectName ?? module.name ?? ""}</title>
+      <title>${t("students.print.attendanceDocTitle", { name: module.subjectName ?? module.name ?? "" })}</title>
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
         * { box-sizing: border-box; }
@@ -246,21 +227,21 @@ function printAttendanceSheet({ module, students, schoolName, sessionCount = 8 }
     <body>
       <div class="header">
         <div>
-          <p class="school-name">${schoolName || "المؤسسة التعليمية"}</p>
-          <p class="doc-label">كشف حضور وغياب</p>
+          <p class="school-name">${schoolName || fallbackSchool}</p>
+          <p class="doc-label">${t("students.print.attendanceDocLabel")}</p>
         </div>
       </div>
       <div class="meta">
-        <div><span>الوحدة:</span><strong>${module.subjectName ?? module.name ?? "—"}</strong></div>
-        <div><span>الأستاذ:</span><strong>${module.teacherName ?? "—"}</strong></div>
-        <div><span>المستوى:</span><strong>${module.level ?? "—"}</strong></div>
-        <div><span>عدد التلاميذ:</span><strong>${students.length}</strong></div>
+        <div><span>${t("students.print.metaModule")}</span><strong>${module.subjectName ?? module.name ?? "—"}</strong></div>
+        <div><span>${t("students.print.metaTeacher")}</span><strong>${module.teacherName ?? "—"}</strong></div>
+        <div><span>${t("students.print.metaLevel")}</span><strong>${module.level ?? "—"}</strong></div>
+        <div><span>${t("students.print.metaStudentCount")}</span><strong>${students.length}</strong></div>
       </div>
       <table>
-        <thead><tr><th></th><th class="name-col">الاسم</th>${dateHeaderCells}</tr></thead>
+        <thead><tr><th></th><th class="name-col">${t("students.print.nameColumn")}</th>${dateHeaderCells}</tr></thead>
         <tbody>${rows}</tbody>
       </table>
-      <p class="footer">تم إصدار هذا الكشف إلكترونياً · ${formatDate(new Date())}</p>
+      <p class="footer">${t("students.print.attendanceIssuedNote", { date: formatDate(new Date()) })}</p>
     </body>
     </html>
   `);
@@ -270,13 +251,14 @@ function printAttendanceSheet({ module, students, schoolName, sessionCount = 8 }
 }
 
 // ── Status badge (shared by drawer + invoice panel) ───────
-const STATUS_MAP = {
-  PAID:      { bg: "#ECFDF5", color: "#065F46", label: "مدفوع",  icon: CheckCircle },
-  PENDING:   { bg: "#FEF9C3", color: "#854D0E", label: "معلق",   icon: Clock },
-  OVERDUE:   { bg: "#FEF2F2", color: "#991B1B", label: "متأخر",  icon: AlertCircle },
-  CANCELLED: { bg: "#F1F5F9", color: "#64748B", label: "ملغى",   icon: XCircle },
-};
 function StatusBadge({ status, size = 10 }) {
+  const { t } = useLanguage();
+  const STATUS_MAP = {
+    PAID:      { bg: "#ECFDF5", color: "#065F46", label: t("students.status.PAID"),      icon: CheckCircle },
+    PENDING:   { bg: "#FEF9C3", color: "#854D0E", label: t("students.status.PENDING"),   icon: Clock },
+    OVERDUE:   { bg: "#FEF2F2", color: "#991B1B", label: t("students.status.OVERDUE"),   icon: AlertCircle },
+    CANCELLED: { bg: "#F1F5F9", color: "#64748B", label: t("students.status.CANCELLED"), icon: XCircle },
+  };
   const s = STATUS_MAP[status] ?? STATUS_MAP.PENDING;
   const Icon = s.icon;
   return (
@@ -286,8 +268,9 @@ function StatusBadge({ status, size = 10 }) {
   );
 }
 
-// Print trigger — only ever rendered when invoice.status === "PAID" by the caller.
-function PrintButton({ onClick, compact = false, title = "طباعة الفاتورة" }) {
+function PrintButton({ onClick, compact = false }) {
+  const { t } = useLanguage();
+  const title = t("students.buttons.printInvoiceTitle");
   if (compact) {
     return (
       <button
@@ -303,20 +286,13 @@ function PrintButton({ onClick, compact = false, title = "طباعة الفات�
   }
   return (
     <button onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 7, border: "1.5px solid #3B82F6", background: "#EFF6FF", color: "#3B82F6", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-      <Printer size={12} />طباعة
+      <Printer size={12} />{t("students.buttons.printLabel")}
     </button>
   );
 }
 
-// Attendance-sheet trigger — sits in the module accordion header, next to the level
-// badge. Separate from PrintButton (which is only ever for PAID invoices) so the two
-// concerns don't get tangled — this one is always available, regardless of billing status.
 function AttendanceSheetButton({ onClick, color, light }) {
-  // Rendered inside ModuleSection's header, which is itself a <button> (toggles the
-  // accordion). A <button> nested inside another <button> is invalid HTML — the browser's
-  // parser force-closes the outer one early, which scrambles the DOM React thinks it
-  // rendered and makes clicks land unpredictably. Using a <span role="button"> here keeps
-  // it clickable and keyboard-accessible without nesting interactive elements.
+  const { t } = useLanguage();
   return (
     <span
       role="button"
@@ -329,13 +305,37 @@ function AttendanceSheetButton({ onClick, color, light }) {
           onClick();
         }
       }}
-      title="طباعة كشف الحضور"
+      title={t("students.buttons.printAttendanceTitle")}
       style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
       onMouseEnter={(e) => { e.currentTarget.style.background = light; e.currentTarget.style.borderColor = color; }}
       onMouseLeave={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.borderColor = "#E2E8F0"; }}
     >
       <ClipboardList size={14} color={color} />
     </span>
+  );
+}
+
+function RemoveEnrollButton({ onClick, compact = false, busy = false, label }) {
+  const { t } = useLanguage();
+  const resolvedLabel = label ?? t("students.buttons.removeLabel");
+  if (compact) {
+    return (
+      <button
+        onClick={(e) => { e.stopPropagation(); if (!busy) onClick(); }}
+        disabled={busy}
+        title={t("students.buttons.removeFromModuleTitle")}
+        style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: busy ? "not-allowed" : "pointer", flexShrink: 0, opacity: busy ? .55 : 1 }}
+        onMouseEnter={(e) => { if (!busy) { e.currentTarget.style.background = "#FEF2F2"; e.currentTarget.style.borderColor = "#DC2626"; } }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.borderColor = "#E2E8F0"; }}
+      >
+        <UserMinus size={12} color="#DC2626" />
+      </button>
+    );
+  }
+  return (
+    <button onClick={onClick} disabled={busy} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 7, border: "1.5px solid #DC2626", background: "#FEF2F2", color: "#DC2626", fontSize: 11, fontWeight: 700, cursor: busy ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: busy ? .6 : 1 }}>
+      <UserMinus size={12} />{busy ? t("students.buttons.removing") : resolvedLabel}
+    </button>
   );
 }
 
@@ -349,13 +349,14 @@ function LoadingBlock() {
 }
 
 function ErrorBlock({ message, onRetry }) {
+  const { t } = useLanguage();
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "2rem" }}>
       <AlertCircle size={32} color="#E2A84B" />
       <p style={{ color: "#64748B", fontSize: 13, margin: 0 }}>{message}</p>
       {onRetry && (
         <button onClick={onRetry} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 8, border: "1.5px solid #185FA5", background: "#EBF4FE", color: "#185FA5", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-          <RefreshCw size={13} /> إعادة المحاولة
+          <RefreshCw size={13} /> {t("students.retry")}
         </button>
       )}
     </div>
@@ -378,7 +379,8 @@ const fw  = { display: "flex", flexDirection: "column", gap: 4 };
 
 // ── Add Student Modal (3-step: register + enroll) ─────────
 function AddStudentModal({ modules, allLevels, onClose, onSuccess, onError }) {
-  const STEPS = ["معلومات التلميذ", "تفاصيل إضافية", "اختيار الوحدة"];
+  const { t } = useLanguage();
+  const STEPS = t("students.addModal.steps");
   const [step, setStep]               = useState(0);
   const [showPw, setShowPw]           = useState(false);
   const [submitting, setSubmitting]   = useState(false);
@@ -404,14 +406,12 @@ function AddStudentModal({ modules, allLevels, onClose, onSuccess, onError }) {
         birthDate: form.birthDate,
       });
       const studentId = regRes.data?.id;
-      if (!studentId) throw new Error("لم يتم استرجاع معرّف التلميذ بعد التسجيل");
+      if (!studentId) throw new Error(t("students.addModal.missingStudentId"));
 
-      // registerStudent creates the account; admin-enroll is the direct-enroll path
-      // (skips the PENDING student-request flow since the admin is doing this themselves)
       await schoolApi.adminEnroll(studentId, form.moduleId);
-      onSuccess("تم إنشاء حساب التلميذ وتسجيله في الوحدة بنجاح ✓");
+      onSuccess(t("students.addModal.successMessage"));
     } catch (err) {
-      setSubmitError(err?.response?.data?.message || err.message || "حدث خطأ، يرجى المحاولة مجدداً");
+      setSubmitError(err?.response?.data?.message || err.message || t("students.addModal.genericError"));
     } finally { setSubmitting(false); }
   };
 
@@ -423,7 +423,7 @@ function AddStudentModal({ modules, allLevels, onClose, onSuccess, onError }) {
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ width: 34, height: 34, borderRadius: 10, background: "#EFF6FF", display: "flex", alignItems: "center", justifyContent: "center" }}><UserPlus size={16} color="#3B82F6" /></div>
             <div>
-              <p style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", margin: 0 }}>إضافة تلميذ جديد</p>
+              <p style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("students.addModal.heading")}</p>
               <p style={{ fontSize: 11, color: "#94A3B8", margin: 0 }}>{STEPS[step]}</p>
             </div>
           </div>
@@ -447,17 +447,17 @@ function AddStudentModal({ modules, allLevels, onClose, onSuccess, onError }) {
         <div style={{ padding: "4px 20px 16px", overflowY: "auto", flex: 1 }}>
           {step === 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div style={fw}><label style={lbl}>الاسم الكامل *</label><input style={inp} placeholder="أحمد بن علي" value={form.fullName} onChange={(e) => set("fullName", e.target.value)} /></div>
-              <div style={fw}><label style={lbl}>البريد الإلكتروني *</label><input style={{ ...inp, direction: "ltr" }} type="email" placeholder="student@email.com" value={form.email} onChange={(e) => set("email", e.target.value)} /></div>
+              <div style={fw}><label style={lbl}>{t("students.addModal.fullName")}</label><input style={inp} placeholder={t("students.addModal.fullNamePlaceholder")} value={form.fullName} onChange={(e) => set("fullName", e.target.value)} /></div>
+              <div style={fw}><label style={lbl}>{t("students.addModal.email")}</label><input style={{ ...inp, direction: "ltr" }} type="email" placeholder="student@email.com" value={form.email} onChange={(e) => set("email", e.target.value)} /></div>
               <div style={fw}>
-                <label style={lbl}>كلمة المرور * (6 أحرف على الأقل)</label>
+                <label style={lbl}>{t("students.addModal.password")}</label>
                 <div style={{ position: "relative" }}>
                   <input style={{ ...inp, direction: "ltr", paddingLeft: 38 }} type={showPw ? "text" : "password"} placeholder="••••••••" value={form.password} onChange={(e) => set("password", e.target.value)} />
                   <button onClick={() => setShowPw((v) => !v)} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#94A3B8", display: "flex" }}>{showPw ? <EyeOff size={15} /> : <Eye size={15} />}</button>
                 </div>
               </div>
               <div style={fw}>
-                <label style={lbl}>المستوى الدراسي *</label>
+                <label style={lbl}>{t("students.addModal.level")}</label>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   {allLevels.map((lvl, i) => { const c = levelColor(i); const active = form.level === lvl; return (
                     <button key={lvl} onClick={() => { set("level", lvl); set("moduleId", ""); }} style={{ padding: "6px 14px", borderRadius: 20, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: active ? `1.5px solid ${c.color}` : "1.5px solid #E2E8F0", background: active ? c.color : "#fff", color: active ? "#fff" : "#64748B" }}>{lvl}</button>
@@ -468,22 +468,22 @@ function AddStudentModal({ modules, allLevels, onClose, onSuccess, onError }) {
           )}
           {step === 1 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div style={fw}><label style={lbl}>تاريخ الميلاد *</label><input style={{ ...inp, direction: "ltr" }} type="date" value={form.birthDate} onChange={(e) => set("birthDate", e.target.value)} /></div>
-              <div style={fw}><label style={lbl}>اسم ولي الأمر</label><input style={inp} placeholder="علي بن محمد" value={form.parentName} onChange={(e) => set("parentName", e.target.value)} /></div>
-              <div style={fw}><label style={lbl}>هاتف ولي الأمر</label><input style={{ ...inp, direction: "ltr" }} type="tel" placeholder="0555 000 000" value={form.parentPhone} onChange={(e) => set("parentPhone", e.target.value)} /></div>
+              <div style={fw}><label style={lbl}>{t("students.addModal.birthDate")}</label><input style={{ ...inp, direction: "ltr" }} type="date" value={form.birthDate} onChange={(e) => set("birthDate", e.target.value)} /></div>
+              <div style={fw}><label style={lbl}>{t("students.addModal.parentName")}</label><input style={inp} placeholder={t("students.addModal.parentNamePlaceholder")} value={form.parentName} onChange={(e) => set("parentName", e.target.value)} /></div>
+              <div style={fw}><label style={lbl}>{t("students.addModal.parentPhone")}</label><input style={{ ...inp, direction: "ltr" }} type="tel" placeholder="0555 000 000" value={form.parentPhone} onChange={(e) => set("parentPhone", e.target.value)} /></div>
             </div>
           )}
           {step === 2 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <p style={{ fontSize: 12, color: "#64748B", margin: "0 0 6px" }}>اختر الوحدة للمستوى: <strong>{form.level}</strong></p>
+              <p style={{ fontSize: 12, color: "#64748B", margin: "0 0 6px" }}>{t("students.addModal.chooseModuleFor", { level: form.level })}</p>
               {modulesForLevel.length === 0
-                ? <div style={{ textAlign: "center", color: "#94A3B8", padding: "2rem", fontSize: 13 }}>لا توجد وحدات لهذا المستوى</div>
+                ? <div style={{ textAlign: "center", color: "#94A3B8", padding: "2rem", fontSize: 13 }}>{t("students.addModal.noModulesForLevel")}</div>
                 : modulesForLevel.map((m, i) => { const c = levelColor(i); const active = String(form.moduleId) === String(m.id); return (
                   <button key={m.id} onClick={() => set("moduleId", m.id)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 10, border: active ? `1.5px solid ${c.color}` : "1.5px solid #E2E8F0", background: active ? c.light : "#fff", cursor: "pointer", fontFamily: "inherit", textAlign: "right", width: "100%" }}>
                     <div style={{ width: 36, height: 36, borderRadius: 9, background: active ? c.color : "#F1F5F9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: active ? "#fff" : "#94A3B8", flexShrink: 0 }}>{m.level?.slice(0, 3) ?? "—"}</div>
                     <div style={{ flex: 1, textAlign: "right" }}>
                       <p style={{ fontSize: 13, fontWeight: 700, color: active ? c.color : "#0F172A", margin: 0 }}>{m.subjectName ?? m.name}</p>
-                      <p style={{ fontSize: 11, color: "#94A3B8", margin: 0, marginTop: 2 }}>👨‍🏫 {m.teacherName ?? "—"} · {money(m.monthlyprice ?? m.monthlyPrice)} دج/شهر</p>
+                      <p style={{ fontSize: 11, color: "#94A3B8", margin: 0, marginTop: 2 }}>👨‍🏫 {m.teacherName ?? "—"} · {money(m.monthlyprice ?? m.monthlyPrice)} {t("students.addModal.perMonth")}</p>
                     </div>
                     {active && <CheckCircle size={16} color={c.color} />}
                   </button>
@@ -500,12 +500,12 @@ function AddStudentModal({ modules, allLevels, onClose, onSuccess, onError }) {
         {/* Footer */}
         <div style={{ padding: "12px 20px", borderTop: "1px solid #F1F5F9", display: "flex", gap: 10, justifyContent: "space-between" }}>
           <button onClick={() => step > 0 ? setStep((s) => s - 1) : onClose()} style={{ padding: "9px 18px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-            {step === 0 ? "إلغاء" : "رجوع"}
+            {step === 0 ? t("students.addModal.cancel") : t("students.addModal.back")}
           </button>
           {step < 2
-            ? <button onClick={() => setStep((s) => s + 1)} disabled={!stepValid[step]} style={{ padding: "9px 22px", borderRadius: 9, border: "none", background: stepValid[step] ? "#3B82F6" : "#E2E8F0", color: stepValid[step] ? "#fff" : "#94A3B8", fontSize: 13, fontWeight: 700, cursor: stepValid[step] ? "pointer" : "not-allowed", fontFamily: "inherit" }}>التالي</button>
+            ? <button onClick={() => setStep((s) => s + 1)} disabled={!stepValid[step]} style={{ padding: "9px 22px", borderRadius: 9, border: "none", background: stepValid[step] ? "#3B82F6" : "#E2E8F0", color: stepValid[step] ? "#fff" : "#94A3B8", fontSize: 13, fontWeight: 700, cursor: stepValid[step] ? "pointer" : "not-allowed", fontFamily: "inherit" }}>{t("students.addModal.next")}</button>
             : <button onClick={handleSubmit} disabled={submitting || !stepValid[2]} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 22px", borderRadius: 9, border: "none", background: (!submitting && stepValid[2]) ? "#059669" : "#E2E8F0", color: (!submitting && stepValid[2]) ? "#fff" : "#94A3B8", fontSize: 13, fontWeight: 700, cursor: (!submitting && stepValid[2]) ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
-              {submitting ? <><div style={{ width: 13, height: 13, borderRadius: "50%", border: "2px solid #fff", borderTopColor: "transparent", animation: "spin .8s linear infinite" }} />جاري التسجيل...</> : <><UserPlus size={14} />تسجيل التلميذ</>}
+              {submitting ? <><div style={{ width: 13, height: 13, borderRadius: "50%", border: "2px solid #fff", borderTopColor: "transparent", animation: "spin .8s linear infinite" }} />{t("students.addModal.submitting")}</> : <><UserPlus size={14} />{t("students.addModal.submit")}</>}
             </button>
           }
         </div>
@@ -516,26 +516,28 @@ function AddStudentModal({ modules, allLevels, onClose, onSuccess, onError }) {
 
 // ── Enroll Existing Student Modal ─────────────────────────
 function EnrollExistingModal({ student, modules, allLevels, enrolledModuleIds, onClose, onSuccess }) {
+  const { t } = useLanguage();
   const [selectedModule, setSelectedModule] = useState(null);
   const [submitting, setSubmitting]         = useState(false);
   const [error, setError]                   = useState(null);
-  const [levelFilter, setLevelFilter]       = useState("الكل");
+  const allLabel = t("students.enrollModal.all");
+  const [levelFilter, setLevelFilter]       = useState(allLabel);
 
   const available = modules.filter((m) => !enrolledModuleIds.includes(m.id));
-  const filtered  = levelFilter === "الكل" ? available : available.filter((m) => m.level === levelFilter);
+  const filtered  = levelFilter === allLabel ? available : available.filter((m) => m.level === levelFilter);
 
   const handleEnroll = async () => {
     if (!selectedModule) return;
     setSubmitting(true); setError(null);
     try {
       await schoolApi.adminEnroll(student.id, selectedModule);
-      onSuccess(`تم تسجيل ${student.fullName} في الوحدة بنجاح ✓`);
+      onSuccess(t("students.enrollModal.successMessage", { name: student.fullName }));
     } catch (err) {
-      setError(err?.response?.data?.message || "حدث خطأ، يرجى المحاولة مجدداً");
+      setError(err?.response?.data?.message || t("students.enrollModal.genericError"));
     } finally { setSubmitting(false); }
   };
 
-  const lvlTabs = ["الكل", ...allLevels];
+  const lvlTabs = [allLabel, ...allLevels];
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.45)", backdropFilter: "blur(4px)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
@@ -544,7 +546,7 @@ function EnrollExistingModal({ student, modules, allLevels, enrolledModuleIds, o
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ width: 34, height: 34, borderRadius: 10, background: "#F5F3FF", display: "flex", alignItems: "center", justifyContent: "center" }}><BookOpen size={16} color="#8B5CF6" /></div>
             <div>
-              <p style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", margin: 0 }}>تسجيل في وحدة جديدة</p>
+              <p style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("students.enrollModal.heading")}</p>
               <p style={{ fontSize: 11, color: "#94A3B8", margin: 0 }}>{student.fullName}</p>
             </div>
           </div>
@@ -560,7 +562,7 @@ function EnrollExistingModal({ student, modules, allLevels, enrolledModuleIds, o
         </div>
         <div style={{ overflowY: "auto", flex: 1, padding: "10px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
           {filtered.length === 0
-            ? <div style={{ textAlign: "center", color: "#94A3B8", padding: "2rem", fontSize: 13 }}>لا توجد وحدات متاحة</div>
+            ? <div style={{ textAlign: "center", color: "#94A3B8", padding: "2rem", fontSize: 13 }}>{t("students.enrollModal.noAvailableModules")}</div>
             : filtered.map((m) => {
               const c      = levelColorByName(m.level, allLevels);
               const active = selectedModule === m.id;
@@ -583,9 +585,9 @@ function EnrollExistingModal({ student, modules, allLevels, enrolledModuleIds, o
           )}
         </div>
         <div style={{ padding: "12px 16px", borderTop: "1px solid #F1F5F9", display: "flex", gap: 10, justifyContent: "space-between" }}>
-          <button onClick={onClose} style={{ padding: "9px 18px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>إلغاء</button>
+          <button onClick={onClose} style={{ padding: "9px 18px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{t("students.enrollModal.cancel")}</button>
           <button onClick={handleEnroll} disabled={!selectedModule || submitting} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 22px", borderRadius: 9, border: "none", background: selectedModule && !submitting ? "#8B5CF6" : "#E2E8F0", color: selectedModule && !submitting ? "#fff" : "#94A3B8", fontSize: 13, fontWeight: 700, cursor: selectedModule && !submitting ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
-            {submitting ? <><div style={{ width: 13, height: 13, borderRadius: "50%", border: "2px solid #fff", borderTopColor: "transparent", animation: "spin .8s linear infinite" }} />جاري التسجيل...</> : <><BookOpen size={14} />تسجيل</>}
+            {submitting ? <><div style={{ width: 13, height: 13, borderRadius: "50%", border: "2px solid #fff", borderTopColor: "transparent", animation: "spin .8s linear infinite" }} />{t("students.enrollModal.submitting")}</> : <><BookOpen size={14} />{t("students.enrollModal.submit")}</>}
           </button>
         </div>
       </div>
@@ -594,9 +596,8 @@ function EnrollExistingModal({ student, modules, allLevels, enrolledModuleIds, o
 }
 
 // ── Create Invoice Manually Modal ─────────────────────────
-// Covers InvoiceService's own documented use case: a student who joins mid-month and
-// needs a one-off invoice created outside the automatic monthly billing job.
 function CreateInvoiceModal({ student, enrollments, schoolId, onClose, onSuccess }) {
+  const { t } = useLanguage();
   const [enrollmentId, setEnrollmentId] = useState(enrollments[0]?.id ?? "");
   const [period, setPeriod]             = useState(todayYearMonth());
   const [dueDate, setDueDate]           = useState(new Date().toISOString().slice(0, 10));
@@ -610,15 +611,14 @@ function CreateInvoiceModal({ student, enrollments, schoolId, onClose, onSuccess
     try {
       await schoolApi.createInvoiceManually({
         enrollmentId: Number(enrollmentId),
-      
         studentId: student.id,
         dueDate,
         period,
         totalAmount: Number(amount),
       });
-      onSuccess("تم إنشاء الفاتورة بنجاح ✓");
+      onSuccess(t("students.invoiceModal.successMessage"));
     } catch (err) {
-      setError(err?.response?.data?.message || "حدث خطأ، يرجى المحاولة مجدداً");
+      setError(err?.response?.data?.message || t("students.invoiceModal.genericError"));
     } finally { setSubmitting(false); }
   };
 
@@ -629,7 +629,7 @@ function CreateInvoiceModal({ student, enrollments, schoolId, onClose, onSuccess
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ width: 34, height: 34, borderRadius: 10, background: "#FFFBEB", display: "flex", alignItems: "center", justifyContent: "center" }}><CreditCard size={16} color="#D97706" /></div>
             <div>
-              <p style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", margin: 0 }}>إنشاء فاتورة يدوياً</p>
+              <p style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("students.invoiceModal.heading")}</p>
               <p style={{ fontSize: 11, color: "#94A3B8", margin: 0 }}>{student.fullName}</p>
             </div>
           </div>
@@ -637,18 +637,18 @@ function CreateInvoiceModal({ student, enrollments, schoolId, onClose, onSuccess
         </div>
         <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={fw}>
-            <label style={lbl}>الوحدة الدراسية *</label>
+            <label style={lbl}>{t("students.invoiceModal.moduleLabel")}</label>
             <select style={{ ...inp, appearance: "auto" }} value={enrollmentId} onChange={(e) => setEnrollmentId(e.target.value)}>
-              {enrollments.length === 0 && <option value="">لا توجد وحدات مسجلة</option>}
+              {enrollments.length === 0 && <option value="">{t("students.invoiceModal.noEnrolledModules")}</option>}
               {enrollments.map((e) => <option key={e.id} value={e.id}>{e.subjectName ?? e.moduleName}</option>)}
             </select>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div style={fw}><label style={lbl}>الفترة (شهر)</label><input style={{ ...inp, direction: "ltr" }} type="month" value={period} onChange={(e) => setPeriod(e.target.value)} /></div>
-            <div style={fw}><label style={lbl}>تاريخ الاستحقاق</label><input style={{ ...inp, direction: "ltr" }} type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} /></div>
+            <div style={fw}><label style={lbl}>{t("students.invoiceModal.period")}</label><input style={{ ...inp, direction: "ltr" }} type="month" value={period} onChange={(e) => setPeriod(e.target.value)} /></div>
+            <div style={fw}><label style={lbl}>{t("students.invoiceModal.dueDate")}</label><input style={{ ...inp, direction: "ltr" }} type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} /></div>
           </div>
           <div style={fw}>
-            <label style={lbl}>المبلغ (دج) *</label>
+            <label style={lbl}>{t("students.invoiceModal.amount")}</label>
             <input style={{ ...inp, direction: "ltr" }} type="number" min="0" placeholder="3000" value={amount} onChange={(e) => setAmount(e.target.value)} />
           </div>
           {error && (
@@ -658,9 +658,9 @@ function CreateInvoiceModal({ student, enrollments, schoolId, onClose, onSuccess
           )}
         </div>
         <div style={{ padding: "12px 20px", borderTop: "1px solid #F1F5F9", display: "flex", gap: 10, justifyContent: "space-between" }}>
-          <button onClick={onClose} style={{ padding: "9px 18px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>إلغاء</button>
+          <button onClick={onClose} style={{ padding: "9px 18px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{t("students.invoiceModal.cancel")}</button>
           <button onClick={handleSubmit} disabled={submitting || !enrollmentId || !amount} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 22px", borderRadius: 9, border: "none", background: (!submitting && enrollmentId && amount) ? "#D97706" : "#E2E8F0", color: (!submitting && enrollmentId && amount) ? "#fff" : "#94A3B8", fontSize: 13, fontWeight: 700, cursor: (!submitting && enrollmentId && amount) ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
-            {submitting ? <><div style={{ width: 13, height: 13, borderRadius: "50%", border: "2px solid #fff", borderTopColor: "transparent", animation: "spin .8s linear infinite" }} />جاري الإنشاء...</> : <><CreditCard size={14} />إنشاء الفاتورة</>}
+            {submitting ? <><div style={{ width: 13, height: 13, borderRadius: "50%", border: "2px solid #fff", borderTopColor: "transparent", animation: "spin .8s linear infinite" }} />{t("students.invoiceModal.submitting")}</> : <><CreditCard size={14} />{t("students.invoiceModal.submit")}</>}
           </button>
         </div>
       </div>
@@ -669,22 +669,22 @@ function CreateInvoiceModal({ student, enrollments, schoolId, onClose, onSuccess
 }
 
 // ── Invoice history row (used inside the drawer's collapsible list) ──
-function InvoiceHistoryRow({ invoice, student, schoolName, onPay, payingId }) {
+function InvoiceHistoryRow({ invoice, student, schoolName, onPay, payingId, t }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 12px", borderRadius: 9, background: "#fff", border: "1px solid #F1F5F9" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-        <span style={{ fontSize: 12, color: "#0F172A", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{invoice.moduleName ?? "الوحدة"}</span>
-        <span style={{ fontSize: 11, color: "#94A3B8" }}>{formatPeriod(invoice.period)}{invoice.amount != null ? ` · ${money(invoice.amount)} دج` : ""}</span>
+        <span style={{ fontSize: 12, color: "#0F172A", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{invoice.moduleName ?? t("students.print.rowModule")}</span>
+        <span style={{ fontSize: 11, color: "#94A3B8" }}>{formatPeriod(invoice.period)}{invoice.amount != null ? ` · ${money(invoice.amount)} ${t("students.print.currency")}` : ""}</span>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
         <StatusBadge status={invoice.status} size={9} />
         {invoice.status !== "PAID" && invoice.id && (
           <button onClick={() => onPay(invoice)} disabled={payingId === invoice.id} style={{ padding: "4px 10px", borderRadius: 7, border: "none", background: "#059669", color: "#fff", fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", opacity: payingId === invoice.id ? .6 : 1 }}>
-            {payingId === invoice.id ? "..." : "تسجيل الدفع"}
+            {payingId === invoice.id ? "..." : t("students.drawer.registerPayment")}
           </button>
         )}
         {invoice.status === "PAID" && (
-          <PrintButton compact onClick={() => printInvoice({ invoice, student, schoolName })} />
+          <PrintButton compact onClick={() => printInvoice({ invoice, student, schoolName, t })} />
         )}
       </div>
     </div>
@@ -693,6 +693,7 @@ function InvoiceHistoryRow({ invoice, student, schoolName, onPay, payingId }) {
 
 // ── Student Detail Drawer ─────────────────────────────────
 function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onClose, onSuccess, onError }) {
+  const { t } = useLanguage();
   const [enrollments, setEnrollments] = useState([]);
   const [loadingEnr, setLoadingEnr]   = useState(true);
   const [errEnr, setErrEnr]           = useState(null);
@@ -704,6 +705,7 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
   const [loadingInv, setLoadingInv]   = useState(true);
   const [errInv, setErrInv]           = useState(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [removingEnrId, setRemovingEnrId] = useState(null);
 
   const c = levelColorByName(student.level, allLevels);
 
@@ -711,25 +713,21 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
     setLoadingEnr(true);
     schoolApi.getStudentEnrollments(student.id)
       .then((r) => setEnrollments(r.data?.content ?? r.data ?? []))
-      .catch(() => setErrEnr("تعذر تحميل الوحدات"))
+      .catch(() => setErrEnr(t("students.drawer.loadModulesError")))
       .finally(() => setLoadingEnr(false));
-  }, [student.id]);
+  }, [student.id, t]);
 
-  // List<StudentInvoiceResponseDto> — every invoice this student has ever had,
-  // across all periods and modules.
   const loadInvoices = useCallback(() => {
     setLoadingInv(true); setErrInv(null);
     schoolApi.getStudentInvoices(student.id)
       .then((r) => setInvoices(r.data?.content ?? r.data ?? []))
-      .catch(() => setErrInv("تعذر تحميل الفواتير"))
+      .catch(() => setErrInv(t("students.drawer.loadInvoicesError")))
       .finally(() => setLoadingInv(false));
-  }, [student.id]);
+  }, [student.id, t]);
 
   useEffect(() => { loadEnrollments(); }, [loadEnrollments]);
   useEffect(() => { loadInvoices(); }, [loadInvoices]);
 
-  // EnrollmentResponseDto fields are flat (moduleName / subjectName / teacherName / ModuleId),
-  // not nested under a `.module` object — matching the DTO builder in EnrollmentService.
   const enrolledModuleIds = enrollments.map((e) => e.ModuleId).filter(Boolean);
 
   const currentInvoice = currentMonthInvoice(invoices);
@@ -739,20 +737,30 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
     setPayingId(invoice.id);
     try {
       await schoolApi.markInvoicePaid(invoice.id);
-      onSuccess("تم تسجيل الدفعة بنجاح ✓");
-      // Re-fetch so we print the real, backend-confirmed invoice (real paidAt timestamp,
-      // not a client-guessed one) rather than a hand-built snapshot.
+      onSuccess(t("students.drawer.paymentSuccess"));
       const r = await schoolApi.getStudentInvoices(student.id);
       const fresh = r.data?.content ?? r.data ?? [];
       setInvoices(fresh);
       const paidInvoice = fresh.find((i) => i.id === invoice.id) ?? { ...invoice, status: "PAID", paidAt: new Date().toISOString() };
-      // Small delay so the success toast/reload settles before the print popup steals focus
       setTimeout(() => {
-        printInvoice({ invoice: paidInvoice, student, schoolName });
+        printInvoice({ invoice: paidInvoice, student, schoolName, t });
       }, 500);
     } catch (err) {
-      onError(err?.response?.data?.message || "تعذر تسجيل الدفعة");
+      onError(err?.response?.data?.message || t("students.drawer.paymentError"));
     } finally { setPayingId(null); }
+  };
+
+  const handleUnenroll = async (enr) => {
+    const moduleLabel = enr.subjectName ?? enr.moduleName ?? t("students.drawer.defaultModuleLabel");
+    if (!window.confirm(t("students.drawer.confirmUnenroll", { name: student.fullName, module: moduleLabel }))) return;
+    setRemovingEnrId(enr.id);
+    try {
+      await schoolApi.removeEnrollment(student.id, enr.ModuleId);
+      loadEnrollments();
+      onSuccess(t("students.drawer.unenrollSuccess", { name: student.fullName, module: moduleLabel }));
+    } catch (err) {
+      onError(err?.response?.data?.message || t("students.drawer.unenrollError"));
+    } finally { setRemovingEnrId(null); }
   };
 
   return (
@@ -783,7 +791,7 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
           {/* Drawer header */}
           <div style={{ padding: "16px 20px", borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "center", gap: 10 }}>
             <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 9, border: "1px solid #E2E8F0", background: "#F8FAFC", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><ArrowLeft size={15} color="#64748B" /></button>
-            <p style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", margin: 0 }}>تفاصيل التلميذ</p>
+            <p style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("students.drawer.title")}</p>
           </div>
 
           {/* Student card */}
@@ -797,7 +805,7 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
               </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 14 }}>
-              {[{ label: "ولي الأمر", value: student.parentName || "—" }, { label: "الهاتف", value: student.parentPhone || "—" }].map(({ label, value }) => (
+              {[{ label: t("students.drawer.parent"), value: student.parentName || "—" }, { label: t("students.drawer.phone"), value: student.parentPhone || "—" }].map(({ label, value }) => (
                 <div key={label} style={{ background: "#fff", borderRadius: 9, padding: "8px 12px", border: "1px solid #E2E8F0" }}>
                   <p style={{ fontSize: 10, color: "#94A3B8", margin: 0 }}>{label}</p>
                   <p style={{ fontSize: 12, fontWeight: 600, color: "#0F172A", margin: "2px 0 0" }}>{value}</p>
@@ -809,31 +817,31 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
           {/* Invoice / billing */}
           <div style={{ padding: "14px 20px", borderBottom: "1px solid #F1F5F9" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-              <p style={{ fontSize: 12, fontWeight: 700, color: "#475569", margin: 0, display: "flex", alignItems: "center", gap: 6 }}><Wallet size={13} />فاتورة الشهر الحالي</p>
+              <p style={{ fontSize: 12, fontWeight: 700, color: "#475569", margin: 0, display: "flex", alignItems: "center", gap: 6 }}><Wallet size={13} />{t("students.drawer.currentMonthInvoice")}</p>
               <button onClick={() => setShowInvoice(true)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 8, border: "1.5px solid #D97706", background: "#FFFBEB", color: "#D97706", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-                <Plus size={12} />فاتورة يدوية
+                <Plus size={12} />{t("students.drawer.manualInvoice")}
               </button>
             </div>
 
             {loadingInv ? <LoadingBlock /> : errInv
               ? <p style={{ fontSize: 12, color: "#94A3B8", textAlign: "center" }}>{errInv}</p>
               : !currentInvoice
-                ? <p style={{ fontSize: 12, color: "#94A3B8", margin: 0 }}>لا توجد فاتورة لهذا الشهر</p>
+                ? <p style={{ fontSize: 12, color: "#94A3B8", margin: 0 }}>{t("students.drawer.noInvoiceThisMonth")}</p>
                 : (
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderRadius: 9, background: "#F8FAFC", border: "1px solid #E2E8F0" }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                      <span style={{ fontSize: 12, color: "#0F172A", fontWeight: 600 }}>{currentInvoice.moduleName ?? "الوحدة"}</span>
-                      <span style={{ fontSize: 11, color: "#94A3B8" }}>{formatPeriod(currentInvoice.period)}{currentInvoice.amount != null ? ` · ${money(currentInvoice.amount)} دج` : ""}</span>
+                      <span style={{ fontSize: 12, color: "#0F172A", fontWeight: 600 }}>{currentInvoice.moduleName ?? t("students.print.rowModule")}</span>
+                      <span style={{ fontSize: 11, color: "#94A3B8" }}>{formatPeriod(currentInvoice.period)}{currentInvoice.amount != null ? ` · ${money(currentInvoice.amount)} ${t("students.print.currency")}` : ""}</span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <StatusBadge status={currentInvoice.status} />
                       {currentInvoice.status !== "PAID" && currentInvoice.id && (
                         <button onClick={() => handlePay(currentInvoice)} disabled={payingId === currentInvoice.id} style={{ padding: "5px 12px", borderRadius: 7, border: "none", background: "#059669", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", opacity: payingId === currentInvoice.id ? .6 : 1 }}>
-                          {payingId === currentInvoice.id ? "..." : "تسجيل الدفع"}
+                          {payingId === currentInvoice.id ? "..." : t("students.drawer.registerPayment")}
                         </button>
                       )}
                       {currentInvoice.status === "PAID" && (
-                        <PrintButton onClick={() => printInvoice({ invoice: currentInvoice, student, schoolName })} />
+                        <PrintButton onClick={() => printInvoice({ invoice: currentInvoice, student, schoolName, t })} />
                       )}
                     </div>
                   </div>
@@ -845,13 +853,13 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
               <div style={{ marginTop: 10 }}>
                 <button onClick={() => setShowHistory((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0, color: "#64748B", fontSize: 11, fontWeight: 700 }}>
                   <History size={12} />
-                  سجل الفواتير ({pastInvoices.length})
+                  {t("students.drawer.invoiceHistory", { count: pastInvoices.length })}
                   {showHistory ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                 </button>
                 {showHistory && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
                     {pastInvoices.map((inv) => (
-                      <InvoiceHistoryRow key={inv.id} invoice={inv} student={student} schoolName={schoolName} onPay={handlePay} payingId={payingId} />
+                      <InvoiceHistoryRow key={inv.id} invoice={inv} student={student} schoolName={schoolName} onPay={handlePay} payingId={payingId} t={t} />
                     ))}
                   </div>
                 )}
@@ -862,16 +870,16 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
           {/* Enrolled modules */}
           <div style={{ padding: "14px 20px", flex: 1 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <p style={{ fontSize: 12, fontWeight: 700, color: "#475569", margin: 0, display: "flex", alignItems: "center", gap: 6 }}><GraduationCap size={13} />الوحدات المسجلة</p>
+              <p style={{ fontSize: 12, fontWeight: 700, color: "#475569", margin: 0, display: "flex", alignItems: "center", gap: 6 }}><GraduationCap size={13} />{t("students.drawer.enrolledModules")}</p>
               <button onClick={() => setShowEnroll(true)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 8, border: "1.5px solid #8B5CF6", background: "#F5F3FF", color: "#8B5CF6", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-                <Plus size={12} />إضافة وحدة
+                <Plus size={12} />{t("students.drawer.addModule")}
               </button>
             </div>
 
             {loadingEnr ? <LoadingBlock /> : errEnr
               ? <p style={{ fontSize: 12, color: "#94A3B8", textAlign: "center" }}>{errEnr}</p>
               : enrollments.length === 0
-                ? <div style={{ textAlign: "center", padding: "1.5rem", color: "#94A3B8" }}><BookOpen size={28} style={{ opacity: .4 }} /><p style={{ fontSize: 13, marginTop: 8 }}>لم يُسجَّل في أي وحدة بعد</p></div>
+                ? <div style={{ textAlign: "center", padding: "1.5rem", color: "#94A3B8" }}><BookOpen size={28} style={{ opacity: .4 }} /><p style={{ fontSize: 13, marginTop: 8 }}>{t("students.drawer.notEnrolledYet")}</p></div>
                 : enrollments.map((enr) => {
                   const mc = levelColorByName(student.level, allLevels);
                   return (
@@ -881,9 +889,9 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", margin: 0 }}>{enr.subjectName ?? enr.moduleName ?? "—"}</p>
-                        <p style={{ fontSize: 11, color: "#94A3B8", margin: "2px 0 0" }}>👨‍🏫 {enr.teacherName ?? "—"} · {money(enr.monthlyPrice)} دج/شهر</p>
+                        <p style={{ fontSize: 11, color: "#94A3B8", margin: "2px 0 0" }}>👨‍🏫 {enr.teacherName ?? "—"} · {money(enr.monthlyPrice)} {t("students.drawer.perMonth")}</p>
                       </div>
-                    
+                      <RemoveEnrollButton compact busy={removingEnrId === enr.id} onClick={() => handleUnenroll(enr)} />
                     </div>
                   );
                 })
@@ -906,10 +914,23 @@ function LevelTab({ levelKey, count, color, light, active, onClick }) {
 }
 
 // ── Module accordion ──────────────────────────────────────
-function ModuleSection({ module, students, invoiceByStudentId, color, light, schoolName, onStudentClick }) {
+function ModuleSection({ module, students, invoiceByStudentId, color, light, schoolName, onStudentClick, onRemoveStudent }) {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(true);
+  const [removingId, setRemovingId] = useState(null);
   const paid   = students.filter((s) => currentMonthInvoice(invoiceByStudentId[s.id])?.status === "PAID").length;
   const unpaid = students.length - paid;
+
+  const handleRemove = async (s) => {
+    const moduleLabel = module.subjectName ?? module.name ?? t("students.drawer.defaultModuleLabel");
+    if (!window.confirm(t("students.drawer.confirmUnenroll", { name: s.fullName, module: moduleLabel }))) return;
+    setRemovingId(s.id);
+    try {
+      await onRemoveStudent(s.id, module.id, s.fullName, moduleLabel);
+    } finally {
+      setRemovingId(null);
+    }
+  };
 
   return (
     <div style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${color}28`, borderRight: `3px solid ${color}`, marginBottom: 10 }}>
@@ -921,25 +942,25 @@ function ModuleSection({ module, students, invoiceByStudentId, color, light, sch
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 3 }}>
               <span style={{ fontSize: 11, color: "#64748B" }}>👨‍🏫 {module.teacherName ?? "—"}</span>
               <span style={{ fontSize: 10, color: "#94A3B8" }}>·</span>
-              <span style={{ fontSize: 11, color: "#64748B" }}><Users size={10} style={{ verticalAlign: "middle" }} /> {students.length} تلميذ</span>
-              {unpaid > 0 && <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 7px", borderRadius: 20, background: "#FEF3C7", color: "#92400E", border: "1px solid #FDE68A" }}>{unpaid} معلق</span>}
+              <span style={{ fontSize: 11, color: "#64748B" }}><Users size={10} style={{ verticalAlign: "middle" }} /> {students.length} {t("students.moduleSection.studentsCount")}</span>
+              {unpaid > 0 && <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 7px", borderRadius: 20, background: "#FEF3C7", color: "#92400E", border: "1px solid #FDE68A" }}>{t("students.moduleSection.unpaidBadge", { count: unpaid })}</span>}
             </div>
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 20, background: light, color }}>{module.level}</span>
-          <AttendanceSheetButton color={color} light={light} onClick={() => printAttendanceSheet({ module, students, schoolName })} />
+          <AttendanceSheetButton color={color} light={light} onClick={() => printAttendanceSheet({ module, students, schoolName, t })} />
           {open ? <ChevronUp size={16} color="#94A3B8" /> : <ChevronDown size={16} color="#94A3B8" />}
         </div>
       </button>
       {open && (
         <div style={{ background: "#fff", borderTop: "1px solid #F8FAFC" }}>
           {students.length === 0
-            ? <div style={{ padding: "1.5rem", textAlign: "center", color: "#94A3B8", fontSize: 13 }}>لا يوجد تلاميذ في هذه الوحدة</div>
+            ? <div style={{ padding: "1.5rem", textAlign: "center", color: "#94A3B8", fontSize: 13 }}>{t("students.moduleSection.noStudents")}</div>
             : (
               <>
-                <div style={{ display: "grid", gridTemplateColumns: "28px 36px 1fr 140px 100px 80px 30px", gap: 8, padding: "8px 16px", background: "#F8FAFC", borderBottom: "1px solid #F1F5F9" }}>
-                  {["", "", "الاسم", "البريد الإلكتروني", "ولي الأمر", "الدفع", ""].map((h, i) => <span key={i} style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8" }}>{h}</span>)}
+                <div style={{ display: "grid", gridTemplateColumns: "28px 36px 1fr 140px 100px 80px 30px 30px", gap: 8, padding: "8px 16px", background: "#F8FAFC", borderBottom: "1px solid #F1F5F9" }}>
+                  {["", "", t("students.moduleSection.headerName"), t("students.moduleSection.headerEmail"), t("students.moduleSection.headerParent"), t("students.moduleSection.headerPayment"), "", ""].map((h, i) => <span key={i} style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8" }}>{h}</span>)}
                 </div>
                 {students.map((s, i) => {
                   const inv = currentMonthInvoice(invoiceByStudentId[s.id]);
@@ -947,7 +968,7 @@ function ModuleSection({ module, students, invoiceByStudentId, color, light, sch
                     <div key={s.id} onClick={() => onStudentClick(s)}
                       onMouseEnter={(e) => e.currentTarget.style.background = "#FAFBFF"}
                       onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                      style={{ display: "grid", gridTemplateColumns: "28px 36px 1fr 140px 100px 80px 30px", gap: 8, padding: "10px 16px", alignItems: "center", borderBottom: i < students.length - 1 ? "1px solid #F8FAFC" : "none", cursor: "pointer" }}>
+                      style={{ display: "grid", gridTemplateColumns: "28px 36px 1fr 140px 100px 80px 30px 30px", gap: 8, padding: "10px 16px", alignItems: "center", borderBottom: i < students.length - 1 ? "1px solid #F8FAFC" : "none", cursor: "pointer" }}>
                       <span style={{ fontSize: 11, color: "#CBD5E1", fontFamily: "monospace", textAlign: "center" }}>{i + 1}</span>
                       <div style={{ width: 30, height: 30, borderRadius: "50%", background: color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff" }}>{initials(s.fullName)}</div>
                       <div><p style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", margin: 0 }}>{s.fullName}</p>{s.level && <p style={{ fontSize: 10, color: "#94A3B8", margin: 0, marginTop: 1 }}>{s.level}</p>}</div>
@@ -955,14 +976,15 @@ function ModuleSection({ module, students, invoiceByStudentId, color, light, sch
                       <span style={{ fontSize: 11, color: "#64748B" }}>{s.parentPhone || "—"}</span>
                       {inv ? <StatusBadge status={inv.status} /> : <span style={{ fontSize: 10, color: "#CBD5E1" }}>—</span>}
                       {inv?.status === "PAID"
-                        ? <PrintButton compact onClick={() => printInvoice({ invoice: inv, student: s, schoolName })} />
+                        ? <PrintButton compact onClick={() => printInvoice({ invoice: inv, student: s, schoolName, t })} />
                         : <span />}
+                      <RemoveEnrollButton compact busy={removingId === s.id} onClick={() => handleRemove(s)} />
                     </div>
                   );
                 })}
                 <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 16px", background: "#F8FAFC", borderTop: "1px solid #F1F5F9", fontSize: 11, color: "#94A3B8" }}>
-                  <span>مدفوع: <strong style={{ color: "#0F172A" }}>{paid}</strong></span>
-                  <span>معلق: <strong style={{ color: "#BA7517" }}>{unpaid}</strong></span>
+                  <span>{t("students.moduleSection.paidSummary")}: <strong style={{ color: "#0F172A" }}>{paid}</strong></span>
+                  <span>{t("students.moduleSection.unpaidSummary")}: <strong style={{ color: "#BA7517" }}>{unpaid}</strong></span>
                 </div>
               </>
             )
@@ -975,13 +997,14 @@ function ModuleSection({ module, students, invoiceByStudentId, color, light, sch
 
 // ── All-students flat list ────────────────────────────────
 function AllStudentsList({ students, invoiceByStudentId, allLevels, schoolName, onStudentClick }) {
+  const { t } = useLanguage();
   return (
     <div style={{ background: "#fff", borderRadius: 12, border: "1.5px solid #E8EEF6", overflow: "hidden" }}>
       <div style={{ display: "grid", gridTemplateColumns: "28px 36px 1fr 100px 140px 80px 30px 20px", gap: 8, padding: "8px 16px", background: "#F8FAFC", borderBottom: "1px solid #F1F5F9" }}>
-        {["", "", "الاسم", "المستوى", "البريد", "الدفع", "", ""].map((h, i) => <span key={i} style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8" }}>{h}</span>)}
+        {["", "", t("students.allStudentsList.headerName"), t("students.allStudentsList.headerLevel"), t("students.allStudentsList.headerEmail"), t("students.allStudentsList.headerPayment"), "", ""].map((h, i) => <span key={i} style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8" }}>{h}</span>)}
       </div>
       {students.length === 0
-        ? <div style={{ textAlign: "center", color: "#94A3B8", padding: "2rem", fontSize: 13 }}>لا توجد نتائج</div>
+        ? <div style={{ textAlign: "center", color: "#94A3B8", padding: "2rem", fontSize: 13 }}>{t("students.allStudentsList.noResults")}</div>
         : students.map((s, i) => {
           const c   = levelColorByName(s.level, allLevels);
           const inv = currentMonthInvoice(invoiceByStudentId[s.id]);
@@ -997,7 +1020,7 @@ function AllStudentsList({ students, invoiceByStudentId, allLevels, schoolName, 
               <span style={{ fontSize: 11, color: "#64748B", direction: "ltr", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.email || "—"}</span>
               {inv ? <StatusBadge status={inv.status} /> : <span style={{ fontSize: 10, color: "#CBD5E1" }}>—</span>}
               {inv?.status === "PAID"
-                ? <PrintButton compact onClick={() => printInvoice({ invoice: inv, student: s, schoolName })} />
+                ? <PrintButton compact onClick={() => printInvoice({ invoice: inv, student: s, schoolName, t })} />
                 : <span />}
               <ChevronRight size={14} color="#CBD5E1" />
             </div>
@@ -1010,17 +1033,14 @@ function AllStudentsList({ students, invoiceByStudentId, allLevels, schoolName, 
 
 // ── Main ──────────────────────────────────────────────────
 export default function Students() {
+  const { t } = useLanguage();
   const { school, error: schoolError, refetchSchool } = useSchool();
   const schoolId    = school?.id;
-  const schoolName  = school?.schoolName ?? "المؤسسة التعليمية";
+  const schoolName  = school?.schoolName ?? t("students.print.schoolFallback");
 
   const [modules,       setModules]      = useState([]);
   const [studentMap,    setStudentMap]   = useState({});
   const [allStudents,   setAllStudents]  = useState([]);
-  // Per-student invoice lists, keyed by student.id — replaces the old global,
-  // studentName-keyed, current-month-only invoiceMap. Built from
-  // getStudentInvoices(studentId) for every visible student, since list badges need
-  // full accuracy (not just whichever names happened to show up in this month's revenue).
   const [invoiceByStudentId, setInvoiceByStudentId] = useState({});
   const [loading,       setLoading]      = useState(true);
   const [error,         setError]        = useState(null);
@@ -1048,9 +1068,6 @@ export default function Students() {
         setStudentMap(sMap);
       }
 
-      // Fetch every visible student's full invoice history (List<StudentInvoiceResponseDto>)
-      // in parallel, keyed by student.id, so both list views and the drawer read from the
-      // same accurate per-student source instead of the old school-wide revenue snapshot.
       if (students.length > 0) {
         const invResults = await Promise.all(
           students.map((s) =>
@@ -1069,9 +1086,9 @@ export default function Students() {
       const levels = [...new Set(mods.map((m) => m.level).filter(Boolean))];
       if (levels.length > 0) setActiveLevel((prev) => prev ?? levels[0]);
     } catch (err) {
-      setError(err?.response?.data?.message || "خطأ في تحميل البيانات");
+      setError(err?.response?.data?.message || t("students.addModal.genericError"));
     } finally { setLoading(false); }
-  }, [schoolId]);
+  }, [schoolId, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -1081,7 +1098,7 @@ export default function Students() {
 
   const byLevel = {};
   modules.forEach((m, i) => {
-    const lvl = m.level || "غير محدد";
+    const lvl = m.level || t("students.levelFallback");
     if (!byLevel[lvl]) byLevel[lvl] = { modules: [], colorIdx: Object.keys(byLevel).length };
     byLevel[lvl].modules.push({ ...m, _idx: i });
   });
@@ -1105,10 +1122,20 @@ export default function Students() {
 
   const handleSuccess = (msg) => {
     setShowModal(false);
-    setToast({ message: msg ?? "تمت العملية بنجاح ✓", tone: "success" });
+    setToast({ message: msg ?? t("students.toastGenericSuccess"), tone: "success" });
     load();
   };
-  const handleError = (msg) => setToast({ message: msg ?? "حدث خطأ ما", tone: "error" });
+  const handleError = (msg) => setToast({ message: msg ?? t("students.toastGenericError"), tone: "error" });
+
+  const handleRemoveFromModule = async (studentId, moduleId, studentName, moduleLabel) => {
+    try {
+      await schoolApi.removeEnrollment(studentId, moduleId);
+      setToast({ message: t("students.removedFromModule", { name: studentName, module: moduleLabel }), tone: "success" });
+      load();
+    } catch (err) {
+      setToast({ message: err?.response?.data?.message || t("students.removeFromModuleError"), tone: "error" });
+    }
+  };
 
   return (
     <div dir="rtl" style={{ padding: "1.25rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
@@ -1132,18 +1159,20 @@ export default function Students() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.25rem" }}>
         <div>
-          <h1 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0 }}>التلاميذ</h1>
-          <p style={{ fontSize: 12, color: "#94A3B8", marginTop: 2, margin: 0 }}>{totalCount} تلميذ {viewMode === "all" ? "إجمالاً" : "في هذا المستوى"}</p>
+          <h1 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("students.title")}</h1>
+          <p style={{ fontSize: 12, color: "#94A3B8", marginTop: 2, margin: 0 }}>
+            {viewMode === "all" ? t("students.countTotal", { count: totalCount }) : t("students.countLevel", { count: totalCount })}
+          </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={load} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}><RefreshCw size={13} />تحديث</button>
-          <button onClick={() => setShowModal(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 16px", borderRadius: 9, border: "none", background: "#3B82F6", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 4px 12px #3B82F640" }}><Plus size={14} />إضافة تلميذ</button>
+          <button onClick={load} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}><RefreshCw size={13} />{t("students.refresh")}</button>
+          <button onClick={() => setShowModal(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 16px", borderRadius: 9, border: "none", background: "#3B82F6", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 4px 12px #3B82F640" }}><Plus size={14} />{t("students.addStudent")}</button>
         </div>
       </div>
 
       {/* View mode toggle */}
       <div style={{ display: "flex", gap: 4, background: "#F1F5F9", borderRadius: 10, padding: 3, width: "fit-content", marginBottom: "1.25rem" }}>
-        {[{ key: "modules", label: "حسب الوحدة" }, { key: "all", label: "جميع التلاميذ" }].map(({ key, label }) => (
+        {[{ key: "modules", label: t("students.viewMode.byModule") }, { key: "all", label: t("students.viewMode.all") }].map(({ key, label }) => (
           <button key={key} onClick={() => { setViewMode(key); setSearch(""); }} style={{ padding: "7px 16px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: "none", background: viewMode === key ? "#fff" : "transparent", color: viewMode === key ? "#0F172A" : "#94A3B8", boxShadow: viewMode === key ? "0 1px 4px rgba(15,23,42,.08)" : "none", transition: "all .15s" }}>{label}</button>
         ))}
       </div>
@@ -1162,7 +1191,7 @@ export default function Students() {
       {/* Stats + Search */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: "1.25rem", flexWrap: "wrap" }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {[{ label: "تلميذ", value: totalCount }, { label: "مدفوع", value: paidCount }, { label: "وحدات", value: viewMode === "modules" ? activeMods.length : modules.length }].map(({ label, value }) => (
+          {[{ label: t("students.statLabels.students"), value: totalCount }, { label: t("students.statLabels.paid"), value: paidCount }, { label: t("students.statLabels.modules"), value: viewMode === "modules" ? activeMods.length : modules.length }].map(({ label, value }) => (
             <div key={label} style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", borderRadius: 9, border: "1px solid #E2E8F0", padding: "6px 12px" }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>{value}</span>
               <span style={{ fontSize: 11, color: "#64748B" }}>{label}</span>
@@ -1171,18 +1200,18 @@ export default function Students() {
         </div>
         <div style={{ position: "relative", width: 240 }}>
           <Search size={14} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "#94A3B8", pointerEvents: "none" }} />
-          <input style={{ width: "100%", paddingRight: 32, paddingLeft: 10, paddingTop: 8, paddingBottom: 8, borderRadius: 9, border: `1.5px solid ${search ? color : "#E2E8F0"}`, fontSize: 13, fontFamily: "inherit", color: "#0F172A", background: "#fff", outline: "none", boxSizing: "border-box" }} placeholder="بحث عن تلميذ..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input style={{ width: "100%", paddingRight: 32, paddingLeft: 10, paddingTop: 8, paddingBottom: 8, borderRadius: 9, border: `1.5px solid ${search ? color : "#E2E8F0"}`, fontSize: 13, fontFamily: "inherit", color: "#0F172A", background: "#fff", outline: "none", boxSizing: "border-box" }} placeholder={t("students.searchPlaceholder")} value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
       </div>
 
       {/* Content */}
       {levels.length === 0
-        ? <div style={{ textAlign: "center", color: "#94A3B8", padding: "3rem", fontSize: 13 }}>لا توجد وحدات دراسية مسجلة</div>
+        ? <div style={{ textAlign: "center", color: "#94A3B8", padding: "3rem", fontSize: 13 }}>{t("students.noModulesRegistered")}</div>
         : displayList !== null
           ? <AllStudentsList students={displayList} invoiceByStudentId={invoiceByStudentId} allLevels={allLevels} schoolName={schoolName} onStudentClick={setDrawerStudent} />
           : activeMods.map((m) => {
             const c = levelColor(m._idx);
-            return <ModuleSection key={m.id} module={m} students={studentMap[m.id] ?? []} invoiceByStudentId={invoiceByStudentId} color={c.color} light={c.light} schoolName={schoolName} onStudentClick={setDrawerStudent} />;
+            return <ModuleSection key={m.id} module={m} students={studentMap[m.id] ?? []} invoiceByStudentId={invoiceByStudentId} color={c.color} light={c.light} schoolName={schoolName} onStudentClick={setDrawerStudent} onRemoveStudent={handleRemoveFromModule} />;
           })
       }
     </div>

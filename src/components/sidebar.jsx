@@ -3,20 +3,24 @@ import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Users, GraduationCap,
   CalendarDays, Settings, LogOut, School, UserPlus, BookOpen, Home,
-  ChevronsRight, Menu, X
+  ChevronsRight, Menu, X, Book
 } from "lucide-react";
 import { useAuth } from "../context/authContext";
+import { useLanguage } from "../context/LanguageContext";
 
+// `key` maps to sidebar.nav.<key> in translations.js
+// `section` maps to sidebar.sections.<section> in translations.js
 const NAV = [
-  { to: "/home",                icon: Home,            label: "الصفحة الرئيسية", section: null },
-  { to: "/dashboard",           icon: LayoutDashboard, label: "لوحة التحكم",     section: null },
-  { to: "/students",            icon: Users,           label: "التلاميذ",        section: "الإدارة" },
-  { to: "/requests",            icon: UserPlus,        label: "طلبات الانضمام",  section: null },
-  { to: "/teachers",            icon: GraduationCap,   label: "الأساتذة",        section: null },
-  { to: "/schedule",            icon: CalendarDays,    label: "الجدول الأسبوعي", section: null },
-  { to: "/subjectandclassroom", icon: BookOpen,        label: "المواد والفصول",  section: null },
-  { to: "/createmodule",        icon: BookOpen,        label: "حصص",             section: null },
-  { to: "/settings",            icon: Settings,        label: "إعدادات المدرسة", section: "الإعدادات" },
+  { to: "/home",                icon: Home,            key: "home",                section: null },
+  { to: "/dashboard",           icon: LayoutDashboard, key: "dashboard",           section: null },
+  { to: "/students",            icon: Users,           key: "students",            section: "management" },
+  { to: "/requests",            icon: UserPlus,        key: "requests",            section: null },
+  { to: "/teachers",            icon: GraduationCap,   key: "teachers",            section: null },
+  { to: "/schedule",            icon: CalendarDays,    key: "schedule",            section: null },
+  { to: "/subjectandclassroom", icon: BookOpen,        key: "subjectsClassrooms",  section: null },
+  { to: "/createmodule",        icon: BookOpen,        key: "sessions",            section: null },
+  { to: "/course",              icon: Book,            key: "courses",             section: null },
+  { to: "/settings",            icon: Settings,        key: "settings",            section: "settingsSection" },
 ];
 
 function hexToRgb(hex = "#185FA5") {
@@ -31,6 +35,9 @@ const COLLAPSED = 76;
 export default function Sidebar() {
   const { user, school, logout } = useAuth();
   const navigate = useNavigate();
+  const { t, dir } = useLanguage();
+
+  const isRTL = dir === "rtl";
 
   // desktop collapse/expand
   const [collapsed, setCollapsed] = useState(() => {
@@ -60,7 +67,7 @@ export default function Sidebar() {
   const p = school?.primaryColor || "#185FA5";
   const rgb = hexToRgb(p);
 
-  const schoolName = school?.schoolName || user?.fullName || "المدرسة";
+  const schoolName = school?.schoolName || user?.fullName || t("sidebar.schoolFallback");
   const initials = schoolName
     .split(" ")
     .filter(Boolean)
@@ -77,11 +84,21 @@ export default function Sidebar() {
   const width = collapsed && !isMobile ? COLLAPSED : EXPANDED;
   const showLabels = !collapsed || isMobile;
 
+  // Directional helpers: this layout was originally built RTL-first
+  // (edge the sidebar docks to, which side the border sits on, which
+  // direction the mobile drawer slides from, tooltip offset, hover
+  // nudge, active-bar edge). These now flip based on `dir` so French
+  // and English get a properly mirrored layout instead of just
+  // mirrored text inside an RTL-positioned shell.
+  const dockSide = isRTL ? "right" : "left";       // side the sidebar sticks to
+  const otherSide = isRTL ? "left" : "right";       // opposite edge
+  const hoverNudge = isRTL ? "translateX(-2px)" : "translateX(2px)";
+
   return (
     <>
       <style>{`
         @keyframes sidebarFadeIn {
-          from { opacity: 0; transform: translateX(12px); }
+          from { opacity: 0; transform: translateX(${isRTL ? "12px" : "-12px"}); }
           to { opacity: 1; transform: translateX(0); }
         }
         @keyframes overlayFadeIn {
@@ -117,7 +134,7 @@ export default function Sidebar() {
         .sb-link:hover {
           background: rgba(255,255,255,0.06);
           color: #E2E8F0;
-          transform: translateX(-2px);
+          transform: ${hoverNudge};
         }
         .sb-link.active {
           color: #fff;
@@ -129,7 +146,7 @@ export default function Sidebar() {
         }
         .sb-active-bar {
           position: absolute;
-          right: 0;
+          ${dockSide}: 0;
           top: 6px;
           bottom: 6px;
           width: 3px;
@@ -159,7 +176,7 @@ export default function Sidebar() {
           transition: color 0.2s ease, background 0.2s ease, transform 0.15s ease;
         }
         .sb-logout-btn:hover {
-          transform: translateX(-2px);
+          transform: ${hoverNudge};
         }
         .sb-fab {
           animation: pulseRing 2.4s ease-in-out infinite;
@@ -174,9 +191,9 @@ export default function Sidebar() {
         <button
           onClick={() => setMobileOpen(true)}
           className="sb-fab"
-          aria-label="فتح القائمة"
+          aria-label={t("sidebar.openMenuAria")}
           style={{
-            position: "fixed", top: 14, right: 14, zIndex: 60,
+            position: "fixed", top: 14, [otherSide]: 14, zIndex: 60,
             width: 44, height: 44, borderRadius: 12,
             background: "#0F172A", border: "1px solid rgba(255,255,255,0.1)",
             display: "flex", alignItems: "center", justifyContent: "center",
@@ -201,7 +218,7 @@ export default function Sidebar() {
       )}
 
       <aside
-        dir="rtl"
+        dir={dir}
         style={{
           width: isMobile ? EXPANDED : width,
           display: "flex",
@@ -209,17 +226,20 @@ export default function Sidebar() {
           height: "100vh",
           position: isMobile ? "fixed" : "sticky",
           top: 0,
-          right: isMobile ? (mobileOpen ? 0 : -EXPANDED) : "auto",
+          [dockSide]: isMobile ? (mobileOpen ? 0 : -EXPANDED) : "auto",
+          [otherSide]: "auto",
           zIndex: 80,
           background: "#0F172A",
           flexShrink: 0,
-          borderLeft: "1px solid rgba(255,255,255,0.07)",
+          [isRTL ? "borderLeft" : "borderRight"]: "1px solid rgba(255,255,255,0.07)",
           fontFamily: "'Cairo', sans-serif",
           transition: isMobile
-            ? "right 0.28s cubic-bezier(0.4,0,0.2,1)"
+            ? `${dockSide} 0.28s cubic-bezier(0.4,0,0.2,1)`
             : "width 0.28s cubic-bezier(0.4,0,0.2,1)",
           overflow: "hidden",
-          boxShadow: isMobile && mobileOpen ? "-8px 0 30px rgba(0,0,0,0.4)" : "none",
+          boxShadow: isMobile && mobileOpen
+            ? `${isRTL ? "-" : ""}8px 0 30px rgba(0,0,0,0.4)`
+            : "none",
         }}
       >
         {/* ── Logo ── */}
@@ -229,7 +249,7 @@ export default function Sidebar() {
           minHeight: 70,
         }}>
           {school?.logoUrl ? (
-            <img src={school.logoUrl} alt="شعار"
+            <img src={school.logoUrl} alt={t("sidebar.logoAlt")}
               style={{ width: 38, height: 38, borderRadius: 10, objectFit: "cover", flexShrink: 0 }} />
           ) : (
             <div style={{
@@ -244,16 +264,19 @@ export default function Sidebar() {
               <p style={{ fontSize: 13, fontWeight: 700, color: "#fff", lineHeight: 1.2, margin: 0, whiteSpace: "nowrap" }}>
                 {schoolName}
               </p>
-              <p style={{ fontSize: 10, color: "#64748B", marginTop: 2, margin: 0, whiteSpace: "nowrap" }}>لوحة التحكم</p>
+              <p style={{ fontSize: 10, color: "#64748B", marginTop: 2, margin: 0, whiteSpace: "nowrap" }}>
+                {t("sidebar.controlPanelSubtitle")}
+              </p>
             </div>
           )}
 
           {isMobile && (
             <button
               onClick={closeMobile}
-              aria-label="إغلاق القائمة"
+              aria-label={t("sidebar.closeMenuAria")}
               style={{
-                marginRight: "auto", background: "none", border: "none",
+                [isRTL ? "marginRight" : "marginLeft"]: "auto",
+                background: "none", border: "none",
                 color: "#64748B", cursor: "pointer", padding: 6,
                 borderRadius: 8, display: "flex",
               }}
@@ -284,7 +307,9 @@ export default function Sidebar() {
               <p style={{ fontSize: 12, fontWeight: 600, color: "#E2E8F0", margin: 0, whiteSpace: "nowrap" }}>
                 {user?.fullName || schoolName}
               </p>
-              <p style={{ fontSize: 10, color: "#1D9E75", marginTop: 2, margin: 0, whiteSpace: "nowrap" }}>مدير المدرسة ✓</p>
+              <p style={{ fontSize: 10, color: "#1D9E75", marginTop: 2, margin: 0, whiteSpace: "nowrap" }}>
+                {t("sidebar.schoolAdminBadge")}
+              </p>
             </div>
           )}
         </div>
@@ -293,6 +318,7 @@ export default function Sidebar() {
         <nav className="sb-scroll" style={{ flex: 1, padding: "8px 0", overflowY: "auto", overflowX: "hidden" }}>
           {NAV.map((item) => {
             const Icon = item.icon;
+            const label = t(`sidebar.nav.${item.key}`);
             return (
               <div key={item.to} style={{ position: "relative" }}>
                 {item.section && showLabels && (
@@ -301,7 +327,7 @@ export default function Sidebar() {
                     letterSpacing: ".12em", textTransform: "uppercase",
                     padding: "16px 16px 6px", margin: 0, whiteSpace: "nowrap",
                   }}>
-                    {item.section}
+                    {t(`sidebar.sections.${item.section}`)}
                   </p>
                 )}
                 {item.section && !showLabels && (
@@ -319,12 +345,12 @@ export default function Sidebar() {
                   <span className="sb-icon-wrap">
                     <Icon size={16} />
                   </span>
-                  {showLabels && <span className="sb-label">{item.label}</span>}
+                  {showLabels && <span className="sb-label">{label}</span>}
                 </NavLink>
 
                 {!showLabels && hoveredTip === item.to && (
                   <div className="sb-tooltip" style={{
-                    position: "absolute", right: COLLAPSED + 6, top: "50%",
+                    position: "absolute", [dockSide]: COLLAPSED + 6, top: "50%",
                     transform: "translateY(-50%)", zIndex: 100,
                     background: "#1E293B", color: "#fff", fontSize: 12,
                     fontWeight: 500, padding: "6px 10px", borderRadius: 8,
@@ -332,7 +358,7 @@ export default function Sidebar() {
                     border: "1px solid rgba(255,255,255,0.08)",
                     pointerEvents: "none",
                   }}>
-                    {item.label}
+                    {label}
                   </div>
                 )}
               </div>
@@ -358,9 +384,14 @@ export default function Sidebar() {
             >
               <ChevronsRight
                 size={16}
-                style={{ transform: collapsed ? "rotate(180deg)" : "rotate(0deg)", flexShrink: 0 }}
+                style={{
+                  transform: collapsed
+                    ? (isRTL ? "rotate(180deg)" : "rotate(0deg)")
+                    : (isRTL ? "rotate(0deg)" : "rotate(180deg)"),
+                  flexShrink: 0,
+                }}
               />
-              {showLabels && <span>طي القائمة</span>}
+              {showLabels && <span>{t("sidebar.collapseMenu")}</span>}
             </button>
           </div>
         )}
@@ -388,7 +419,7 @@ export default function Sidebar() {
             }}
           >
             <LogOut size={15} />
-            {showLabels && "تسجيل الخروج"}
+            {showLabels && t("sidebar.logout")}
           </button>
         </div>
       </aside>

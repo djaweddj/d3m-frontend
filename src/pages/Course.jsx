@@ -6,6 +6,7 @@ import {
   CircleDollarSign, CalendarClock, Archive, MessageSquareText, Percent,
 } from "lucide-react";
 import api from "../api";
+import { useLanguage } from "../context/LanguageContext";
 
 // ══════════════════════════════════════════════════════════════════
 //  API — SchoolAdmin course endpoints only (student-facing endpoints
@@ -53,33 +54,15 @@ const P = "#185FA5";
 const P_DARK = "#134d8a";
 const GREEN = "#0F6E56";
 
-const LEVEL_OPTIONS = [
-  "ابتدائي 1", "ابتدائي 2", "ابتدائي 3", "ابتدائي 4", "ابتدائي 5",
-  "متوسط 1", "متوسط 2", "متوسط 3", "متوسط 4",
-  "ثانوي 1", "ثانوي 2", "ثانوي 3", "BAC",
+// Canonical (untranslated) level keys, used as values sent to the API.
+// Display labels come from t(`courses.levels.${key}`).
+const LEVEL_KEYS = [
+  "primary1", "primary2", "primary3", "primary4", "primary5",
+  "middle1", "middle2", "middle3", "middle4",
+  "secondary1", "secondary2", "secondary3", "bac",
 ];
 
-const ENROLLMENT_STATUS = {
-  PENDING:  { label: "قيد الانتظار", bg: "#FEF3C7", color: "#92400E", border: "#FDE68A" },
-  ACCEPTED : { label: "مقبول",        bg: "#E1F5EE", color: "#0F6E56", border: "#A7F3D0" },
-  REJECTED: { label: "مرفوض",        bg: "#FEE2E2", color: "#DC2626", border: "#FECACA" },
-};
-
-const PAYOUT_STATUS = {
-  PENDING: { label: "قيد الانتظار", bg: "#FEF3C7", color: "#92400E", border: "#FDE68A" },
-  PAID:    { label: "تم الدفع",     bg: "#E1F5EE", color: "#0F6E56", border: "#A7F3D0" },
-};
-
-const INVOICE_STATUS = {
-  PENDING: { label: "غير مدفوعة", bg: "#FEF3C7", color: "#92400E", border: "#FDE68A" },
-  PAID:    { label: "مدفوعة",     bg: "#E1F5EE", color: "#0F6E56", border: "#A7F3D0" },
-  OVERDUE: { label: "متأخرة",     bg: "#FEE2E2", color: "#DC2626", border: "#FECACA" },
-};
-
-const ATTENDANCE_STATUS = {
-  PRESENT: { label: "حاضر", color: GREEN,   bg: "#E1F5EE", border: "#A7F3D0" },
-  ABSENT:  { label: "غائب", color: "#DC2626", bg: "#FEE2E2", border: "#FECACA" },
-};
+const DAY_KEYS = ["SATURDAY", "SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"];
 
 const inp = {
   padding: "9px 12px", borderRadius: 9, border: "1.5px solid #E2E8F0",
@@ -87,9 +70,13 @@ const inp = {
   background: "#FAFCFF", outline: "none", width: "100%", boxSizing: "border-box",
 };
 
-const fmtMoney = (v) => v == null ? "—" : Number(v).toLocaleString("ar-DZ", { maximumFractionDigits: 2 }) + " دج";
-const fmtDate  = (d) => d ? new Date(d).toLocaleDateString("ar-MA", { day: "numeric", month: "long", year: "numeric" }) : "—";
-const fmtDateTime = (d) => d ? new Date(d).toLocaleDateString("ar-MA", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
+const fmtDate  = (d, locale) => d ? new Date(d).toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" }) : "—";
+const fmtDateTime = (d, locale) => d ? new Date(d).toLocaleDateString(locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
+
+// Simple {token} interpolation helper for places where we build a
+// string outside of t() (e.g. combining several t() calls).
+const interp = (str, vars = {}) =>
+  Object.keys(vars).reduce((acc, k) => acc.replaceAll(`{${k}}`, vars[k]), str);
 
 // ══════════════════════════════════════════════════════════════════
 //  SHARED PRIMITIVES (matching Schedule.jsx conventions)
@@ -103,11 +90,11 @@ function Spinner({ size = 18, color = P }) {
   );
 }
 
-function ModalWrap({ onClose, children, maxWidth = 440 }) {
+function ModalWrap({ onClose, children, maxWidth = 440, dir }) {
   return (
     <div onClick={(e) => e.target === e.currentTarget && onClose()}
       style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 300, padding: "1rem", backdropFilter: "blur(2px)" }}>
-      <div dir="rtl" style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth, border: "1.5px solid #E2E8F0", overflow: "hidden", fontFamily: "'Cairo',sans-serif", maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,.18)" }}>
+      <div dir={dir} style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth, border: "1.5px solid #E2E8F0", overflow: "hidden", fontFamily: "'Cairo',sans-serif", maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,.18)" }}>
         {children}
       </div>
     </div>
@@ -245,17 +232,8 @@ const EMPTY_COURSE = {
   level: "", maxStudents: "", totalPrice: "", teacherPercentage: "",
   sessions: [],
 };
-const DAY_OPTIONS = [
-  { value: "SATURDAY",  label: "السبت" },
-  { value: "SUNDAY",    label: "الأحد" },
-  { value: "MONDAY",    label: "الإثنين" },
-  { value: "TUESDAY",   label: "الثلاثاء" },
-  { value: "WEDNESDAY", label: "الأربعاء" },
-  { value: "THURSDAY",  label: "الخميس" },
-  { value: "FRIDAY",    label: "الجمعة" },
-];
 
-function CourseCard({ course, onArchive, onOpenPayout }) {
+function CourseCard({ course, onArchive, onOpenPayout, t, fmtMoney }) {
   const pct = course.enrolledCount != null && course.maxStudents
     ? Math.min(100, Math.round((course.enrolledCount / course.maxStudents) * 100))
     : 0;
@@ -277,26 +255,26 @@ function CourseCard({ course, onArchive, onOpenPayout }) {
             )}
           </div>
         </div>
-        <button onClick={() => onArchive(course)} title="أرشفة الدورة"
+        <button onClick={() => onArchive(course)} title={t("courses.coursesTab.archivedBadge")}
           style={{ width: 30, height: 30, borderRadius: 8, border: "1.5px solid #FECACA", background: "#FEF2F2", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <Archive size={13} color="#DC2626" />
         </button>
       </div>
 
       <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginTop: 12 }}>
-        <Badge label={course.level || "كل المستويات"} bg="#F1F5F9" color="#475569" border="#E2E8F0" />
+        <Badge label={course.level } bg="#F1F5F9" color="#475569" border="#E2E8F0" />
         <Badge
-          label={course.externalTeacher ? `👤 ${course.teacherName || "أستاذ خارجي"}` : `👨‍🏫 ${course.teacherName || "—"}`}
+          label={course.externalTeacher ? `👤 ${course.teacherName || t("courses.coursesTab.externalTeacherFallback")}` : `👨‍🏫 ${course.teacherName || "—"}`}
           bg={course.externalTeacher ? "#F3E8FF" : "#EBF4FE"}
           color={course.externalTeacher ? "#6B21A8" : P}
           border={course.externalTeacher ? "#E9D5FF" : "#B5D4F4"}
         />
-        {course.archived && <Badge label="مؤرشفة" bg="#F1F5F9" color="#94A3B8" border="#E2E8F0" />}
+        {course.archived && <Badge label={t("courses.coursesTab.archivedBadge")} bg="#F1F5F9" color="#94A3B8" border="#E2E8F0" />}
       </div>
 
       <div style={{ marginTop: 12 }}>
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#64748B", marginBottom: 4 }}>
-          <span>{course.enrolledCount ?? 0} / {course.maxStudents ?? "∞"} طالب</span>
+          <span>{course.enrolledCount ?? 0} / {course.maxStudents ?? "∞"} {t("courses.coursesTab.studentsSuffix")}</span>
           <span>{pct}%</span>
         </div>
         <div style={{ height: 6, borderRadius: 20, background: "#F1F5F9", overflow: "hidden" }}>
@@ -307,17 +285,17 @@ function CourseCard({ course, onArchive, onOpenPayout }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 13, paddingTop: 12, borderTop: "1px solid #F1F5F9" }}>
         <div style={{ display: "flex", gap: 14 }}>
           <div>
-            <div style={{ fontSize: 9.5, color: "#94A3B8" }}>السعر الكلي</div>
+            <div style={{ fontSize: 9.5, color: "#94A3B8" }}>{t("courses.coursesTab.totalPriceLabel")}</div>
             <div style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>{fmtMoney(course.totalPrice)}</div>
           </div>
           <div>
-            <div style={{ fontSize: 9.5, color: "#94A3B8" }}>نسبة الأستاذ</div>
+            <div style={{ fontSize: 9.5, color: "#94A3B8" }}>{t("courses.coursesTab.teacherPercentageLabel")}</div>
             <div style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>{course.teacherPercentage != null ? `${course.teacherPercentage}%` : "—"}</div>
           </div>
         </div>
         <button onClick={() => onOpenPayout(course)}
           style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 9, border: "none", background: GREEN, color: "#fff", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-          <Wallet size={12} /> نصيب الأستاذ
+          <Wallet size={12} /> {t("courses.coursesTab.teacherSharePayoutButton")}
         </button>
       </div>
     </div>
@@ -343,28 +321,29 @@ function SessionRow({ session, onChange, onRemove }) {
   );
 }
 
-function CreateCourseModal({ teachers, onClose, onCreated }) {
+function CreateCourseModal({ teachers, onClose, onCreated, t, dir }) {
   const [form, setForm] = useState(EMPTY_COURSE);
   const [teacherMode, setTeacherMode] = useState("internal"); // "internal" | "external"
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const teacherOptions = teachers.map((t) => ({ value: String(t.id), label: `${t.fullName}${t.specialization ? " — " + t.specialization : ""}` }));
+  const teacherOptions = teachers.map((t2) => ({ value: String(t2.id), label: `${t2.fullName}${t2.specialization ? " — " + t2.specialization : ""}` }));
+  const levelOptions = LEVEL_KEYS.map((k) => ({ value: k, label: t(`courses.levels.${k}`) }));
 
   const addSession = () => setForm((f) => ({ ...f, sessions: [...f.sessions, { ...EMPTY_SESSION }] }));
   const updateSession = (i, sess) => setForm((f) => ({ ...f, sessions: f.sessions.map((s, idx) => idx === i ? sess : s) }));
   const removeSession = (i) => setForm((f) => ({ ...f, sessions: f.sessions.filter((_, idx) => idx !== i) }));
 
   const handleSave = async () => {
-    if (!form.name.trim())        return setError("أدخل اسم الدورة");
-    if (!form.subjectName.trim()) return setError("أدخل اسم المادة");
-    if (teacherMode === "internal" && !form.teacherId) return setError("اختر الأستاذ");
-    if (teacherMode === "external" && !form.externalTeacherName.trim()) return setError("أدخل اسم الأستاذ الخارجي");
-    if (!form.maxStudents)  return setError("أدخل العدد الأقصى للطلاب");
-    if (!form.totalPrice)   return setError("أدخل السعر الكلي");
-    if (form.sessions.length === 0) return setError("أضف حصة واحدة على الأقل");
-    if (form.sessions.some((s) => !s.date || !s.startTime || !s.endTime)) return setError("أكمل كل حقول الحصص");
-    if (form.sessions.some((s) => s.startTime >= s.endTime)) return setError("وقت البداية يجب أن يكون قبل النهاية في كل حصة");
+    if (!form.name.trim())        return setError(t("courses.createCourse.errors.name"));
+    if (!form.subjectName.trim()) return setError(t("courses.createCourse.errors.subject"));
+    if (teacherMode === "internal" && !form.teacherId) return setError(t("courses.createCourse.errors.teacher"));
+    if (teacherMode === "external" && !form.externalTeacherName.trim()) return setError(t("courses.createCourse.errors.externalTeacherName"));
+    if (!form.maxStudents)  return setError(t("courses.createCourse.errors.maxStudents"));
+    if (!form.totalPrice)   return setError(t("courses.createCourse.errors.totalPrice"));
+    if (form.sessions.length === 0) return setError(t("courses.createCourse.errors.atLeastOneSession"));
+    if (form.sessions.some((s) => !s.date || !s.startTime || !s.endTime)) return setError(t("courses.createCourse.errors.completeSessionFields"));
+    if (form.sessions.some((s) => s.startTime >= s.endTime)) return setError(t("courses.createCourse.errors.sessionTimeOrder"));
 
     setSaving(true); setError("");
     try {
@@ -385,31 +364,34 @@ function CreateCourseModal({ teachers, onClose, onCreated }) {
       onCreated(res.data);
       onClose();
     } catch (err) {
-      setError(err?.response?.data?.message || "فشل إنشاء الدورة");
+      setError(err?.response?.data?.message || t("courses.createCourse.errors.createFailed"));
     } finally { setSaving(false); }
   };
 
   return (
-    <ModalWrap onClose={onClose} maxWidth={560}>
-      <ModalHeader title="إضافة دورة جديدة" subtitle="أنشئ دورة وحدد الأستاذ والجلسات" onClose={onClose} />
+    <ModalWrap onClose={onClose} maxWidth={560} dir={dir}>
+      <ModalHeader title={t("courses.createCourse.title")} subtitle={t("courses.createCourse.subtitle")} onClose={onClose} />
       <div style={{ padding: "1.1rem 1.25rem", display: "flex", flexDirection: "column", gap: 14, overflowY: "auto" }}>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Field label="اسم الدورة" required>
-            <Input value={form.name} onChange={(v) => setForm((f) => ({ ...f, name: v }))} placeholder="مثال: دورة تحضير BAC" />
+          <Field label={t("courses.createCourse.nameLabel")} required>
+            <Input value={form.name} onChange={(v) => setForm((f) => ({ ...f, name: v }))} placeholder={t("courses.createCourse.namePlaceholder")} />
           </Field>
-          <Field label="المادة" required>
-            <Input value={form.subjectName} onChange={(v) => setForm((f) => ({ ...f, subjectName: v }))} placeholder="مثال: رياضيات" />
+          <Field label={t("courses.createCourse.subjectLabel")} required>
+            <Input value={form.subjectName} onChange={(v) => setForm((f) => ({ ...f, subjectName: v }))} placeholder={t("courses.createCourse.subjectPlaceholder")} />
           </Field>
         </div>
 
-        <Field label="الوصف">
-          <Textarea value={form.description} onChange={(v) => setForm((f) => ({ ...f, description: v }))} placeholder="وصف اختياري..." />
+        <Field label={t("courses.createCourse.descriptionLabel")}>
+          <Textarea value={form.description} onChange={(v) => setForm((f) => ({ ...f, description: v }))} placeholder={t("courses.createCourse.descriptionPlaceholder")} />
         </Field>
 
-        <Field label="الأستاذ" required>
+        <Field label={t("courses.createCourse.teacherLabel")} required>
           <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-            {[{ key: "internal", label: "أستاذ داخلي" }, { key: "external", label: "أستاذ خارجي" }].map((m) => (
+            {[
+              { key: "internal", label: t("courses.createCourse.teacherModeInternal") },
+              { key: "external", label: t("courses.createCourse.teacherModeExternal") },
+            ].map((m) => (
               <button key={m.key} onClick={() => setTeacherMode(m.key)}
                 style={{ flex: 1, padding: "7px", borderRadius: 8, border: `1.5px solid ${teacherMode === m.key ? P : "#E2E8F0"}`, background: teacherMode === m.key ? "#EBF4FE" : "#fff", color: teacherMode === m.key ? P : "#64748B", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
                 {m.label}
@@ -417,41 +399,41 @@ function CreateCourseModal({ teachers, onClose, onCreated }) {
             ))}
           </div>
           {teacherMode === "internal" ? (
-            <Select value={form.teacherId} onChange={(v) => setForm((f) => ({ ...f, teacherId: v }))} options={teacherOptions} placeholder="اختر أستاذاً…" />
+            <Select value={form.teacherId} onChange={(v) => setForm((f) => ({ ...f, teacherId: v }))} options={teacherOptions} placeholder={t("courses.createCourse.teacherSelectPlaceholder")} />
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <Input value={form.externalTeacherName} onChange={(v) => setForm((f) => ({ ...f, externalTeacherName: v }))} placeholder="اسم الأستاذ" />
-              <Input value={form.externalTeacherPhone} onChange={(v) => setForm((f) => ({ ...f, externalTeacherPhone: v }))} placeholder="رقم الهاتف" />
+              <Input value={form.externalTeacherName} onChange={(v) => setForm((f) => ({ ...f, externalTeacherName: v }))} placeholder={t("courses.createCourse.externalNamePlaceholder")} />
+              <Input value={form.externalTeacherPhone} onChange={(v) => setForm((f) => ({ ...f, externalTeacherPhone: v }))} placeholder={t("courses.createCourse.externalPhonePlaceholder")} />
             </div>
           )}
         </Field>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Field label="المستوى">
-            <Select value={form.level} onChange={(v) => setForm((f) => ({ ...f, level: v }))} options={LEVEL_OPTIONS.map((l) => ({ value: l, label: l }))} placeholder="كل المستويات" />
+          <Field label={t("courses.createCourse.levelLabel")}>
+            <Select value={form.level} onChange={(v) => setForm((f) => ({ ...f, level: v }))} options={levelOptions} placeholder={t("courses.levels.allLevels")} />
           </Field>
-          <Field label="العدد الأقصى للطلاب" required>
-            <Input type="number" value={form.maxStudents} onChange={(v) => setForm((f) => ({ ...f, maxStudents: v }))} placeholder="مثال: 20" />
+          <Field label={t("courses.createCourse.maxStudentsLabel")} required>
+            <Input type="number" value={form.maxStudents} onChange={(v) => setForm((f) => ({ ...f, maxStudents: v }))} placeholder={t("courses.createCourse.maxStudentsPlaceholder")} />
           </Field>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Field label="السعر الكلي (دج)" required>
-            <Input type="number" value={form.totalPrice} onChange={(v) => setForm((f) => ({ ...f, totalPrice: v }))} placeholder="مثال: 5000" />
+          <Field label={t("courses.createCourse.totalPriceLabel")} required>
+            <Input type="number" value={form.totalPrice} onChange={(v) => setForm((f) => ({ ...f, totalPrice: v }))} placeholder={t("courses.createCourse.totalPricePlaceholder")} />
           </Field>
-          <Field label="نسبة الأستاذ (%)">
-            <Input type="number" value={form.teacherPercentage} onChange={(v) => setForm((f) => ({ ...f, teacherPercentage: v }))} placeholder="مثال: 60" />
+          <Field label={t("courses.createCourse.teacherPercentageLabel")}>
+            <Input type="number" value={form.teacherPercentage} onChange={(v) => setForm((f) => ({ ...f, teacherPercentage: v }))} placeholder={t("courses.createCourse.teacherPercentagePlaceholder")} />
           </Field>
         </div>
 
-        <Field label="الحصص" required>
+        <Field label={t("courses.createCourse.sessionsLabel")} required>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {form.sessions.map((s, i) => (
               <SessionRow key={i} session={s} onChange={(sess) => updateSession(i, sess)} onRemove={() => removeSession(i)} />
             ))}
             <button onClick={addSession}
               style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px", borderRadius: 9, border: "1.5px dashed #CBD5E1", background: "transparent", color: "#64748B", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-              <Plus size={13} /> إضافة حصة
+              <Plus size={13} /> {t("courses.createCourse.addSession")}
             </button>
           </div>
         </Field>
@@ -459,14 +441,14 @@ function CreateCourseModal({ teachers, onClose, onCreated }) {
         <ErrorBox msg={error} />
       </div>
       <ModalFooter>
-        <BtnGhost onClick={onClose} label="إلغاء" />
-        <BtnPrimary onClick={handleSave} loading={saving} icon={Plus} label={saving ? "جارٍ الحفظ..." : "إنشاء الدورة"} />
+        <BtnGhost onClick={onClose} label={t("courses.createCourse.cancel")} />
+        <BtnPrimary onClick={handleSave} loading={saving} icon={Plus} label={saving ? t("courses.createCourse.submitting") : t("courses.createCourse.submit")} />
       </ModalFooter>
     </ModalWrap>
   );
 }
 
-function ArchiveCourseModal({ course, onClose, onConfirm }) {
+function ArchiveCourseModal({ course, onClose, onConfirm, t, dir }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -476,39 +458,40 @@ function ArchiveCourseModal({ course, onClose, onConfirm }) {
       await courseApi.archiveCourse(course.id);
       onConfirm(course);
     } catch (err) {
-      setError(err?.response?.data?.message || "فشل أرشفة الدورة");
+      setError(err?.response?.data?.message || t("courses.archiveCourse.archiveFailed"));
       setSaving(false);
     }
   };
 
   return (
-    <ModalWrap onClose={onClose} maxWidth={360}>
-      <ModalHeader title="أرشفة الدورة" onClose={onClose} />
+    <ModalWrap onClose={onClose} maxWidth={360} dir={dir}>
+      <ModalHeader title={t("courses.archiveCourse.title")} onClose={onClose} />
       <div style={{ padding: "1.5rem 1.25rem", display: "flex", flexDirection: "column", alignItems: "center", gap: 14, textAlign: "center" }}>
         <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#FEF2F2", border: "2px solid #FECACA", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Archive size={22} color="#DC2626" />
         </div>
         <p style={{ fontSize: 13, color: "#475569", lineHeight: 1.7, margin: 0 }}>
-          هل أنت متأكد من أرشفة دورة{" "}
-          <strong style={{ color: "#0F172A" }}>{course.name}</strong>؟
+          {interp(t("courses.archiveCourse.confirmText"), { name: course.name })}
           <br />
-          <span style={{ fontSize: 11, color: "#94A3B8" }}>لن تظهر الدورة في القائمة ولن يتمكن الطلاب من التسجيل فيها بعد الأرشفة.</span>
+          <span style={{ fontSize: 11, color: "#94A3B8" }}>{t("courses.archiveCourse.confirmNote")}</span>
         </p>
         <ErrorBox msg={error} />
       </div>
       <ModalFooter>
-        <BtnGhost onClick={onClose} label="إلغاء" />
-        <BtnPrimary onClick={handleConfirm} loading={saving} icon={Archive} label={saving ? "جارٍ الأرشفة..." : "أرشفة"} danger />
+        <BtnGhost onClick={onClose} label={t("courses.archiveCourse.cancel")} />
+        <BtnPrimary onClick={handleConfirm} loading={saving} icon={Archive} label={saving ? t("courses.archiveCourse.archiving") : t("courses.archiveCourse.confirm")} danger />
       </ModalFooter>
     </ModalWrap>
   );
 }
 
-function CoursesTab({ courses, teachers, loading, error, onReload, onOpenPayout }) {
+function CoursesTab({ courses, teachers, loading, error, onReload, onOpenPayout, t, dir, fmtMoney }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [archiveTarget, setArchiveTarget] = useState(null);
   const [search, setSearch] = useState("");
   const [levelFilter, setLevelFilter] = useState("");
+
+  const levelOptions = LEVEL_KEYS.map((k) => ({ value: k, label: t(`courses.levels.${k}`) }));
 
   const filtered = courses.filter((c) => {
     if (levelFilter && c.level !== levelFilter) return false;
@@ -521,20 +504,20 @@ function CoursesTab({ courses, teachers, loading, error, onReload, onOpenPayout 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", gap: 8, flex: 1, minWidth: 240 }}>
           <div style={{ position: "relative", flex: 1, maxWidth: 280 }}>
-            <Search size={14} color="#94A3B8" style={{ position: "absolute", right: 11, top: "50%", transform: "translateY(-50%)" }} />
-            <input style={{ ...inp, paddingRight: 32 }} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ابحث عن دورة، مادة، أستاذ..." />
+            <Search size={14} color="#94A3B8" style={{ position: "absolute", insetInlineEnd: 11, top: "50%", transform: "translateY(-50%)" }} />
+            <input style={{ ...inp, paddingInlineEnd: 32 }} value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("courses.coursesTab.searchPlaceholder")} />
           </div>
           <div style={{ width: 160 }}>
-            <Select value={levelFilter} onChange={setLevelFilter} options={LEVEL_OPTIONS.map((l) => ({ value: l, label: l }))} placeholder="كل المستويات" />
+            <Select value={levelFilter} onChange={setLevelFilter} options={levelOptions} placeholder={t("courses.levels.allLevels")} />
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={onReload} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-            <RefreshCw size={13} /> تحديث
+            <RefreshCw size={13} /> {t("courses.coursesTab.refresh")}
           </button>
           <button onClick={() => setCreateOpen(true)}
             style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 16px", borderRadius: 9, border: "none", background: P, color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-            <Plus size={14} /> إضافة دورة
+            <Plus size={14} /> {t("courses.coursesTab.addCourse")}
           </button>
         </div>
       </div>
@@ -547,20 +530,22 @@ function CoursesTab({ courses, teachers, loading, error, onReload, onOpenPayout 
           <p style={{ color: "#64748B", fontSize: 13, margin: 0 }}>{error}</p>
         </div>
       ) : filtered.length === 0 ? (
-        <EmptyState icon={BookOpen} title={courses.length === 0 ? "لا توجد دورات بعد" : "لا توجد نتائج"} subtitle={courses.length === 0 ? "أضف أول دورة دراسية للبدء" : "جرّب تعديل البحث أو الفلترة"} />
+        <EmptyState icon={BookOpen}
+          title={courses.length === 0 ? t("courses.coursesTab.emptyNoCourses") : t("courses.coursesTab.emptyNoResults")}
+          subtitle={courses.length === 0 ? t("courses.coursesTab.emptyNoCoursesSub") : t("courses.coursesTab.emptyNoResultsSub")} />
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 14 }}>
           {filtered.map((c) => (
-            <CourseCard key={c.id} course={c} onArchive={setArchiveTarget} onOpenPayout={onOpenPayout} />
+            <CourseCard key={c.id} course={c} onArchive={setArchiveTarget} onOpenPayout={onOpenPayout} t={t} fmtMoney={fmtMoney} />
           ))}
         </div>
       )}
 
       {createOpen && (
-        <CreateCourseModal teachers={teachers} onClose={() => setCreateOpen(false)} onCreated={() => { onReload(); }} />
+        <CreateCourseModal teachers={teachers} onClose={() => setCreateOpen(false)} onCreated={() => { onReload(); }} t={t} dir={dir} />
       )}
       {archiveTarget && (
-        <ArchiveCourseModal course={archiveTarget} onClose={() => setArchiveTarget(null)} onConfirm={() => { setArchiveTarget(null); onReload(); }} />
+        <ArchiveCourseModal course={archiveTarget} onClose={() => setArchiveTarget(null)} onConfirm={() => { setArchiveTarget(null); onReload(); }} t={t} dir={dir} />
       )}
     </div>
   );
@@ -569,7 +554,7 @@ function CoursesTab({ courses, teachers, loading, error, onReload, onOpenPayout 
 // ══════════════════════════════════════════════════════════════════
 //  ENROLLMENT REQUESTS TAB
 // ══════════════════════════════════════════════════════════════════
-function RejectModal({ request, onClose, onRejected }) {
+function RejectModal({ request, onClose, onRejected, t, dir }) {
   const [comment, setComment] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -580,30 +565,37 @@ function RejectModal({ request, onClose, onRejected }) {
       await courseApi.rejectEnrollment(request.id, comment.trim());
       onRejected(request);
     } catch (err) {
-      setError(err?.response?.data?.message || "فشل رفض الطلب");
+      setError(err?.response?.data?.message || t("courses.rejectModal.rejectFailed"));
       setSaving(false);
     }
   };
 
   return (
-    <ModalWrap onClose={onClose} maxWidth={400}>
-      <ModalHeader title="رفض طلب التسجيل" subtitle={request.studentName} onClose={onClose} />
+    <ModalWrap onClose={onClose} maxWidth={400} dir={dir}>
+      <ModalHeader title={t("courses.rejectModal.title")} subtitle={request.studentName} onClose={onClose} />
       <div style={{ padding: "1.1rem 1.25rem", display: "flex", flexDirection: "column", gap: 12 }}>
-        <Field label="سبب الرفض (اختياري)">
-          <Textarea value={comment} onChange={setComment} placeholder="اكتب سبب الرفض ليظهر لولي الأمر..." />
+        <Field label={t("courses.rejectModal.commentLabel")}>
+          <Textarea value={comment} onChange={setComment} placeholder={t("courses.rejectModal.commentPlaceholder")} />
         </Field>
         <ErrorBox msg={error} />
       </div>
       <ModalFooter>
-        <BtnGhost onClick={onClose} label="إلغاء" />
-        <BtnPrimary onClick={handleReject} loading={saving} icon={XCircle} label={saving ? "جارٍ الرفض..." : "تأكيد الرفض"} danger />
+        <BtnGhost onClick={onClose} label={t("courses.rejectModal.cancel")} />
+        <BtnPrimary onClick={handleReject} loading={saving} icon={XCircle} label={saving ? t("courses.rejectModal.confirming") : t("courses.rejectModal.confirm")} danger />
       </ModalFooter>
     </ModalWrap>
   );
 }
 
-function RequestRow({ request, onApprove, onReject, approving }) {
-  const st = ENROLLMENT_STATUS[request.status] || ENROLLMENT_STATUS.PENDING;
+function RequestRow({ request, onApprove, onReject, approving, t, fmtMoney, locale }) {
+  const stMap = {
+    PENDING:  { bg: "#FEF3C7", color: "#92400E", border: "#FDE68A" },
+    ACCEPTED: { bg: "#E1F5EE", color: "#0F6E56", border: "#A7F3D0" },
+    REJECTED: { bg: "#FEE2E2", color: "#DC2626", border: "#FECACA" },
+  };
+  const st = stMap[request.status] || stMap.PENDING;
+  const stLabel = t(`courses.enrollmentStatus.${request.status}`) || t("courses.enrollmentStatus.PENDING");
+
   return (
     <div style={{ background: "#fff", borderRadius: 12, border: "1.5px solid #E2E8F0", padding: "12px 14px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
       <div style={{ width: 38, height: 38, borderRadius: "50%", background: "#EBF4FE", border: "2px solid #B5D4F4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#0C447C", flexShrink: 0 }}>
@@ -613,7 +605,7 @@ function RequestRow({ request, onApprove, onReject, approving }) {
       <div style={{ flex: 1, minWidth: 180 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>{request.studentName}</span>
-          {request.studentLevel && <Badge label={request.studentLevel} bg="#F1F5F9" color="#475569" border="#E2E8F0" />}
+          {request.studentLevel && <Badge label={t(`courses.levels.${request.studentLevel}`) || request.studentLevel} bg="#F1F5F9" color="#475569" border="#E2E8F0" />}
         </div>
         <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 3, display: "flex", gap: 12, flexWrap: "wrap" }}>
           <span>📘 {request.courseName}{request.subjectName ? ` — ${request.subjectName}` : ""}</span>
@@ -623,26 +615,26 @@ function RequestRow({ request, onApprove, onReject, approving }) {
       </div>
 
       <div style={{ textAlign: "center", flexShrink: 0 }}>
-        <div style={{ fontSize: 9.5, color: "#94A3B8" }}>السعر</div>
+        <div style={{ fontSize: 9.5, color: "#94A3B8" }}>{t("courses.requestRow.priceLabel")}</div>
         <div style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>{fmtMoney(request.totalPrice)}</div>
       </div>
 
       <div style={{ textAlign: "center", flexShrink: 0, minWidth: 90 }}>
-        <div style={{ fontSize: 9.5, color: "#94A3B8" }}>تاريخ الطلب</div>
-        <div style={{ fontSize: 11, color: "#475569" }}>{fmtDateTime(request.createdAt)}</div>
+        <div style={{ fontSize: 9.5, color: "#94A3B8" }}>{t("courses.requestRow.requestDateLabel")}</div>
+        <div style={{ fontSize: 11, color: "#475569" }}>{fmtDateTime(request.createdAt, locale)}</div>
       </div>
 
-      <Badge label={st.label} bg={st.bg} color={st.color} border={st.border} />
+      <Badge label={stLabel} bg={st.bg} color={st.color} border={st.border} />
 
       {request.status === "PENDING" ? (
         <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
           <button onClick={() => onApprove(request)} disabled={approving}
             style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 13px", borderRadius: 8, border: "none", background: GREEN, color: "#fff", fontSize: 11.5, fontWeight: 600, cursor: approving ? "default" : "pointer", fontFamily: "inherit", opacity: approving ? .6 : 1 }}>
-            {approving ? <Spinner size={12} color="#fff" /> : <Check size={12} />} قبول
+            {approving ? <Spinner size={12} color="#fff" /> : <Check size={12} />} {t("courses.requestsTab.approve")}
           </button>
           <button onClick={() => onReject(request)}
             style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 13px", borderRadius: 8, border: "1.5px solid #FECACA", background: "#FEF2F2", color: "#DC2626", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-            <XCircle size={12} /> رفض
+            <XCircle size={12} /> {t("courses.requestsTab.reject")}
           </button>
         </div>
       ) : request.reviewComment ? (
@@ -654,7 +646,7 @@ function RequestRow({ request, onApprove, onReject, approving }) {
   );
 }
 
-function RequestsTab({ courses, onPendingCountChange }) {
+function RequestsTab({ courses, onPendingCountChange, t, dir, fmtMoney, locale }) {
   const [statusFilter, setStatusFilter] = useState("PENDING");
   const [courseFilter, setCourseFilter] = useState("");
   const [requests, setRequests] = useState([]);
@@ -683,7 +675,7 @@ function RequestsTab({ courses, onPendingCountChange }) {
         setTotalElements(data.totalElements ?? 0);
       }
     } catch (err) {
-      setError(err?.response?.data?.message || "فشل تحميل طلبات التسجيل");
+      setError(err?.response?.data?.message || t("courses.requestsTab.loadError"));
     } finally { setLoading(false); }
   }, [statusFilter, courseFilter, page]);
 
@@ -704,7 +696,7 @@ function RequestsTab({ courses, onPendingCountChange }) {
       setRequests((prev) => prev.map((r) => r.id === request.id ? { ...r, status: "ACCEPTED", reviewedAt: new Date().toISOString() } : r));
       refreshPendingBadge();
     } catch (err) {
-      alert(err?.response?.data?.message || "فشل قبول الطلب");
+      alert(err?.response?.data?.message || t("courses.requestsTab.approveFailed"));
     } finally { setApprovingId(null); }
   };
 
@@ -722,15 +714,19 @@ function RequestsTab({ courses, onPendingCountChange }) {
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <div style={{ width: 170 }}>
             <Select value={statusFilter} onChange={setStatusFilter}
-              options={[{ value: "PENDING", label: "قيد الانتظار" }, { value: "ACCEPTED", label: "مقبول" }, { value: "REJECTED", label: "مرفوض" }]}
-              placeholder="كل الحالات" />
+              options={[
+                { value: "PENDING", label: t("courses.enrollmentStatus.PENDING") },
+                { value: "ACCEPTED", label: t("courses.enrollmentStatus.ACCEPTED") },
+                { value: "REJECTED", label: t("courses.enrollmentStatus.REJECTED") },
+              ]}
+              placeholder={t("courses.requestsTab.statusAll")} />
           </div>
           <div style={{ width: 200 }}>
-            <Select value={courseFilter} onChange={setCourseFilter} options={courseOptions} placeholder="كل الدورات" />
+            <Select value={courseFilter} onChange={setCourseFilter} options={courseOptions} placeholder={t("courses.requestsTab.allCourses")} />
           </div>
         </div>
         <button onClick={load} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-          <RefreshCw size={13} /> تحديث
+          <RefreshCw size={13} /> {t("courses.requestsTab.refresh")}
         </button>
       </div>
 
@@ -739,13 +735,13 @@ function RequestsTab({ courses, onPendingCountChange }) {
       ) : error ? (
         <div style={{ textAlign: "center", padding: "2.5rem", color: "#DC2626", fontSize: 13 }}>{error}</div>
       ) : requests.length === 0 ? (
-        <EmptyState icon={Inbox} title="لا توجد طلبات" subtitle="لا توجد طلبات تسجيل مطابقة للفلاتر الحالية" />
+        <EmptyState icon={Inbox} title={t("courses.requestsTab.emptyTitle")} subtitle={t("courses.requestsTab.emptySubtitle")} />
       ) : (
         <>
-          <div style={{ fontSize: 11.5, color: "#94A3B8", marginBottom: 10 }}>{totalElements} طلب</div>
+          <div style={{ fontSize: 11.5, color: "#94A3B8", marginBottom: 10 }}>{totalElements} {t("courses.requestsTab.countSuffix")}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {requests.map((r) => (
-              <RequestRow key={r.id} request={r} approving={approvingId === r.id} onApprove={handleApprove} onReject={setRejectTarget} />
+              <RequestRow key={r.id} request={r} approving={approvingId === r.id} onApprove={handleApprove} onReject={setRejectTarget} t={t} fmtMoney={fmtMoney} locale={locale} />
             ))}
           </div>
 
@@ -753,12 +749,12 @@ function RequestsTab({ courses, onPendingCountChange }) {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 18 }}>
               <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}
                 style={{ width: 32, height: 32, borderRadius: 8, border: "1.5px solid #E2E8F0", background: "#fff", cursor: page === 0 ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: page === 0 ? .4 : 1 }}>
-                <ChevronRight size={14} color="#64748B" />
+                {dir === "rtl" ? <ChevronRight size={14} color="#64748B" /> : <ChevronLeft size={14} color="#64748B" />}
               </button>
               <span style={{ fontSize: 12, color: "#64748B" }}>{page + 1} / {totalPages}</span>
               <button onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
                 style={{ width: 32, height: 32, borderRadius: 8, border: "1.5px solid #E2E8F0", background: "#fff", cursor: page >= totalPages - 1 ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: page >= totalPages - 1 ? .4 : 1 }}>
-                <ChevronLeft size={14} color="#64748B" />
+                {dir === "rtl" ? <ChevronLeft size={14} color="#64748B" /> : <ChevronRight size={14} color="#64748B" />}
               </button>
             </div>
           )}
@@ -766,7 +762,7 @@ function RequestsTab({ courses, onPendingCountChange }) {
       )}
 
       {rejectTarget && (
-        <RejectModal request={rejectTarget} onClose={() => setRejectTarget(null)} onRejected={handleRejected} />
+        <RejectModal request={rejectTarget} onClose={() => setRejectTarget(null)} onRejected={handleRejected} t={t} dir={dir} />
       )}
     </div>
   );
@@ -774,22 +770,13 @@ function RequestsTab({ courses, onPendingCountChange }) {
 
 // ══════════════════════════════════════════════════════════════════
 //  ATTENDANCE TAB
-//  Courses expose sessions embedded in CourseResponseDto.sessions, so
-//  the admin picks a course, then picks one of its sessions; the full
-//  roster + existing marks are then loaded from the attendance-sheet
-//  endpoint inside AttendanceModal.
 // ══════════════════════════════════════════════════════════════════
-const DAY_LABEL = {
-  SATURDAY: "السبت", SUNDAY: "الأحد", MONDAY: "الإثنين", TUESDAY: "الثلاثاء",
-  WEDNESDAY: "الأربعاء", THURSDAY: "الخميس", FRIDAY: "الجمعة",
-};
-
-function SessionPickerCard({ course, session, onClick }) {
+function SessionPickerCard({ course, session, onClick, t, dir }) {
   return (
     <button onClick={onClick}
-      style={{ textAlign: "right", display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, border: "1.5px solid #E2E8F0", background: "#fff", cursor: "pointer", fontFamily: "inherit", width: "100%" }}>
+      style={{ textAlign: dir === "rtl" ? "right" : "left", display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, border: "1.5px solid #E2E8F0", background: "#fff", cursor: "pointer", fontFamily: "inherit", width: "100%" }}>
       <div style={{ width: 44, textAlign: "center", flexShrink: 0, padding: "6px 4px", borderRadius: 9, background: "#EBF4FE" }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: P }}>{DAY_LABEL[session.day] || session.day}</div>
+     
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>{course.name}</div>
@@ -797,14 +784,14 @@ function SessionPickerCard({ course, session, onClick }) {
           {course.subjectName} · 🕐 {fmtTime(session.startTime)} – {fmtTime(session.endTime)} · 👨‍🏫 {course.teacherName}
         </div>
       </div>
-      <ChevronLeft size={16} color="#94A3B8" style={{ flexShrink: 0 }} />
+      {dir === "rtl" ? <ChevronLeft size={16} color="#94A3B8" style={{ flexShrink: 0 }} /> : <ChevronRight size={16} color="#94A3B8" style={{ flexShrink: 0 }} />}
     </button>
   );
 }
 
 function fmtTime(t) { return t ? String(t).slice(0, 5) : "—"; }
 
-function AttendanceModal({ course, session, onClose }) {
+function AttendanceModal({ course, session, onClose, t, dir, locale }) {
   const [sheet, setSheet] = useState(null);     // AttendanceSheetDto | null (not loaded yet)
   const [loadError, setLoadError] = useState(null);
   const [marks, setMarks] = useState({});
@@ -823,7 +810,7 @@ function AttendanceModal({ course, session, onClose }) {
       (data.students ?? []).forEach((s) => { if (s.status) initial[s.studentId] = s.status; });
       setMarks(initial);
     } catch (err) {
-      setLoadError(err?.response?.data?.message || "فشل تحميل ورقة الحضور");
+      setLoadError(err?.response?.data?.message || t("courses.attendanceModal.loadError"));
     }
   }, [session.id]);
 
@@ -847,22 +834,22 @@ function AttendanceModal({ course, session, onClose }) {
       const entries = list
         .filter((s) => marks[s.studentId])
         .map((s) => ({ studentId: s.studentId, status: marks[s.studentId] }));
-      if (entries.length === 0) { setError("سجّل حضور طالب واحد على الأقل"); setSaving(false); return; }
+      if (entries.length === 0) { setError(t("courses.attendanceModal.atLeastOneRequired")); setSaving(false); return; }
       await courseApi.markAttendance(session.id, entries);
       setSubmitted(true);
       setTimeout(onClose, 900);
     } catch (err) {
-      setError(err?.response?.data?.message || "فشل حفظ الحضور");
+      setError(err?.response?.data?.message || t("courses.attendanceModal.saveFailed"));
     } finally { setSaving(false); }
   };
 
   const STATUS_BTNS = [
-    { key: "PRESENT", Icon: Check,   activeColor: GREEN, activeBg: "#E1F5EE", title: "حاضر" },
-    { key: "ABSENT",  Icon: XCircle, activeColor: "#DC2626", activeBg: "#FEE2E2", title: "غائب" },
+    { key: "PRESENT", Icon: Check,   activeColor: GREEN, activeBg: "#E1F5EE", title: t("courses.attendanceStatus.PRESENT") },
+    { key: "ABSENT",  Icon: XCircle, activeColor: "#DC2626", activeBg: "#FEE2E2", title: t("courses.attendanceStatus.ABSENT") },
   ];
 
   return (
-    <ModalWrap onClose={onClose} maxWidth={560}>
+    <ModalWrap onClose={onClose} maxWidth={560} dir={dir}>
       <div style={{ padding: "1.1rem 1.25rem", background: "#EBF4FE", borderBottom: "1.5px solid #B5D4F4", flexShrink: 0 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
@@ -870,7 +857,7 @@ function AttendanceModal({ course, session, onClose }) {
             <div style={{ fontSize: 11, color: P, opacity: .8, marginTop: 3, display: "flex", gap: 12, flexWrap: "wrap" }}>
               <span>👨‍🏫 {sheet?.teacherName || course.teacherName}</span>
               <span>🕐 {fmtTime(sheet?.startTime || session.startTime)} – {fmtTime(sheet?.endTime || session.endTime)}</span>
-              <span>📅 {sheet?.date ? fmtDate(sheet.date) : (DAY_LABEL[session.day] || session.day)}</span>
+              <span>📅 {sheet?.date ? fmtDate(sheet.date, locale) : (t(`courses.days.${session.day}`) || session.day)}</span>
             </div>
           </div>
           <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid #B5D4F4", background: "rgba(255,255,255,.6)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -880,11 +867,11 @@ function AttendanceModal({ course, session, onClose }) {
 
         {list.length > 0 && (
           <div style={{ display: "flex", gap: 7, marginTop: 10, flexWrap: "wrap" }}>
-            <Badge label={`👥 ${sheet?.totalEnrolled ?? list.length} طالب`} bg="rgba(255,255,255,.6)" color={P} border="#B5D4F4" />
-            <Badge label={`✓ ${presentCount} حاضر`} bg="rgba(16,185,129,.15)" color={GREEN} border="#A7F3D0" />
-            <Badge label={`✗ ${absentCount} غائب`} bg="rgba(239,68,68,.15)" color="#DC2626" border="#FECACA" />
-            <button onClick={() => markAll("PRESENT")} style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "#E1F5EE", color: GREEN, border: "1px solid #A7F3D0", cursor: "pointer", fontFamily: "inherit" }}>✓ الكل حاضر</button>
-            <button onClick={() => markAll("ABSENT")} style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "#FEE2E2", color: "#DC2626", border: "1px solid #FECACA", cursor: "pointer", fontFamily: "inherit" }}>✗ الكل غائب</button>
+            <Badge label={`👥 ${sheet?.totalEnrolled ?? list.length} ${t("courses.attendanceModal.totalEnrolledSuffix")}`} bg="rgba(255,255,255,.6)" color={P} border="#B5D4F4" />
+            <Badge label={`✓ ${presentCount} ${t("courses.attendanceModal.presentSuffix")}`} bg="rgba(16,185,129,.15)" color={GREEN} border="#A7F3D0" />
+            <Badge label={`✗ ${absentCount} ${t("courses.attendanceModal.absentSuffix")}`} bg="rgba(239,68,68,.15)" color="#DC2626" border="#FECACA" />
+            <button onClick={() => markAll("PRESENT")} style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "#E1F5EE", color: GREEN, border: "1px solid #A7F3D0", cursor: "pointer", fontFamily: "inherit" }}>{t("courses.attendanceModal.markAllPresent")}</button>
+            <button onClick={() => markAll("ABSENT")} style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "#FEE2E2", color: "#DC2626", border: "1px solid #FECACA", cursor: "pointer", fontFamily: "inherit" }}>{t("courses.attendanceModal.markAllAbsent")}</button>
           </div>
         )}
       </div>
@@ -900,7 +887,7 @@ function AttendanceModal({ course, session, onClose }) {
         ) : list.length === 0 ? (
           <div style={{ padding: "2.5rem", textAlign: "center", color: "#94A3B8", fontSize: 13 }}>
             <Users size={32} color="#E2E8F0" style={{ marginBottom: 8 }} />
-            <div>لا يوجد تلاميذ مسجلين في هذه الدورة</div>
+            <div>{t("courses.attendanceModal.emptyStudents")}</div>
           </div>
         ) : list.map((s, i) => {
           const id = s.studentId;
@@ -933,17 +920,17 @@ function AttendanceModal({ course, session, onClose }) {
       {error && <div style={{ padding: "0 1.25rem", paddingTop: 10 }}><ErrorBox msg={error} /></div>}
 
       <div style={{ padding: ".85rem 1.25rem", borderTop: "1.5px solid #F1F5F9", background: "#FAFCFF", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
-        <span style={{ fontSize: 11, color: "#94A3B8" }}>{markedCount} / {list.length} تم تسجيلهم</span>
+        <span style={{ fontSize: 11, color: "#94A3B8" }}>{markedCount} / {list.length} {t("courses.attendanceModal.markedCountSuffix")}</span>
         <button onClick={handleSave} disabled={submitted || saving || list.length === 0}
           style={{ padding: "8px 20px", borderRadius: 9, border: "none", background: submitted ? GREEN : P, color: "#fff", fontSize: 13, fontWeight: 600, cursor: submitted ? "default" : "pointer", fontFamily: "'Cairo',sans-serif", display: "flex", alignItems: "center", gap: 6, transition: "background .3s" }}>
-          {saving ? <Spinner size={14} color="#fff" /> : submitted ? <><Check size={14} /> تم الحفظ</> : "حفظ الحضور"}
+          {saving ? <Spinner size={14} color="#fff" /> : submitted ? <><Check size={14} /> {t("courses.attendanceModal.saved")}</> : t("courses.attendanceModal.save")}
         </button>
       </div>
     </ModalWrap>
   );
 }
 
-function AttendanceTab({ courses }) {
+function AttendanceTab({ courses, t, dir, locale }) {
   const [courseFilter, setCourseFilter] = useState("");
   const [target, setTarget] = useState(null); // { course, session }
 
@@ -959,23 +946,23 @@ function AttendanceTab({ courses }) {
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
         <div style={{ width: 220 }}>
-          <Select value={courseFilter} onChange={setCourseFilter} options={courseOptions} placeholder="كل الدورات" />
+          <Select value={courseFilter} onChange={setCourseFilter} options={courseOptions} placeholder={t("courses.attendanceTab.allCourses")} />
         </div>
-        <div style={{ fontSize: 11.5, color: "#94A3B8" }}>اختر جلسة لتسجيل الحضور فيها</div>
+        <div style={{ fontSize: 11.5, color: "#94A3B8" }}>{t("courses.attendanceTab.hint")}</div>
       </div>
 
       {rows.length === 0 ? (
-        <EmptyState icon={CalendarClock} title="لا توجد جلسات" subtitle="لا توجد دورات تحتوي جلسات مطابقة للفلتر الحالي" />
+        <EmptyState icon={CalendarClock} title={t("courses.attendanceTab.emptyTitle")} subtitle={t("courses.attendanceTab.emptySubtitle")} />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {rows.map(({ course, session }) => (
-            <SessionPickerCard key={`${course.id}_${session.id ?? session.day + session.startTime}`} course={course} session={session} onClick={() => setTarget({ course, session })} />
+            <SessionPickerCard key={`${course.id}_${session.id ?? session.day + session.startTime}`} course={course} session={session} onClick={() => setTarget({ course, session })} t={t} dir={dir} />
           ))}
         </div>
       )}
 
       {target && (
-        <AttendanceModal course={target.course} session={target.session} onClose={() => setTarget(null)} />
+        <AttendanceModal course={target.course} session={target.session} onClose={() => setTarget(null)} t={t} dir={dir} locale={locale} />
       )}
     </div>
   );
@@ -983,12 +970,8 @@ function AttendanceTab({ courses }) {
 
 // ══════════════════════════════════════════════════════════════════
 //  PAYOUTS & INVOICES TAB
-//  Uses the school-wide summary endpoints (payouts/summary, revenue)
-//  for the dashboard totals, per-course calculate/pay for individual
-//  payouts, and per-course invoice list + manual invoice creation for
-//  student billing.
 // ══════════════════════════════════════════════════════════════════
-function PayoutPanel({ course, onClose }) {
+function PayoutPanel({ course, onClose, t, dir, fmtMoney, locale }) {
   const [payout, setPayout] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -1000,7 +983,7 @@ function PayoutPanel({ course, onClose }) {
       const res = await courseApi.calculatePayout(course.id);
       setPayout(res.data);
     } catch (err) {
-      setError(err?.response?.data?.message || "فشل حساب نصيب الأستاذ");
+      setError(err?.response?.data?.message || t("courses.payoutPanel.calculateFailed"));
     } finally { setLoading(false); }
   };
 
@@ -1011,24 +994,29 @@ function PayoutPanel({ course, onClose }) {
       const res = await courseApi.markPayoutPaid(payout.id);
       setPayout(res.data);
     } catch (err) {
-      setError(err?.response?.data?.message || "فشل تأكيد الدفع");
+      setError(err?.response?.data?.message || t("courses.payoutPanel.confirmPaymentFailed"));
     } finally { setPaying(false); }
   };
 
-  const st = payout ? (PAYOUT_STATUS[payout.status] || PAYOUT_STATUS.PENDING) : null;
+  const stMap = {
+    PENDING: { bg: "#FEF3C7", color: "#92400E", border: "#FDE68A" },
+    PAID:    { bg: "#E1F5EE", color: "#0F6E56", border: "#A7F3D0" },
+  };
+  const st = payout ? (stMap[payout.status] || stMap.PENDING) : null;
+  const stLabel = payout ? (t(`courses.payoutStatus.${payout.status}`) || t("courses.payoutStatus.PENDING")) : "";
 
   return (
-    <ModalWrap onClose={onClose} maxWidth={440}>
-      <ModalHeader title="نصيب الأستاذ" subtitle={course.name} onClose={onClose} />
+    <ModalWrap onClose={onClose} maxWidth={440} dir={dir}>
+      <ModalHeader title={t("courses.payoutPanel.title")} subtitle={course.name} onClose={onClose} />
       <div style={{ padding: "1.1rem 1.25rem", display: "flex", flexDirection: "column", gap: 14 }}>
 
         <div style={{ display: "flex", gap: 10 }}>
           <div style={{ flex: 1, background: "#F8FAFC", borderRadius: 10, padding: "10px 14px" }}>
-            <div style={{ fontSize: 10, color: "#94A3B8" }}>الأستاذ</div>
+            <div style={{ fontSize: 10, color: "#94A3B8" }}>{t("courses.payoutPanel.teacherLabel")}</div>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", marginTop: 2 }}>{course.teacherName || "—"}</div>
           </div>
           <div style={{ flex: 1, background: "#F8FAFC", borderRadius: 10, padding: "10px 14px" }}>
-            <div style={{ fontSize: 10, color: "#94A3B8" }}>نسبة الأستاذ</div>
+            <div style={{ fontSize: 10, color: "#94A3B8" }}>{t("courses.payoutPanel.teacherPercentageLabel")}</div>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", marginTop: 2 }}>
               <Percent size={11} style={{ display: "inline", verticalAlign: -1 }} /> {course.teacherPercentage ?? "—"}
             </div>
@@ -1038,31 +1026,31 @@ function PayoutPanel({ course, onClose }) {
         {!payout ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "1.5rem 0" }}>
             <CircleDollarSign size={32} color="#CBD5E1" />
-            <p style={{ fontSize: 12, color: "#94A3B8", textAlign: "center", margin: 0 }}>احسب نصيب الأستاذ بناءً على إيراد الدورة الحالي ونسبته المحددة</p>
+            <p style={{ fontSize: 12, color: "#94A3B8", textAlign: "center", margin: 0 }}>{t("courses.payoutPanel.calculateHint")}</p>
             <ErrorBox msg={error} />
           </div>
         ) : (
           <div style={{ border: `1.5px solid ${st.border}`, borderRadius: 12, overflow: "hidden" }}>
             <div style={{ background: st.bg, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: st.color }}>حالة الدفع</span>
-              <Badge label={st.label} bg="rgba(255,255,255,.6)" color={st.color} border={st.border} />
+              <span style={{ fontSize: 12, fontWeight: 700, color: st.color }}>{t("courses.payoutPanel.paymentStatusLabel")}</span>
+              <Badge label={stLabel} bg="rgba(255,255,255,.6)" color={st.color} border={st.border} />
             </div>
             <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 9, background: "#fff" }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5 }}>
-                <span style={{ color: "#64748B" }}>إجمالي إيراد الدورة</span>
+                <span style={{ color: "#64748B" }}>{t("courses.payoutPanel.totalCourseRevenue")}</span>
                 <span style={{ fontWeight: 700, color: "#0F172A" }}>{fmtMoney(payout.totalCourseRevenue)}</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5 }}>
-                <span style={{ color: "#64748B" }}>النسبة</span>
+                <span style={{ color: "#64748B" }}>{t("courses.payoutPanel.percentageLabel")}</span>
                 <span style={{ fontWeight: 700, color: "#0F172A" }}>{payout.percentage}%</span>
               </div>
               <div style={{ height: 1, background: "#F1F5F9" }} />
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
-                <span style={{ fontWeight: 700, color: "#0F172A" }}>نصيب الأستاذ</span>
+                <span style={{ fontWeight: 700, color: "#0F172A" }}>{t("courses.payoutPanel.payoutAmountLabel")}</span>
                 <span style={{ fontWeight: 800, color: P }}>{fmtMoney(payout.payoutAmount)}</span>
               </div>
               {payout.paidAt && (
-                <div style={{ fontSize: 10.5, color: "#94A3B8" }}>تم الدفع في {fmtDateTime(payout.paidAt)}</div>
+                <div style={{ fontSize: 10.5, color: "#94A3B8" }}>{interp(t("courses.payoutPanel.paidAtLabel"), { date: fmtDateTime(payout.paidAt, locale) })}</div>
               )}
             </div>
           </div>
@@ -1070,13 +1058,13 @@ function PayoutPanel({ course, onClose }) {
         <ErrorBox msg={error} />
       </div>
       <ModalFooter>
-        <BtnGhost onClick={onClose} label="إغلاق" />
+        <BtnGhost onClick={onClose} label={t("courses.payoutPanel.close")} />
         {!payout ? (
-          <BtnPrimary onClick={handleCalculate} loading={loading} icon={CircleDollarSign} label={loading ? "جارٍ الحساب..." : "احسب النصيب"} />
+          <BtnPrimary onClick={handleCalculate} loading={loading} icon={CircleDollarSign} label={loading ? t("courses.payoutPanel.calculating") : t("courses.payoutPanel.calculate")} />
         ) : payout.status !== "PAID" ? (
-          <BtnPrimary onClick={handleMarkPaid} loading={paying} icon={Check} label={paying ? "جارٍ التأكيد..." : "تأكيد الدفع"} color={GREEN} />
+          <BtnPrimary onClick={handleMarkPaid} loading={paying} icon={Check} label={paying ? t("courses.payoutPanel.confirming") : t("courses.payoutPanel.confirmPayment")} color={GREEN} />
         ) : (
-          <BtnPrimary onClick={handleCalculate} loading={loading} icon={RefreshCw} label={loading ? "..." : "إعادة الحساب"} />
+          <BtnPrimary onClick={handleCalculate} loading={loading} icon={RefreshCw} label={loading ? "..." : t("courses.payoutPanel.recalculate")} />
         )}
       </ModalFooter>
     </ModalWrap>
@@ -1097,11 +1085,17 @@ function StatCard({ icon: Icon, label, value, color = P, bg = "#EBF4FE" }) {
   );
 }
 
-function InvoiceRow({ invoice, onPaid }) {
+function InvoiceRow({ invoice, onPaid, t, fmtMoney, locale }) {
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState("");
   const status = invoice.status || "PENDING";
-  const st = INVOICE_STATUS[status] || INVOICE_STATUS.PENDING;
+  const stMap = {
+    PENDING: { bg: "#FEF3C7", color: "#92400E", border: "#FDE68A" },
+    PAID:    { bg: "#E1F5EE", color: "#0F6E56", border: "#A7F3D0" },
+    OVERDUE: { bg: "#FEE2E2", color: "#DC2626", border: "#FECACA" },
+  };
+  const st = stMap[status] || stMap.PENDING;
+  const stLabel = t(`courses.invoiceStatus.${status}`) || t("courses.invoiceStatus.PENDING");
 
   const handlePay = async () => {
     setPaying(true); setError("");
@@ -1109,7 +1103,7 @@ function InvoiceRow({ invoice, onPaid }) {
       await courseApi.markInvoicePaid(invoice.id);
       onPaid(invoice);
     } catch (err) {
-      setError(err?.response?.data?.message || "فشل تأكيد الدفع");
+      setError(err?.response?.data?.message || t("courses.payoutsTab.confirmPaymentFailed"));
     } finally { setPaying(false); }
   };
 
@@ -1124,19 +1118,19 @@ function InvoiceRow({ invoice, onPaid }) {
       </div>
       {invoice.dueDate && (
         <div style={{ textAlign: "center", flexShrink: 0 }}>
-          <div style={{ fontSize: 9.5, color: "#94A3B8" }}>تاريخ الاستحقاق</div>
-          <div style={{ fontSize: 11, color: "#475569" }}>{fmtDate(invoice.dueDate)}</div>
+          <div style={{ fontSize: 9.5, color: "#94A3B8" }}>{t("courses.payoutsTab.dueDateLabel")}</div>
+          <div style={{ fontSize: 11, color: "#475569" }}>{fmtDate(invoice.dueDate, locale)}</div>
         </div>
       )}
       <div style={{ textAlign: "center", flexShrink: 0 }}>
-        <div style={{ fontSize: 9.5, color: "#94A3B8" }}>المبلغ</div>
+        <div style={{ fontSize: 9.5, color: "#94A3B8" }}>{t("courses.payoutsTab.amountLabel")}</div>
         <div style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>{fmtMoney(invoice.amount)}</div>
       </div>
-      <Badge label={st.label} bg={st.bg} color={st.color} border={st.border} />
+      <Badge label={stLabel} bg={st.bg} color={st.color} border={st.border} />
       {status !== "PAID" && (
         <button onClick={handlePay} disabled={paying}
           style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 13px", borderRadius: 8, border: "none", background: GREEN, color: "#fff", fontSize: 11.5, fontWeight: 600, cursor: paying ? "default" : "pointer", fontFamily: "inherit", opacity: paying ? .6 : 1 }}>
-          {paying ? <Spinner size={12} color="#fff" /> : <Check size={12} />} تأكيد الدفع
+          {paying ? <Spinner size={12} color="#fff" /> : <Check size={12} />} {t("courses.payoutsTab.confirmPayment")}
         </button>
       )}
       {error && <div style={{ width: "100%" }}><ErrorBox msg={error} /></div>}
@@ -1144,7 +1138,7 @@ function InvoiceRow({ invoice, onPaid }) {
   );
 }
 
-function ManualInvoiceModal({ courses, onClose, onCreated }) {
+function ManualInvoiceModal({ courses, onClose, onCreated, t, dir, fmtMoney }) {
   const [courseId, setCourseId] = useState("");
   const [requests, setRequests] = useState([]);
   const [loadingReq, setLoadingReq] = useState(false);
@@ -1168,7 +1162,7 @@ function ManualInvoiceModal({ courses, onClose, onCreated }) {
   const requestOptions = requests.map((r) => ({ value: String(r.id), label: `${r.studentName} — ${fmtMoney(r.totalPrice)}` }));
 
   const handleSave = async () => {
-    if (!enrollmentId) return setError("اختر طالباً مسجلاً");
+    if (!enrollmentId) return setError(t("courses.manualInvoiceModal.selectStudentRequired"));
     setSaving(true); setError("");
     try {
       const payload = {
@@ -1180,44 +1174,44 @@ function ManualInvoiceModal({ courses, onClose, onCreated }) {
       onCreated(res.data);
       onClose();
     } catch (err) {
-      setError(err?.response?.data?.message || "فشل إنشاء الفاتورة");
+      setError(err?.response?.data?.message || t("courses.manualInvoiceModal.createFailed"));
     } finally { setSaving(false); }
   };
 
   return (
-    <ModalWrap onClose={onClose} maxWidth={440}>
-      <ModalHeader title="إنشاء فاتورة يدوياً" subtitle="أنشئ فاتورة لطالب مسجل في دورة" onClose={onClose} />
+    <ModalWrap onClose={onClose} maxWidth={440} dir={dir}>
+      <ModalHeader title={t("courses.manualInvoiceModal.title")} subtitle={t("courses.manualInvoiceModal.subtitle")} onClose={onClose} />
       <div style={{ padding: "1.1rem 1.25rem", display: "flex", flexDirection: "column", gap: 12 }}>
-        <Field label="الدورة" required>
-          <Select value={courseId} onChange={setCourseId} options={courseOptions} placeholder="اختر دورة…" />
+        <Field label={t("courses.manualInvoiceModal.courseLabel")} required>
+          <Select value={courseId} onChange={setCourseId} options={courseOptions} placeholder={t("courses.manualInvoiceModal.coursePlaceholder")} />
         </Field>
-        <Field label="الطالب" required>
+        <Field label={t("courses.manualInvoiceModal.studentLabel")} required>
           {loadingReq ? (
             <div style={{ display: "flex", padding: "8px 0" }}><Spinner size={16} /></div>
           ) : (
             <Select value={enrollmentId} onChange={setEnrollmentId} options={requestOptions}
-              placeholder={courseId ? (requests.length === 0 ? "لا يوجد طلاب مقبولين في هذه الدورة" : "اختر طالباً…") : "اختر دورة أولاً"} />
+              placeholder={courseId ? (requests.length === 0 ? t("courses.manualInvoiceModal.studentPlaceholderNoStudents") : t("courses.manualInvoiceModal.studentPlaceholder")) : t("courses.manualInvoiceModal.studentPlaceholderNoCourse")} />
           )}
         </Field>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Field label="المبلغ (دج)">
-            <Input type="number" value={amount} onChange={setAmount} placeholder={selectedRequest ? String(selectedRequest.totalPrice) : "افتراضي: سعر التسجيل"} />
+          <Field label={t("courses.manualInvoiceModal.amountLabel")}>
+            <Input type="number" value={amount} onChange={setAmount} placeholder={selectedRequest ? String(selectedRequest.totalPrice) : t("courses.manualInvoiceModal.amountDefaultHint")} />
           </Field>
-          <Field label="تاريخ الاستحقاق">
+          <Field label={t("courses.manualInvoiceModal.dueDateLabel")}>
             <input type="date" style={inp} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
           </Field>
         </div>
         <ErrorBox msg={error} />
       </div>
       <ModalFooter>
-        <BtnGhost onClick={onClose} label="إلغاء" />
-        <BtnPrimary onClick={handleSave} loading={saving} icon={ReceiptText} label={saving ? "جارٍ الإنشاء..." : "إنشاء الفاتورة"} />
+        <BtnGhost onClick={onClose} label={t("courses.manualInvoiceModal.cancel")} />
+        <BtnPrimary onClick={handleSave} loading={saving} icon={ReceiptText} label={saving ? t("courses.manualInvoiceModal.submitting") : t("courses.manualInvoiceModal.submit")} />
       </ModalFooter>
     </ModalWrap>
   );
 }
 
-function PayoutsTab({ courses, initialCourse, onConsumeInitial }) {
+function PayoutsTab({ courses, initialCourse, onConsumeInitial, t, dir, fmtMoney, locale }) {
   const [payoutCourse, setPayoutCourse] = useState(null);
   const [invoiceCourse, setInvoiceCourse] = useState("");
   const [manualInvoiceOpen, setManualInvoiceOpen] = useState(false);
@@ -1240,7 +1234,7 @@ function PayoutsTab({ courses, initialCourse, onConsumeInitial }) {
       const res = await courseApi.getPayoutSummary();
       setPayoutSummary(res.data);
     } catch (err) {
-      setErrorSummary(err?.response?.data?.message || "فشل تحميل ملخص المدفوعات");
+      setErrorSummary(err?.response?.data?.message || t("courses.payoutsTab.summaryLoadError"));
     } finally { setLoadingSummary(false); }
   }, []);
 
@@ -1257,7 +1251,7 @@ function PayoutsTab({ courses, initialCourse, onConsumeInitial }) {
       const res = await courseApi.getRevenue();
       setRevenue(res.data);
     } catch (err) {
-      setErrorRevenue(err?.response?.data?.message || "فشل تحميل ملخص الإيرادات");
+      setErrorRevenue(err?.response?.data?.message || t("courses.payoutsTab.revenueLoadError"));
     } finally { setLoadingRevenue(false); }
   }, []);
 
@@ -1275,7 +1269,7 @@ function PayoutsTab({ courses, initialCourse, onConsumeInitial }) {
       const res = await courseApi.getInvoicesByCourse(invoiceCourse);
       setInvoices(res.data ?? []);
     } catch (err) {
-      setErrorInv(err?.response?.data?.message || "فشل تحميل الفواتير");
+      setErrorInv(err?.response?.data?.message || t("courses.payoutsTab.invoicesLoadError"));
     } finally { setLoadingInv(false); }
   }, [invoiceCourse]);
 
@@ -1292,7 +1286,7 @@ function PayoutsTab({ courses, initialCourse, onConsumeInitial }) {
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
           <CircleDollarSign size={15} color={P} />
-          <h3 style={{ fontSize: 13.5, fontWeight: 700, color: "#0F172A", margin: 0 }}>ملخص الإيرادات</h3>
+          <h3 style={{ fontSize: 13.5, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("courses.payoutsTab.revenueOverviewTitle")}</h3>
         </div>
         {loadingRevenue ? (
           <div style={{ display: "flex", justifyContent: "center", padding: "1.5rem" }}><Spinner size={24} /></div>
@@ -1300,10 +1294,10 @@ function PayoutsTab({ courses, initialCourse, onConsumeInitial }) {
           <ErrorBox msg={errorRevenue} />
         ) : revenue && (
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <StatCard icon={CircleDollarSign} label="الإيراد المتوقع" value={fmtMoney(revenue.totalExpected)} color={P} bg="#EBF4FE" />
-            <StatCard icon={Check} label="تم تحصيله" value={fmtMoney(revenue.totalCollected)} color={GREEN} bg="#E1F5EE" />
-            <StatCard icon={CalendarClock} label="قيد الانتظار" value={fmtMoney(revenue.totalPending)} color="#92400E" bg="#FEF3C7" />
-            <StatCard icon={AlertCircle} label="متأخرة" value={fmtMoney(revenue.totalOverdue)} color="#DC2626" bg="#FEE2E2" />
+            <StatCard icon={CircleDollarSign} label={t("courses.payoutsTab.expectedRevenue")} value={fmtMoney(revenue.totalExpected)} color={P} bg="#EBF4FE" />
+            <StatCard icon={Check} label={t("courses.payoutsTab.collected")} value={fmtMoney(revenue.totalCollected)} color={GREEN} bg="#E1F5EE" />
+            <StatCard icon={CalendarClock} label={t("courses.payoutsTab.pending")} value={fmtMoney(revenue.totalPending)} color="#92400E" bg="#FEF3C7" />
+            <StatCard icon={AlertCircle} label={t("courses.payoutsTab.overdue")} value={fmtMoney(revenue.totalOverdue)} color="#DC2626" bg="#FEE2E2" />
           </div>
         )}
       </div>
@@ -1312,7 +1306,7 @@ function PayoutsTab({ courses, initialCourse, onConsumeInitial }) {
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
           <Wallet size={15} color={P} />
-          <h3 style={{ fontSize: 13.5, fontWeight: 700, color: "#0F172A", margin: 0 }}>نصيب الأساتذة</h3>
+          <h3 style={{ fontSize: 13.5, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("courses.payoutsTab.teacherPayoutsTitle")}</h3>
         </div>
 
         {loadingSummary ? (
@@ -1321,20 +1315,25 @@ function PayoutsTab({ courses, initialCourse, onConsumeInitial }) {
           <ErrorBox msg={errorSummary} />
         ) : payoutSummary && (
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
-            <StatCard icon={CalendarClock} label="مستحقة الدفع" value={fmtMoney(payoutSummary.totalPayoutsDue)} color="#92400E" bg="#FEF3C7" />
-            <StatCard icon={Check} label="تم دفعها" value={fmtMoney(payoutSummary.totalPayoutsPaid)} color={GREEN} bg="#E1F5EE" />
-            <StatCard icon={BookOpen} label="عدد الدورات" value={payoutSummary.courseCount ?? courses.length} color={P} bg="#EBF4FE" />
+            <StatCard icon={CalendarClock} label={t("courses.payoutsTab.duePayouts")} value={fmtMoney(payoutSummary.totalPayoutsDue)} color="#92400E" bg="#FEF3C7" />
+            <StatCard icon={Check} label={t("courses.payoutsTab.paidPayouts")} value={fmtMoney(payoutSummary.totalPayoutsPaid)} color={GREEN} bg="#E1F5EE" />
+            <StatCard icon={BookOpen} label={t("courses.payoutsTab.courseCount")} value={payoutSummary.courseCount ?? courses.length} color={P} bg="#EBF4FE" />
           </div>
         )}
 
         {payoutSummary?.payouts?.length > 0 ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {payoutSummary.payouts.map((p) => {
-              const st = PAYOUT_STATUS[p.status] || PAYOUT_STATUS.PENDING;
+              const stMap = {
+                PENDING: { bg: "#FEF3C7", color: "#92400E", border: "#FDE68A" },
+                PAID:    { bg: "#E1F5EE", color: "#0F6E56", border: "#A7F3D0" },
+              };
+              const st = stMap[p.status] || stMap.PENDING;
+              const stLabel = t(`courses.payoutStatus.${p.status}`) || t("courses.payoutStatus.PENDING");
               const relatedCourse = courses.find((c) => c.id === p.courseId) || { id: p.courseId, name: p.courseName, teacherName: p.teacherName, teacherPercentage: p.percentage };
               return (
                 <button key={p.id} onClick={() => setPayoutCourse(relatedCourse)}
-                  style={{ textAlign: "right", display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", borderRadius: 12, border: "1.5px solid #E2E8F0", background: "#fff", cursor: "pointer", fontFamily: "inherit", width: "100%" }}>
+                  style={{ textAlign: dir === "rtl" ? "right" : "left", display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", borderRadius: 12, border: "1.5px solid #E2E8F0", background: "#fff", cursor: "pointer", fontFamily: "inherit", width: "100%" }}>
                   <div style={{ width: 36, height: 36, borderRadius: 10, background: "#E1F5EE", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                     <Wallet size={16} color={GREEN} />
                   </div>
@@ -1343,19 +1342,19 @@ function PayoutsTab({ courses, initialCourse, onConsumeInitial }) {
                     <div style={{ fontSize: 10.5, color: "#94A3B8", marginTop: 1 }}>{p.teacherName || "—"} · {p.percentage ?? "—"}%</div>
                   </div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", flexShrink: 0 }}>{fmtMoney(p.payoutAmount)}</div>
-                  <Badge label={st.label} bg={st.bg} color={st.color} border={st.border} />
-                  <ChevronLeft size={14} color="#CBD5E1" style={{ flexShrink: 0 }} />
+                  <Badge label={stLabel} bg={st.bg} color={st.color} border={st.border} />
+                  {dir === "rtl" ? <ChevronLeft size={14} color="#CBD5E1" style={{ flexShrink: 0 }} /> : <ChevronRight size={14} color="#CBD5E1" style={{ flexShrink: 0 }} />}
                 </button>
               );
             })}
           </div>
         ) : courses.length === 0 ? (
-          <EmptyState icon={Wallet} title="لا توجد دورات" subtitle="أضف دورة أولاً لحساب نصيب الأستاذ" />
+          <EmptyState icon={Wallet} title={t("courses.payoutsTab.emptyNoCourses")} subtitle={t("courses.payoutsTab.emptyNoCoursesSub")} />
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 10 }}>
             {courses.map((c) => (
               <button key={c.id} onClick={() => setPayoutCourse(c)}
-                style={{ textAlign: "right", display: "flex", alignItems: "center", gap: 10, padding: "11px 13px", borderRadius: 12, border: "1.5px solid #E2E8F0", background: "#fff", cursor: "pointer", fontFamily: "inherit" }}>
+                style={{ textAlign: dir === "rtl" ? "right" : "left", display: "flex", alignItems: "center", gap: 10, padding: "11px 13px", borderRadius: 12, border: "1.5px solid #E2E8F0", background: "#fff", cursor: "pointer", fontFamily: "inherit" }}>
                 <div style={{ width: 36, height: 36, borderRadius: 10, background: "#E1F5EE", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                   <Wallet size={16} color={GREEN} />
                 </div>
@@ -1363,7 +1362,7 @@ function PayoutsTab({ courses, initialCourse, onConsumeInitial }) {
                   <div style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</div>
                   <div style={{ fontSize: 10.5, color: "#94A3B8", marginTop: 1 }}>{c.teacherName || "—"} · {c.teacherPercentage ?? "—"}%</div>
                 </div>
-                <ChevronLeft size={14} color="#CBD5E1" style={{ flexShrink: 0 }} />
+                {dir === "rtl" ? <ChevronLeft size={14} color="#CBD5E1" style={{ flexShrink: 0 }} /> : <ChevronRight size={14} color="#CBD5E1" style={{ flexShrink: 0 }} />}
               </button>
             ))}
           </div>
@@ -1375,39 +1374,39 @@ function PayoutsTab({ courses, initialCourse, onConsumeInitial }) {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <ReceiptText size={15} color="#854F0B" />
-            <h3 style={{ fontSize: 13.5, fontWeight: 700, color: "#0F172A", margin: 0 }}>فواتير الطلاب</h3>
+            <h3 style={{ fontSize: 13.5, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("courses.payoutsTab.invoicesTitle")}</h3>
           </div>
           <button onClick={() => setManualInvoiceOpen(true)}
             style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 9, border: "none", background: P, color: "#fff", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-            <Plus size={13} /> فاتورة يدوية
+            <Plus size={13} /> {t("courses.payoutsTab.manualInvoice")}
           </button>
         </div>
         <div style={{ width: 220, marginBottom: 12 }}>
-          <Select value={invoiceCourse} onChange={setInvoiceCourse} options={courseOptions} placeholder="اختر دورة لعرض فواتيرها" />
+          <Select value={invoiceCourse} onChange={setInvoiceCourse} options={courseOptions} placeholder={t("courses.payoutsTab.chooseCoursePlaceholder")} />
         </div>
 
         {!invoiceCourse ? (
-          <EmptyState icon={ReceiptText} title="اختر دورة" subtitle="اختر دورة من القائمة أعلاه لعرض فواتير الطلاب فيها" />
+          <EmptyState icon={ReceiptText} title={t("courses.payoutsTab.chooseCourseTitle")} subtitle={t("courses.payoutsTab.chooseCourseSub")} />
         ) : loadingInv ? (
           <div style={{ display: "flex", justifyContent: "center", padding: "2.5rem" }}><Spinner size={26} /></div>
         ) : errorInv ? (
           <div style={{ textAlign: "center", padding: "2rem", color: "#DC2626", fontSize: 13 }}>{errorInv}</div>
         ) : invoices.length === 0 ? (
-          <EmptyState icon={ReceiptText} title="لا توجد فواتير" subtitle="لا توجد فواتير لهذه الدورة بعد" />
+          <EmptyState icon={ReceiptText} title={t("courses.payoutsTab.emptyInvoicesTitle")} subtitle={t("courses.payoutsTab.emptyInvoicesSub")} />
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {invoices.map((inv) => (
-              <InvoiceRow key={inv.id} invoice={inv} onPaid={() => { loadInvoices(); loadRevenue(); }} />
+              <InvoiceRow key={inv.id} invoice={inv} onPaid={() => { loadInvoices(); loadRevenue(); }} t={t} fmtMoney={fmtMoney} locale={locale} />
             ))}
           </div>
         )}
       </div>
 
       {payoutCourse && (
-        <PayoutPanel course={payoutCourse} onClose={() => { setPayoutCourse(null); refreshAll(); }} />
+        <PayoutPanel course={payoutCourse} onClose={() => { setPayoutCourse(null); refreshAll(); }} t={t} dir={dir} fmtMoney={fmtMoney} locale={locale} />
       )}
       {manualInvoiceOpen && (
-        <ManualInvoiceModal courses={courses} onClose={() => setManualInvoiceOpen(false)} onCreated={() => { loadInvoices(); loadRevenue(); }} />
+        <ManualInvoiceModal courses={courses} onClose={() => setManualInvoiceOpen(false)} onCreated={() => { loadInvoices(); loadRevenue(); }} t={t} dir={dir} fmtMoney={fmtMoney} />
       )}
     </div>
   );
@@ -1417,6 +1416,21 @@ function PayoutsTab({ courses, initialCourse, onConsumeInitial }) {
 //  MAIN PAGE
 // ══════════════════════════════════════════════════════════════════
 export default function SchoolAdminCourses() {
+  const { t, dir, locale } = useLanguage();
+  // `locale` (e.g. "ar-DZ" / "fr-FR" / "en-US") is expected from
+  // LanguageContext for Intl.NumberFormat/toLocaleDateString use below.
+  // Falls back to "ar-DZ" if the context doesn't expose it.
+  const resolvedLocale = locale || "ar-DZ";
+  const currency = t("courses.invoiceStatus") ? undefined : undefined; // no-op, keeps t referenced
+
+  const fmtMoney = useCallback((v) => {
+    if (v == null) return "—";
+    const amount = Number(v).toLocaleString(resolvedLocale, { maximumFractionDigits: 2 });
+    // Currency string lives under studentDashboard.currency in the
+    // provided translations.js; reuse it so "DA / دج / DA" follows locale.
+    return `${amount} ${t("studentDashboard.currency")}`;
+  }, [resolvedLocale, t]);
+
   const [activeTab, setActiveTab] = useState("courses");
   const [courses, setCourses] = useState([]);
   const [teachers, setTeachers] = useState([]);
@@ -1433,11 +1447,11 @@ export default function SchoolAdminCourses() {
         courseApi.getTeachers().catch(() => ({ data: [] })),
       ]);
       setCourses(coursesRes.data ?? []);
-      setTeachers((teachersRes.data ?? []).filter((t) => !t.archived));
+      setTeachers((teachersRes.data ?? []).filter((t2) => !t2.archived));
     } catch (err) {
-      setError(err?.response?.data?.message || "فشل تحميل الدورات");
+      setError(err?.response?.data?.message || t("courses.coursesTab.loadError"));
     } finally { setLoading(false); }
-  }, []);
+  }, [t]);
 
   const loadPendingCount = useCallback(async () => {
     try {
@@ -1449,20 +1463,22 @@ export default function SchoolAdminCourses() {
   useEffect(() => { loadCourses(); loadPendingCount(); }, [loadCourses, loadPendingCount]);
 
   const tabs = [
-    { key: "courses",   label: "الدورات",         icon: BookOpen,     badge: 0 },
-    { key: "requests",  label: "طلبات التسجيل",   icon: Inbox,        badge: pendingCount },
-    { key: "attendance",label: "الحضور",          icon: GraduationCap,badge: 0 },
-    { key: "payouts",   label: "المدفوعات",       icon: Wallet,       badge: 0 },
+    { key: "courses",    label: t("courses.tabs.courses"),   icon: BookOpen,      badge: 0 },
+    { key: "requests",   label: t("courses.tabs.requests"),  icon: Inbox,         badge: pendingCount },
+    { key: "attendance", label: t("courses.tabs.attendance"),icon: GraduationCap, badge: 0 },
+    { key: "payouts",    label: t("courses.tabs.payouts"),   icon: Wallet,        badge: 0 },
   ];
 
   return (
-    <div dir="rtl" style={{ padding: "1.25rem 1.5rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh", display: "flex", flexDirection: "column", gap: "1.1rem" }}>
+    <div dir={dir} style={{ padding: "1.25rem 1.5rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh", display: "flex", flexDirection: "column", gap: "1.1rem" }}>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
         <div>
-          <h1 style={{ fontSize: 17, fontWeight: 800, color: "#0F172A", margin: 0 }}>إدارة الدورات</h1>
+          <h1 style={{ fontSize: 17, fontWeight: 800, color: "#0F172A", margin: 0 }}>{t("courses.pageTitle")}</h1>
           <p style={{ fontSize: 12, color: "#94A3B8", margin: "3px 0 0" }}>
-            {loading ? "..." : `${courses.length} دورة نشطة${pendingCount > 0 ? ` · ${pendingCount} طلب بانتظار المراجعة` : ""}`}
+            {loading
+              ? "..."
+              : `${interp(t("courses.activeCourseCount"), { count: courses.length })}${pendingCount > 0 ? interp(t("courses.pendingRequestsSuffix"), { count: pendingCount }) : ""}`}
           </p>
         </div>
       </div>
@@ -1478,16 +1494,19 @@ export default function SchoolAdminCourses() {
             error={error}
             onReload={() => { loadCourses(); loadPendingCount(); }}
             onOpenPayout={(c) => { setPayoutCourseTarget(c); setActiveTab("payouts"); }}
+            t={t}
+            dir={dir}
+            fmtMoney={fmtMoney}
           />
         )}
         {activeTab === "requests" && (
-          <RequestsTab courses={courses} onPendingCountChange={setPendingCount} />
+          <RequestsTab courses={courses} onPendingCountChange={setPendingCount} t={t} dir={dir} fmtMoney={fmtMoney} locale={resolvedLocale} />
         )}
         {activeTab === "attendance" && (
-          <AttendanceTab courses={courses} />
+          <AttendanceTab courses={courses} t={t} dir={dir} locale={resolvedLocale} />
         )}
         {activeTab === "payouts" && (
-          <PayoutsTab courses={courses} initialCourse={payoutCourseTarget} onConsumeInitial={() => setPayoutCourseTarget(null)} />
+          <PayoutsTab courses={courses} initialCourse={payoutCourseTarget} onConsumeInitial={() => setPayoutCourseTarget(null)} t={t} dir={dir} fmtMoney={fmtMoney} locale={resolvedLocale} />
         )}
       </div>
     </div>

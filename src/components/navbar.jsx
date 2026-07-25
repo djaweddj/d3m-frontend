@@ -122,8 +122,11 @@ const changeLanguage = (lang) => {
  <IconButton
     onClick={handleOpen}
     sx={{
-        borderRadius: 3,
-        border: "1px solid #e5e7eb",
+     
+        borderRadius:3,
+        border:"1 solid ",
+        width:"50px",
+        height:"60px",
         p: 0.8,
     }}
 >

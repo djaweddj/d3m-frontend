@@ -49,63 +49,48 @@ const PALETTE = [
 ];
 const pal = (i) => PALETTE[i % PALETTE.length];
 
-const WEEK_DAYS_AR = {
-  MONDAY: "الإثنين", TUESDAY: "الثلاثاء", WEDNESDAY: "الأربعاء",
-  THURSDAY: "الخميس", FRIDAY: "الجمعة", SATURDAY: "السبت", SUNDAY: "الأحد",
+const WEEK_DAYS_KEY = {
+  MONDAY: "monday", TUESDAY: "tuesday", WEDNESDAY: "wednesday",
+  THURSDAY: "thursday", FRIDAY: "friday", SATURDAY: "saturday", SUNDAY: "sunday",
 };
-const WEEK_ORDER = ["السبت","الأحد","الإثنين","الثلاثاء","الأربعاء","الخميس","الجمعة"];
-const WEEK_SHORT = { "السبت":"سبت","الأحد":"أحد","الإثنين":"إثن","الثلاثاء":"ثلا","الأربعاء":"أرب","الخميس":"خمي","الجمعة":"جمع" };
-
-const PAGE_TITLES = {
-  sessions: "حصصي والفواتير",
-  schedule: "برنامجي الأسبوعي",
-  schools:  "مدارسي المسجلة",
-  courses:  "دوراتي المسجلة", 
-  profile:  "بروفايل شخصي",
-};
-const PAGE_SUBTITLES = {
-  sessions: "تابع حصصك القادمة وفواتيرك الشهرية",
-  schedule: "نظرة شاملة على أسبوعك الدراسي",
-  schools:  "كل المدارس والوحدات المسجل فيها",
-  courses:  "الدورات المسجلة وفواتيرها",
-  profile:  "معلوماتك الشخصية وإحصائياتك",
-};
+// Week starts Saturday to match the original Arabic-locale ordering
+const WEEK_ORDER_KEYS = ["saturday","sunday","monday","tuesday","wednesday","thursday","friday"];
 
 const NAV = [
-  { id: "sessions", icon: BookOpen,     label: "حصصي" },
-  { id: "schedule", icon: CalendarDays, label: "الجدول" },
-  { id: "schools",  icon: School,       label: "مدارسي" },
-  { id: "profile",  icon: User,         label: "بروفايل" },
-    { id: "courses",  icon: GraduationCap, label: "دوراتي" },
+  { id: "sessions", icon: BookOpen },
+  { id: "schedule", icon: CalendarDays },
+  { id: "schools",  icon: School },
+  { id: "profile",  icon: User },
+  { id: "courses",  icon: GraduationCap },
 ];
 
-const fmtDate = (d) =>
-  new Date(d).toLocaleDateString("ar-MA", { weekday: "long", month: "long", day: "numeric" });
-const fmtDateShort = (d) =>
-  new Date(d).toLocaleDateString("ar-MA", { month: "short", day: "numeric" });
+// Fallback locale for date formatting, keyed off dir (rtl -> Arabic-Morocco, ltr -> default browser/French)
+function localeForDir(dir, lang) {
+  if (lang === "ar") return "ar-MA";
+  if (lang === "fr") return "fr-FR";
+  if (lang === "en") return "en-US";
+  return dir === "rtl" ? "ar-MA" : "en-US";
+}
+
 const fmtTime = (t) => (t ? String(t).slice(0, 5) : "—");
 
-const invoiceStyle = (status) => {
-  switch (status) {
-    case "PAID":    return { label: "مدفوعة", color: SUCCESS, bg: SUCCESS_BG };
-    case "PENDING": return { label: "معلقة",  color: WARNING, bg: WARNING_BG };
-    case "OVERDUE": return { label: "متأخرة", color: DANGER,  bg: DANGER_BG };
-    default:        return { label: status || "—", color: "#64748B", bg: "#F1F5F9" };
-  }
-};
+// Simple {placeholder} interpolation helper — works whether or not `t` already does this internally.
+function fill(str, vars) {
+  if (typeof str !== "string" || !vars) return str;
+  return Object.keys(vars).reduce(
+    (acc, key) => acc.replace(new RegExp(`\\{${key}\\}`, "g"), vars[key]),
+    str
+  );
+}
 
 function initials(name = "") {
   return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
 }
 
-function localeForLang(language) {
-  return language === "ar" ? "ar-MA" : language === "fr" ? "fr-FR" : "en-US";
-}
-
 // ─────────────────────────────────────────────────────────
-// useFetch hook (unchanged logic, translated fallback error)
+// useFetch hook (unchanged logic)
 // ─────────────────────────────────────────────────────────
-function useFetch(fetchFn, fallbackMsg, deps = []) {
+function useFetch(fetchFn, deps = []) {
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
@@ -117,7 +102,7 @@ function useFetch(fetchFn, fallbackMsg, deps = []) {
       const res = await fetchFn();
       setData(res.data?.content ?? res.data);
     } catch (err) {
-      setError(err?.response?.data?.message || err.message || fallbackMsg);
+      setError(err?.response?.data?.message || err.message || null);
     } finally {
       setLoading(false);
     }
@@ -127,17 +112,28 @@ function useFetch(fetchFn, fallbackMsg, deps = []) {
   useEffect(() => { load(); }, [load]);
   return { data, loading, error, reload: load };
 }
+
 // ─────────────────────────────────────────────────────────
 // Page: دوراتي (Course enrollments + course invoices)
 // ─────────────────────────────────────────────────────────
 function PageCourses({ courseEnrollments, courseInvoices }) {
+  const { t, dir } = useLanguage();
+
   const enrollStatusStyle = (status) => {
     switch (status) {
-     
-      case "ACCEPTED":   return { label: "نشط",          color: SUCCESS, bg: SUCCESS_BG };
-      case "PENDING":  return { label: "قيد الانتظار", color: WARNING, bg: WARNING_BG };
-      case "REJECTED": return { label: "مرفوض",         color: DANGER,  bg: DANGER_BG };
-      default:         return { label: status || "—",  color: "#64748B", bg: "#F1F5F9" };
+      case "ACCEPTED": return { label: t("studentDashboard.enrollmentStatus.ACTIVE"), color: SUCCESS, bg: SUCCESS_BG };
+      case "PENDING":  return { label: t("studentDashboard.enrollmentStatus.PENDING"), color: WARNING, bg: WARNING_BG };
+      case "REJECTED": return { label: t("studentDashboard.courses.rejected"), color: DANGER, bg: DANGER_BG };
+      default:         return { label: status || "—", color: "#64748B", bg: "#F1F5F9" };
+    }
+  };
+
+  const invoiceStyle = (status) => {
+    switch (status) {
+      case "PAID":    return { label: t("studentDashboard.invoiceStatus.PAID"),    color: SUCCESS, bg: SUCCESS_BG };
+      case "PENDING": return { label: t("studentDashboard.invoiceStatus.PENDING"), color: WARNING, bg: WARNING_BG };
+      case "OVERDUE": return { label: t("studentDashboard.invoiceStatus.OVERDUE"), color: DANGER,  bg: DANGER_BG };
+      default:        return { label: status || "—", color: "#64748B", bg: "#F1F5F9" };
     }
   };
 
@@ -158,7 +154,9 @@ function PageCourses({ courseEnrollments, courseInvoices }) {
           <div style={{ fontSize: 25, fontWeight: 800, color: "#5142A8" }}>
             {(courseEnrollments || []).length}
           </div>
-          <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4, fontWeight: 600 }}>دورات مسجلة</div>
+          <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4, fontWeight: 600 }}>
+            {t("studentDashboard.courses.enrolledCourses")}
+          </div>
         </Card>
         <Card delay={60} style={{ textAlign: "center", padding: "1.15rem 1rem" }}>
           <div style={{
@@ -168,16 +166,18 @@ function PageCourses({ courseEnrollments, courseInvoices }) {
             <Wallet size={16} color={SUCCESS} />
           </div>
           <div style={{ fontSize: 21, fontWeight: 800, color: SUCCESS }}>
-            {totalDue ? `${totalDue} دج` : "—"}
+            {totalDue ? `${totalDue} ${t("studentDashboard.currency")}` : "—"}
           </div>
-          <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4, fontWeight: 600 }}>مستحق الدفع</div>
+          <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4, fontWeight: 600 }}>
+            {t("studentDashboard.schools.amountDue")}
+          </div>
         </Card>
       </div>
 
       <Card delay={100}>
-        <SecTitle icon={GraduationCap}>الدورات المسجلة</SecTitle>
+        <SecTitle icon={GraduationCap}>{t("studentDashboard.courses.enrolledCoursesTitle")}</SecTitle>
         {(courseEnrollments || []).length === 0 ? (
-          <Empty text="لم تسجل في أي دورة بعد" icon={GraduationCap} />
+          <Empty text={t("studentDashboard.courses.noCourses")} icon={GraduationCap} />
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
             {courseEnrollments.map((enr, i) => {
@@ -188,7 +188,8 @@ function PageCourses({ courseEnrollments, courseInvoices }) {
                   display: "flex", alignItems: "center", gap: 13,
                   padding: "11px 13px", borderRadius: 12,
                   border: `1px solid ${LINE}`, background: "#FBFCFE",
-                  borderRight: `3px solid ${c.accent}`,
+                  borderRight: dir === "rtl" ? `3px solid ${c.accent}` : undefined,
+                  borderLeft: dir !== "rtl" ? `3px solid ${c.accent}` : undefined,
                   animationDelay: `${i * 35}ms`,
                 }}>
                   <div style={{
@@ -199,7 +200,7 @@ function PageCourses({ courseEnrollments, courseInvoices }) {
                   }}>🎓</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: INK }}>
-                      {enr.courseName || `دورة #${enr.courseId}`}
+                      {enr.courseName || fill(t("studentDashboard.courses.courseFallback"), { id: enr.courseId })}
                     </div>
                     <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 3, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                       <span>{enr.subjectName || "—"}</span>
@@ -210,7 +211,7 @@ function PageCourses({ courseEnrollments, courseInvoices }) {
                   </div>
                   {enr.totalPrice != null && (
                     <div style={{ fontSize: 13.5, fontWeight: 800, color: INK, flexShrink: 0 }}>
-                      {enr.totalPrice} دج
+                      {enr.totalPrice} {t("studentDashboard.currency")}
                     </div>
                   )}
                   <Tag bg={st.bg} color={st.color}>{st.label}</Tag>
@@ -222,9 +223,9 @@ function PageCourses({ courseEnrollments, courseInvoices }) {
       </Card>
 
       <Card delay={150}>
-        <SecTitle icon={Wallet}>فواتير الدورات</SecTitle>
+        <SecTitle icon={Wallet}>{t("studentDashboard.courses.invoicesTitle")}</SecTitle>
         {(courseInvoices || []).length === 0 ? (
-          <Empty text="لا توجد فواتير دورات" icon={Wallet} />
+          <Empty text={t("studentDashboard.courses.noInvoices")} icon={Wallet} />
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
             {courseInvoices.map((inv, i) => {
@@ -234,7 +235,8 @@ function PageCourses({ courseEnrollments, courseInvoices }) {
                   display: "flex", alignItems: "center", gap: 13,
                   padding: "11px 14px", borderRadius: 12,
                   border: `1px solid ${LINE}`, background: "#FBFCFE",
-                  borderRight: `3px solid ${st.color}`,
+                  borderRight: dir === "rtl" ? `3px solid ${st.color}` : undefined,
+                  borderLeft: dir !== "rtl" ? `3px solid ${st.color}` : undefined,
                   animationDelay: `${i * 35}ms`,
                 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -242,13 +244,13 @@ function PageCourses({ courseEnrollments, courseInvoices }) {
                       {inv.courseName || "—"}
                     </div>
                     <div style={{ fontSize: 11, color: "#64748B", marginTop: 3 }}>
-                      {inv.dueDate ? `الاستحقاق: ${new Date(inv.dueDate).toLocaleDateString("ar-MA")}` : ""}
-                      {inv.paidAt ? ` · دُفعت: ${new Date(inv.paidAt).toLocaleDateString("ar-MA")}` : ""}
+                      {inv.dueDate ? `${t("studentDashboard.sessions.dueDateLabel")} ${new Date(inv.dueDate).toLocaleDateString(localeForDir(dir))}` : ""}
+                      {inv.paidAt ? ` · ${t("studentDashboard.courses.paidAt")} ${new Date(inv.paidAt).toLocaleDateString(localeForDir(dir))}` : ""}
                     </div>
                   </div>
                   <div style={{ textAlign: "center", flexShrink: 0 }}>
                     <div style={{ fontSize: 15, fontWeight: 800, color: INK, marginBottom: 4 }}>
-                      {inv.amount ? `${inv.amount} دج` : "—"}
+                      {inv.amount ? `${inv.amount} ${t("studentDashboard.currency")}` : "—"}
                     </div>
                     <Tag bg={st.bg} color={st.color}>{st.label}</Tag>
                   </div>
@@ -483,7 +485,7 @@ function Empty({ text, icon: Icon = AlertCircle }) {
       color: "#94A3B8", fontSize: 13, textAlign: "center", padding: "2.4rem 1rem",
     }}>
       <Icon size={26} style={{ opacity: .45 }} />
-      {text || t("studentDashboard.common.noData")}
+      {text ?? t("studentDashboard.common.noData")}
     </div>
   );
 }
@@ -493,15 +495,9 @@ function Empty({ text, icon: Icon = AlertCircle }) {
 // ─────────────────────────────────────────────────────────
 function Sidebar({ active, setActive, profile, profileLoading, enrollments, onLogout }) {
   const { t, dir } = useLanguage();
-  const NAV = [
-    { id: "sessions", icon: BookOpen,     label: t("studentDashboard.nav.sessions") },
-    { id: "schedule", icon: CalendarDays, label: t("studentDashboard.nav.schedule") },
-    { id: "schools",  icon: School,       label: t("studentDashboard.nav.schools") },
-    { id: "profile",  icon: User,         label: t("studentDashboard.nav.profile") },
-  ];
 
   return (
-    <aside className="sd-sidebar" dir={dir} style={{
+    <aside className="sd-sidebar" style={{
       width: 232, flexShrink: 0, background: INK,
       display: "flex", flexDirection: "column", height: "100vh",
       position: "sticky", top: 0,
@@ -518,8 +514,12 @@ function Sidebar({ active, setActive, profile, profileLoading, enrollments, onLo
           fontSize: 18, boxShadow: `0 4px 12px -2px ${ACTION}66`,
         }}>🎓</div>
         <div>
-          <div style={{ fontSize: 13.5, fontWeight: 800, color: "#fff", letterSpacing: "-.01em" }}>{t("studentDashboard.sidebar.platformName")}</div>
-          <div style={{ fontSize: 10, color: "#5B7494", marginTop: 1 }}>{t("studentDashboard.sidebar.subtitle")}</div>
+          <div style={{ fontSize: 13.5, fontWeight: 800, color: "#fff", letterSpacing: "-.01em" }}>
+            {t("studentDashboard.sidebar.platformName")}
+          </div>
+          <div style={{ fontSize: 10, color: "#5B7494", marginTop: 1 }}>
+            {t("studentDashboard.sidebar.subtitle")}
+          </div>
         </div>
       </div>
 
@@ -579,11 +579,12 @@ function Sidebar({ active, setActive, profile, profileLoading, enrollments, onLo
                 display: "flex", alignItems: "center", gap: 11, width: "100%",
                 padding: "10px 1.1rem", border: "none", cursor: "pointer",
                 background: "rgba(28,111,184,.18)",
-                borderRight: `3px solid  transparent`,
+                borderRight: dir === "rtl" ? `3px solid transparent` : undefined,
+                borderLeft: dir !== "rtl" ? `3px solid transparent` : undefined,
                 color: "#7E93AC",
                 fontSize: 13, fontWeight:  500,
                 fontFamily: "'Cairo',system-ui,sans-serif",
-                textAlign: "right",
+                textAlign: dir === "rtl" ? "right" : "left",
               }}
 
             >
@@ -602,17 +603,18 @@ function Sidebar({ active, setActive, profile, profileLoading, enrollments, onLo
                 display: "flex", alignItems: "center", gap: 11, width: "100%",
                 padding: "10px 1.1rem", border: "none", cursor: "pointer",
                 background: isActive ? "rgba(28,111,184,.18)" : "transparent",
-                borderRight: `3px solid ${isActive ? ACTION : "transparent"}`,
+                borderRight: dir === "rtl" ? `3px solid ${isActive ? ACTION : "transparent"}` : undefined,
+                borderLeft: dir !== "rtl" ? `3px solid ${isActive ? ACTION : "transparent"}` : undefined,
                 color: isActive ? "#fff" : "#7E93AC",
                 fontSize: 13, fontWeight: isActive ? 700 : 500,
                 fontFamily: "'Cairo',system-ui,sans-serif",
-                textAlign: "right",
+                textAlign: dir === "rtl" ? "right" : "left",
               }}
               onMouseEnter={(e) => { if (!isActive) { e.currentTarget.style.background = "rgba(255,255,255,.045)"; e.currentTarget.style.color = "#C5D4E5"; } }}
               onMouseLeave={(e) => { if (!isActive) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#7E93AC"; } }}
             >
               <Icon size={16} style={{ flexShrink: 0, color: isActive ? "#5BA3E0" : "inherit" }} />
-              {item.label}
+              {t(`studentDashboard.nav.${item.id}`)}
             </button>
           );
         })}
@@ -653,12 +655,6 @@ function Sidebar({ active, setActive, profile, profileLoading, enrollments, onLo
 // ─────────────────────────────────────────────────────────
 function MobileTabBar({ active, setActive }) {
   const { t } = useLanguage();
-  const NAV = [
-    { id: "sessions", icon: BookOpen,     label: t("studentDashboard.nav.sessions") },
-    { id: "schedule", icon: CalendarDays, label: t("studentDashboard.nav.schedule") },
-    { id: "schools",  icon: School,       label: t("studentDashboard.nav.schools") },
-    { id: "profile",  icon: User,         label: t("studentDashboard.nav.profile") },
-  ];
   return (
     <nav className="sd-mobile-tabbar" style={{
       position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 50,
@@ -667,6 +663,21 @@ function MobileTabBar({ active, setActive }) {
       justifyContent: "space-around",
       boxShadow: "0 -8px 24px -8px rgba(11,37,64,.08)",
     }}>
+      <Link to={"/home"}>
+          <button
+            className="sd-btn"
+            style={{
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+              border: "none", background: "none", cursor: "pointer",
+              padding: "6px 14px", borderRadius: 12,
+              color: "#94A3B8",
+              fontFamily: "inherit",
+            }}
+          >
+            <Home/>
+            <span style={{ fontSize: 10, fontWeight: 600 }}>{t("studentDashboard.sidebar.homePage")}</span>
+          </button>
+          </Link>
       {NAV.map((item) => {
         const Icon = item.icon;
         const isActive = active === item.id;
@@ -684,7 +695,7 @@ function MobileTabBar({ active, setActive }) {
             }}
           >
             <Icon size={19} strokeWidth={isActive ? 2.4 : 2} />
-            <span style={{ fontSize: 10, fontWeight: isActive ? 800 : 600 }}>{item.label}</span>
+            <span style={{ fontSize: 10, fontWeight: isActive ? 800 : 600 }}>{t(`studentDashboard.nav.${item.id}`)}</span>
           </button>
         );
       })}
@@ -696,11 +707,7 @@ function MobileTabBar({ active, setActive }) {
 // Page: حصصي
 // ─────────────────────────────────────────────────────────
 function PageSessions({ sessions, enrollments, invoices, moduleMap }) {
-  const { t, locale, language } = useLanguage();
-  const dLocale = locale || localeForLang(language);
-
-  const fmtDate = (d) => new Date(d).toLocaleDateString(dLocale, { weekday: "long", month: "long", day: "numeric" });
-  const fmtTime = (tm) => (tm ? String(tm).slice(0, 5) : "—");
+  const { t, dir } = useLanguage();
 
   const invoiceStyle = (status) => {
     switch (status) {
@@ -710,6 +717,9 @@ function PageSessions({ sessions, enrollments, invoices, moduleMap }) {
       default:        return { label: status || "—", color: "#64748B", bg: "#F1F5F9" };
     }
   };
+
+  const fmtDate = (d) =>
+    new Date(d).toLocaleDateString(localeForDir(dir), { weekday: "long", month: "long", day: "numeric" });
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -775,7 +785,8 @@ function PageSessions({ sessions, enrollments, invoices, moduleMap }) {
                   display: "flex", alignItems: "center", gap: 13,
                   padding: "11px 13px", borderRadius: 12,
                   border: `1px solid ${LINE}`, background: "#FBFCFE",
-                  borderRight: `3px solid ${c.accent}`,
+                  borderRight: dir === "rtl" ? `3px solid ${c.accent}` : undefined,
+                  borderLeft: dir !== "rtl" ? `3px solid ${c.accent}` : undefined,
                   animationDelay: `${i * 35}ms`,
                 }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = c.bg)}
@@ -795,7 +806,7 @@ function PageSessions({ sessions, enrollments, invoices, moduleMap }) {
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: INK }}>
-                      {mod?.subjectName || mod?.name || t("studentDashboard.sessions.moduleFallback", { id: s.moduleId })}
+                      {mod?.subjectName || mod?.name || fill(t("studentDashboard.sessions.moduleFallback"), { id: s.moduleId })}
                     </div>
                     <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 3, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                       <span style={{ display: "flex", alignItems: "center", gap: 3 }}><GraduationCap size={11} /> {mod?.teacherName || "—"}</span>
@@ -823,7 +834,8 @@ function PageSessions({ sessions, enrollments, invoices, moduleMap }) {
                   display: "flex", alignItems: "center", gap: 13,
                   padding: "11px 14px", borderRadius: 12,
                   border: `1px solid ${LINE}`, background: "#FBFCFE",
-                  borderRight: `3px solid ${st.color}`,
+                  borderRight: dir === "rtl" ? `3px solid ${st.color}` : undefined,
+                  borderLeft: dir !== "rtl" ? `3px solid ${st.color}` : undefined,
                   animationDelay: `${i * 35}ms`,
                 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -832,7 +844,7 @@ function PageSessions({ sessions, enrollments, invoices, moduleMap }) {
                     </div>
                     <div style={{ fontSize: 11, color: "#64748B", marginTop: 3 }}>
                       📅 {inv.period ? String(inv.period).replace("-", "/") : "—"}
-                      {inv.dueDate ? ` · ${t("studentDashboard.sessions.dueDateLabel")} ${new Date(inv.dueDate).toLocaleDateString(dLocale)}` : ""}
+                      {inv.dueDate ? ` · ${t("studentDashboard.sessions.dueDateLabel")} ${new Date(inv.dueDate).toLocaleDateString(localeForDir(dir))}` : ""}
                     </div>
                   </div>
                   <div style={{ textAlign: "center", flexShrink: 0 }}>
@@ -855,17 +867,16 @@ function PageSessions({ sessions, enrollments, invoices, moduleMap }) {
 // Page: الجدول الأسبوعي
 // ─────────────────────────────────────────────────────────
 function PageSchedule({ enrollments, moduleMap }) {
-  const { t } = useLanguage();
-  const fmtTime = (tm) => (tm ? String(tm).slice(0, 5) : "—");
+  const { t, dir } = useLanguage();
 
   const byDay = {};
-  DAY_KEYS.forEach((d) => { byDay[d] = []; });
+  WEEK_ORDER_KEYS.forEach((k) => { byDay[k] = []; });
 
   (enrollments || []).forEach((enr, idx) => {
     const mod = moduleMap[enr.moduleId ?? enr.module?.id];
     if (!mod) return;
     (mod.schedules || []).forEach((sch) => {
-      const dayKey = sch.dayOfWeek;
+      const dayKey = WEEK_DAYS_KEY[sch.dayOfWeek] || sch.dayOfWeek;
       if (byDay[dayKey]) byDay[dayKey].push({ ...sch, mod, idx });
     });
   });
@@ -876,21 +887,21 @@ function PageSchedule({ enrollments, moduleMap }) {
         <SecTitle icon={CalendarDays}>{t("studentDashboard.schedule.title")}</SecTitle>
         <div className="sd-week-grid sd-scroll" style={{
           display: "grid",
-          gridTemplateColumns: `repeat(${DAY_KEYS.length}, 1fr)`,
+          gridTemplateColumns: `repeat(${WEEK_ORDER_KEYS.length}, 1fr)`,
           gap: 7,
         }}>
-          {DAY_KEYS.map((day, di) => {
-            const slots = byDay[day];
+          {WEEK_ORDER_KEYS.map((dayKey, di) => {
+            const slots = byDay[dayKey];
             const isToday = false;
             return (
-              <div key={day} className="sd-fade-up" style={{ animationDelay: `${di * 40}ms` }}>
+              <div key={dayKey} className="sd-fade-up" style={{ animationDelay: `${di * 40}ms` }}>
                 <div style={{
                   fontSize: 11, fontWeight: 800, color: ACTION_DEEP,
                   textAlign: "center", padding: "6px 0",
                   borderRadius: 8, marginBottom: 6,
                   background: isToday ? "#EAF3FC" : "transparent",
                 }}>
-                  {t(`dashboard.days.${day}`)}
+                  {t(`studentDashboard.weekDays.${dayKey}`)}
                 </div>
                 {slots.length === 0
                   ? <div style={{
@@ -904,7 +915,8 @@ function PageSchedule({ enrollments, moduleMap }) {
                       return (
                         <div key={si} className="sd-row" style={{
                           background: c.bg, border: `1px solid ${c.border}`,
-                          borderRight: `3px solid ${c.accent}`,
+                          borderRight: dir === "rtl" ? `3px solid ${c.accent}` : undefined,
+                          borderLeft: dir !== "rtl" ? `3px solid ${c.accent}` : undefined,
                           borderRadius: 9, padding: "6px 8px", marginBottom: 5,
                           cursor: "default",
                         }}>
@@ -955,7 +967,7 @@ function PageSchedule({ enrollments, moduleMap }) {
                       </div>
                       <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 3, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                         <span style={{ display: "flex", alignItems: "center", gap: 3 }}><GraduationCap size={11} /> {mod.teacherName || "—"}</span>
-                        <span>{t("studentDashboard.schedule.sessionsPerWeek", { count: mod.schedules?.length || 0 })}</span>
+                        <span>{fill(t("studentDashboard.schedule.sessionsPerWeek"), { count: mod.schedules?.length || 0 })}</span>
                       </div>
                     </div>
                     <Tag bg="#fff" color={c.text}>{mod.level}</Tag>
@@ -974,12 +986,12 @@ function PageSchedule({ enrollments, moduleMap }) {
 // Page: مدارسي المسجلة
 // ─────────────────────────────────────────────────────────
 function PageSchools({ enrollments, moduleMap, invoices }) {
-  const { t } = useLanguage();
+  const { t, dir } = useLanguage();
 
   const bySchool = {};
   (enrollments || []).forEach((enr) => {
     const sid = enr.schoolId ?? enr.school?.id ?? "unknown";
-    if (!bySchool[sid]) bySchool[sid] = { schoolId: sid, schoolName: enr.schoolName || enr.school?.name || t("studentDashboard.schools.schoolFallback", { id: sid }), items: [] };
+    if (!bySchool[sid]) bySchool[sid] = { schoolId: sid, schoolName: enr.schoolName || enr.school?.name || fill(t("studentDashboard.schools.schoolFallback"), { id: sid }), items: [] };
     bySchool[sid].items.push(enr);
   });
   const schools = Object.values(bySchool);
@@ -999,7 +1011,9 @@ function PageSchools({ enrollments, moduleMap, invoices }) {
             <School size={16} color={ACTION_DEEP} />
           </div>
           <div style={{ fontSize: 25, fontWeight: 800, color: ACTION_DEEP }}>{schools.length}</div>
-          <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4, fontWeight: 600 }}>{t("studentDashboard.schools.registeredSchools")}</div>
+          <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4, fontWeight: 600 }}>
+            {t("studentDashboard.schools.registeredSchools")}
+          </div>
         </Card>
         <Card delay={60} style={{ textAlign: "center", padding: "1.15rem 1rem" }}>
           <div style={{
@@ -1011,7 +1025,9 @@ function PageSchools({ enrollments, moduleMap, invoices }) {
           <div style={{ fontSize: 21, fontWeight: 800, color: SUCCESS }}>
             {totalInvoiced ? `${totalInvoiced} ${t("studentDashboard.currency")}` : "—"}
           </div>
-          <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4, fontWeight: 600 }}>{t("studentDashboard.schools.amountDue")}</div>
+          <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4, fontWeight: 600 }}>
+            {t("studentDashboard.schools.amountDue")}
+          </div>
         </Card>
       </div>
 
@@ -1032,7 +1048,7 @@ function PageSchools({ enrollments, moduleMap, invoices }) {
                       {school.schoolName}
                     </div>
                     <div style={{ fontSize: 12, color: "#64748B", marginTop: 3 }}>
-                      {t("studentDashboard.schools.moduleCount", { count: school.items.length })}
+                      {fill(t("studentDashboard.schools.moduleCount"), { count: school.items.length })}
                     </div>
                   </div>
                 </div>
@@ -1050,11 +1066,11 @@ function PageSchools({ enrollments, moduleMap, invoices }) {
                       }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13, fontWeight: 700, color: c.text }}>
-                            {mod?.subjectName || mod?.name || t("studentDashboard.sessions.moduleFallback", { id: enr.moduleId })}
+                            {mod?.subjectName || mod?.name || fill(t("studentDashboard.sessions.moduleFallback"), { id: enr.moduleId })}
                           </div>
                           {mod && (
                             <div style={{ fontSize: 11, color: "#64748B", marginTop: 3 }}>
-                              👨‍🏫 {mod.teacherName || "—"} · {t("studentDashboard.schedule.sessionsPerWeek", { count: mod.schedules?.length || 0 })}
+                              👨‍🏫 {mod.teacherName || "—"} · {fill(t("studentDashboard.schedule.sessionsPerWeek"), { count: mod.schedules?.length || 0 })}
                             </div>
                           )}
                         </div>
@@ -1064,9 +1080,11 @@ function PageSchools({ enrollments, moduleMap, invoices }) {
                             bg={enr.status === "ACTIVE" ? SUCCESS_BG : WARNING_BG}
                             color={enr.status === "ACTIVE" ? SUCCESS : WARNING}
                           >
-                            {enr.status === "ACTIVE" ? t("studentDashboard.enrollmentStatus.ACTIVE")
-                              : enr.status === "PENDING" ? t("studentDashboard.enrollmentStatus.PENDING")
-                              : enr.status}
+                            {enr.status === "ACTIVE"
+                              ? t("studentDashboard.enrollmentStatus.ACTIVE")
+                              : enr.status === "PENDING"
+                                ? t("studentDashboard.enrollmentStatus.PENDING")
+                                : enr.status}
                           </Tag>
                         )}
                       </div>
@@ -1085,7 +1103,7 @@ function PageSchools({ enrollments, moduleMap, invoices }) {
 // Page: بروفايل شخصي
 // ─────────────────────────────────────────────────────────
 function PageProfile({ profile, enrollments, moduleMap, onProfileUpdated }) {
-  const { t } = useLanguage();
+  const { t, dir } = useLanguage();
   const [editing, setEditing] = useState(false);
   const [saving,  setSaving]  = useState(false);
   const [saved,   setSaved]   = useState(false);
@@ -1246,7 +1264,7 @@ function PageProfile({ profile, enrollments, moduleMap, onProfileUpdated }) {
                     onFocus={(e) => { e.target.style.borderColor = ACTION; e.target.style.boxShadow = `0 0 0 3px ${ACTION}1A`; }}
                     onBlur={(e) => { e.target.style.borderColor = LINE; e.target.style.boxShadow = "none"; }}
                   />
-                : <div style={{ fontSize: 14, color: INK, padding: "9px 0", borderBottom: `1px solid ${LINE}`, direction: "ltr", textAlign: "right", fontWeight: 600 }}>
+                : <div style={{ fontSize: 14, color: INK, padding: "9px 0", borderBottom: `1px solid ${LINE}`, direction: "ltr", textAlign: dir === "rtl" ? "right" : "left", fontWeight: 600 }}>
                     {form.parentPhone || "—"}
                   </div>
               }
@@ -1332,40 +1350,27 @@ const {
   reload: reloadCourseInvoices,
 } = useFetch(() => studentApi.getCourseInvoices());
 
-  const PAGE_TITLES = {
-    sessions: t("studentDashboard.pages.sessions.title"),
-    schedule: t("studentDashboard.pages.schedule.title"),
-    schools:  t("studentDashboard.pages.schools.title"),
-    profile:  t("studentDashboard.pages.profile.title"),
-  };
-  const PAGE_SUBTITLES = {
-    sessions: t("studentDashboard.pages.sessions.subtitle"),
-    schedule: t("studentDashboard.pages.schedule.subtitle"),
-    schools:  t("studentDashboard.pages.schools.subtitle"),
-    profile:  t("studentDashboard.pages.profile.subtitle"),
-  };
-
   // ── Core fetches (unchanged) ─────────────────────────
   const {
     data: profile,
     loading: profileLoading,
     error: profileError,
     reload: reloadProfile,
-  } = useFetch(() => studentApi.getProfile(), t("studentDashboard.errors.profileLoad"));
+  } = useFetch(() => studentApi.getProfile());
 
   const {
     data: enrollments,
     loading: enrollLoading,
     error: enrollError,
     reload: reloadEnroll,
-  } = useFetch(() => studentApi.getEnrollments(), t("studentDashboard.errors.enrollmentsLoad"));
+  } = useFetch(() => studentApi.getEnrollments());
 
   const {
     data: invoices,
     loading: invoicesLoading,
     error: invoicesError,
     reload: reloadInvoices,
-  } = useFetch(() => studentApi.getInvoices(), t("studentDashboard.errors.invoicesLoad"));
+  } = useFetch(() => studentApi.getInvoices());
 
   const schoolIds = enrollments
     ? [...new Set(enrollments.map((e) => e.schoolId ?? e.school?.id).filter(Boolean))]
@@ -1448,13 +1453,13 @@ const {
 
   const renderPage = () => {
     if (profileLoading) return <StatSkeleton />;
-    if (profileError)   return <ErrorBlock message={profileError} onRetry={reloadProfile} />;
+    if (profileError)   return <ErrorBlock message={profileError || t("studentDashboard.errors.profileLoad")} onRetry={reloadProfile} />;
 
     switch (active) {
       case "sessions":
         if (enrollLoading || invoicesLoading) return <StatSkeleton />;
-        if (enrollError)   return <ErrorBlock message={enrollError}   onRetry={reloadEnroll} />;
-        if (invoicesError) return <ErrorBlock message={invoicesError} onRetry={reloadInvoices} />;
+        if (enrollError)   return <ErrorBlock message={enrollError || t("studentDashboard.errors.enrollmentsLoad")}   onRetry={reloadEnroll} />;
+        if (invoicesError) return <ErrorBlock message={invoicesError || t("studentDashboard.errors.invoicesLoad")} onRetry={reloadInvoices} />;
         return (
           <PageSessions
             sessions={allSessions}
@@ -1466,7 +1471,7 @@ const {
 
       case "schedule":
         if (enrollLoading || modulesLoading) return <SkeletonCard lines={4} height={90} />;
-        if (enrollError) return <ErrorBlock message={enrollError} onRetry={reloadEnroll} />;
+        if (enrollError) return <ErrorBlock message={enrollError || t("studentDashboard.errors.enrollmentsLoad")} onRetry={reloadEnroll} />;
         return (
           <PageSchedule
             enrollments={enrollments || []}
@@ -1476,7 +1481,7 @@ const {
 
       case "schools":
         if (enrollLoading || invoicesLoading) return <SkeletonCard lines={3} height={100} />;
-        if (enrollError) return <ErrorBlock message={enrollError} onRetry={reloadEnroll} />;
+        if (enrollError) return <ErrorBlock message={enrollError || t("studentDashboard.errors.enrollmentsLoad")} onRetry={reloadEnroll} />;
         return (
           <PageSchools
             enrollments={enrollments || []}
@@ -1496,8 +1501,8 @@ const {
         );
         case "courses":
   if (courseEnrollLoading || courseInvoicesLoading) return <StatSkeleton />;
-  if (courseEnrollError)   return <ErrorBlock message={courseEnrollError}   onRetry={reloadCourseEnroll} />;
-  if (courseInvoicesError) return <ErrorBlock message={courseInvoicesError} onRetry={reloadCourseInvoices} />;
+  if (courseEnrollError)   return <ErrorBlock message={courseEnrollError || t("studentDashboard.errors.enrollmentsLoad")}   onRetry={reloadCourseEnroll} />;
+  if (courseInvoicesError) return <ErrorBlock message={courseInvoicesError || t("studentDashboard.errors.invoicesLoad")} onRetry={reloadCourseInvoices} />;
   return (
     <PageCourses
       courseEnrollments={courseEnrollments || []}
@@ -1509,6 +1514,9 @@ const {
         return null;
     }
   };
+
+  const pageTitleKey = `studentDashboard.pages.${active}.title`;
+  const pageSubtitleKey = `studentDashboard.pages.${active}.subtitle`;
 
   return (
     <div dir={dir} style={{
@@ -1538,10 +1546,10 @@ const {
         }}>
           <div>
             <h1 style={{ fontSize: 16, fontWeight: 800, color: INK, margin: 0, letterSpacing: "-.01em" }}>
-              {PAGE_TITLES[active]}
+              {t(pageTitleKey)}
             </h1>
             <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 1, display: "none" }} className="sd-subtitle">
-              {PAGE_SUBTITLES[active]}
+              {t(pageSubtitleKey)}
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -1570,7 +1578,9 @@ const {
             borderRadius: "50%", background: "rgba(255,255,255,.05)",
           }} />
           <div style={{ position: "relative", zIndex: 1 }}>
-            <div style={{ fontSize: 11.5, color: "#8FBFEA", marginBottom: 3, fontWeight: 600 }}>{t("studentDashboard.welcome.greeting")}</div>
+            <div style={{ fontSize: 11.5, color: "#8FBFEA", marginBottom: 3, fontWeight: 600 }}>
+              {t("studentDashboard.welcome.greeting")}
+            </div>
             <h2 style={{ fontSize: 19, fontWeight: 800, color: "#fff", margin: 0, letterSpacing: "-.01em" }}>
               {profileLoading ? t("studentDashboard.common.loading") : (profile?.fullName || "—")}
             </h2>

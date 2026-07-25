@@ -1,23 +1,26 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { motion, useScroll, useTransform, useSpring, useInView, AnimatePresence } from "framer-motion";
+import { motion, useScroll, useTransform, useSpring, useInView } from "framer-motion";
 import { Button } from "../components/ui/button";
 import {
   GraduationCap, School, Users, BookOpen, Star,
-  MapPin, ArrowLeft, Sparkles, Shield,
+  MapPin, ArrowLeft, ArrowRight, Sparkles, Shield,
   TrendingUp, Clock, UserCircle2, PresentationIcon,
-  ChevronDown, CheckCircle2, Search, Menu, X, Zap, Award, Heart
+  ChevronDown, CheckCircle2, Search, X, Zap, Award, Heart
 } from "lucide-react";
 
 import { useAuth } from "../context/authContext";
-import Navbar from "../components/navbar";
+import { useLanguage } from "../context/LanguageContext";
 
 // ─── API config ───────────────────────────────────────────
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 
+// Maps language code -> Intl locale, matching translations.js's LOCALE_MAP
+const LOCALE_MAP = { ar: "ar-DZ", fr: "fr-FR", en: "en-US" };
+
 // ─── helpers ──────────────────────────────────────────────
-const getInitials = (name) =>
-  (name ?? "؟").split(" ").map((w) => w[0]).join("").slice(0, 2);
+const getInitials = (name, fallback) =>
+  (name ?? fallback).split(" ").map((w) => w[0]).join("").slice(0, 2);
 
 // ─── Custom hook: Count up with spring physics ────────────
 function useCountUp(value, duration = 2000) {
@@ -83,7 +86,8 @@ function AnimatedText({ text, className = "", delay = 0 }) {
 }
 
 // ─── User pill ────────────────────────────────────────────
-function UserPill({ user, visitorLabel }) {
+function UserPill({ user }) {
+  const { t } = useLanguage();
   if (user) {
     return (
       <motion.div
@@ -92,7 +96,7 @@ function UserPill({ user, visitorLabel }) {
         className="flex items-center gap-2.5 rounded-full border border-blue-200/60 bg-white/80 backdrop-blur-md px-4 py-2 shadow-sm"
       >
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-blue-700 text-[11px] font-bold text-white shadow-lg shadow-blue-600/25">
-          {getInitials(user.name)}
+          {getInitials(user.name, t("home.visitor")[0])}
         </div>
         <span className="text-sm font-semibold text-slate-800">{user.name}</span>
       </motion.div>
@@ -105,14 +109,14 @@ function UserPill({ user, visitorLabel }) {
       className="flex items-center gap-2 rounded-full border border-slate-200/60 bg-white/80 backdrop-blur-md px-4 py-2 shadow-sm"
     >
       <UserCircle2 className="h-4 w-4 text-slate-400" />
-      <span className="text-sm font-medium text-slate-500">زائر</span>
+      <span className="text-sm font-medium text-slate-500">{t("home.visitor")}</span>
       <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse shadow-sm shadow-amber-400/50" />
     </motion.div>
   );
 }
 
 // ─── Stat card (live data) ────────────────────────────────
-function StatCard({ icon: Icon, value, label, loading, delay, color }) {
+function StatCard({ icon: Icon, value, label, loading, delay, color, locale }) {
   const { display, ref, hasStarted } = useCountUp(loading ? null : value);
 
   const colorSchemes = {
@@ -157,7 +161,7 @@ function StatCard({ icon: Icon, value, label, loading, delay, color }) {
             transition={{ duration: 0.5, type: "spring", stiffness: 200 }}
             className={scheme.text}
           >
-            {formatNumber(display)}<span className="text-3xl">+</span>
+            {formatNumber(display, locale)}<span className="text-3xl">+</span>
           </motion.span>
         )}
       </div>
@@ -235,7 +239,7 @@ function FloatingBadge({ icon: Icon, value, label, delay, position, color }) {
 }
 
 // ─── Scroll indicator ─────────────────────────────────────
-function ScrollIndicator() {
+function ScrollIndicator({ label }) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -243,7 +247,7 @@ function ScrollIndicator() {
       transition={{ delay: 1.2 }}
       className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2"
     >
-      <span className="text-[11px] font-medium text-slate-400">اسحب للأسفل</span>
+      <span className="text-[11px] font-medium text-slate-400">{label}</span>
       <motion.div
         animate={{ y: [0, 8, 0] }}
         transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
@@ -337,6 +341,12 @@ function ParticleBackground() {
 // ─── Home page ────────────────────────────────────────────
 export default function Home() {
   const { user } = useAuth();
+  const { t, dir, language } = useLanguage();
+  const isRtl = dir === "rtl";
+  const locale = LOCALE_MAP[language] || "en-US";
+  // Trailing arrow on primary CTAs should point toward reading-end: left in RTL, right in LTR.
+  const TrailingArrow = isRtl ? ArrowLeft : ArrowRight;
+
   const heroRef = useRef(null);
   const { scrollYProgress } = useScroll({
     target: heroRef,
@@ -350,7 +360,6 @@ export default function Home() {
   const [stats, setStats] = useState({ schools: null, students: null, teachers: null });
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -389,8 +398,36 @@ export default function Home() {
 
   const bgY = useTransform(springScroll, [0, 1], ["0%", "30%"]);
 
+  // "How it works" 3-step section and the scroll-hint copy have no keys yet in the
+  // `home` namespace — plugging in a home.howItWorks.* / home.hero.scrollHint shape here.
+  // Add these to translations.js; falling back to the Arabic originals until then.
+  const howItWorks = t("home.howItWorks") && typeof t("home.howItWorks") === "object"
+    ? t("home.howItWorks")
+    : {
+        tag: t("home.strategy.question") ,
+        title: t("home.strategy.title") ,
+        subtitle: t("home.strategy.subtitle") ,
+        steps: [
+          { title: t("home.strategy.search"), desc: t("home.strategy.searchP") },
+          { title: t("home.strategy.compare"), desc: t("home.strategy.compareP") },
+          { title: t("home.strategy.register") , desc: t("home.strategy.registerP") },
+        ],
+      };
+  const scrollHintLabel = (() => {
+    const val = t("home.hero.scrollHint");
+    return val && val !== "home.hero.scrollHint" ? val : "اسحب للأسفل";
+  })();
+
+  const featureItems = t("home.features.items");
+  const featureIcons = [Shield, Clock, TrendingUp, Award, Heart, MapPin];
+  const featureColors = ["blue", "violet", "emerald", "blue", "violet", "emerald"];
+
+  const avatarInitials = [
+    { bg: "#3B82F6" }, { bg: "#8B5CF6" }, { bg: "#10B981" }, { bg: "#F59E0B" },
+  ];
+
   return (
-    <div className="min-h-screen bg-[#fafafa] text-slate-900 overflow-x-hidden" dir="rtl">
+    <div className="min-h-screen bg-[#fafafa] text-slate-900 overflow-x-hidden" dir={dir}>
 
       {/* ── Global Styles & Keyframes ── */}
       <style>{`
@@ -460,7 +497,7 @@ export default function Home() {
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
       `}</style>
 
-     
+
       {/* ── Hero Section ── */}
       <section ref={heroRef} className="relative overflow-hidden bg-white min-h-screen flex items-center pt-16">
         {/* Background layers */}
@@ -473,20 +510,18 @@ export default function Home() {
           <motion.div
             style={{ y: bgY }}
             className="absolute left-[-100px] bottom-[-100px] h-[450px] w-[450px] rounded-full bg-indigo-100/40 blur-[100px] glow-pulse"
-            style={{ animationDelay: "1.5s" }}
           />
           <motion.div
             style={{ y: bgY }}
             className="absolute left-1/3 top-1/3 h-[300px] w-[300px] rounded-full bg-violet-100/30 blur-[80px] glow-pulse"
-            style={{ animationDelay: "3s" }}
           />
 
           {/* Grid pattern */}
           <div className="absolute inset-0 opacity-[0.025] bg-grid-drift"
-            style={{ 
-              backgroundImage: "linear-gradient(#1e3a8a 1px,transparent 1px),linear-gradient(90deg,#1e3a8a 1px,transparent 1px)", 
-              backgroundSize: "64px 64px" 
-            }} 
+            style={{
+              backgroundImage: "linear-gradient(#1e3a8a 1px,transparent 1px),linear-gradient(90deg,#1e3a8a 1px,transparent 1px)",
+              backgroundSize: "64px 64px"
+            }}
           />
 
           {/* Particle network */}
@@ -495,10 +530,10 @@ export default function Home() {
 
         <motion.div
           style={{ opacity: heroOpacity, y: heroY, scale: heroScale }}
-          className="container relative mx-auto grid min-h-[calc(100vh-4rem)] items-center gap-8 px-4 py-12 sm:px-6 lg:grid-cols-2 lg:px-8 lg:gap-16"
+          className={`container relative mx-auto grid min-h-[calc(100vh-4rem)] items-center gap-8 px-4 py-12 sm:px-6 lg:grid-cols-2 lg:px-8 lg:gap-16`}
         >
           {/* Left content */}
-          <div className="text-center lg:text-right order-2 lg:order-1">
+          <div className={`text-center ${isRtl ? "lg:text-right" : "lg:text-left"} order-2 lg:order-1`}>
             {/* Badge */}
             <motion.div
               initial={{ opacity: 0, y: 20, scale: 0.9 }}
@@ -512,7 +547,7 @@ export default function Home() {
               >
                 <Sparkles className="h-4 w-4" />
               </motion.span>
-              منصة تعليمية جزائرية حديثة
+              {t("home.hero.badge")}
             </motion.div>
 
             {/* Headline with animated text */}
@@ -522,16 +557,16 @@ export default function Home() {
               transition={{ duration: 0.7, delay: 0.2 }}
             >
               <h1 className="mb-6 text-4xl font-black leading-[1.1] tracking-tight text-slate-900 sm:text-5xl md:text-6xl lg:text-[3.5rem]">
-                <AnimatedText text="ابحث عن" delay={0.3} />
+                <AnimatedText text={t("home.hero.titleLine1")} delay={0.3} />
                 <br />
                 <span className="relative inline-block">
-                  <AnimatedText text="أفضل مدارس" delay={0.5} className="text-blue-600" />
+                  <AnimatedText text={t("home.hero.titleHighlight")} delay={0.5} className="text-blue-600" />
                   <svg className="absolute -bottom-2 right-0 left-0 w-full hidden sm:block" viewBox="0 0 200 10" preserveAspectRatio="none" style={{ height: 10 }}>
                     <path className="hero-underline" d="M0 8 Q50 0 100 6 Q150 12 200 5" fill="none" stroke="#BFDBFE" strokeWidth="5" strokeLinecap="round" />
                   </svg>
                 </span>
                 <br />
-                <AnimatedText text="الدعم في مدينتك" delay={0.7} />
+                <AnimatedText text={t("home.hero.titleLine2")} delay={0.7} />
               </h1>
             </motion.div>
 
@@ -541,9 +576,10 @@ export default function Home() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.6 }}
               className="mx-auto mb-10 max-w-lg text-base leading-relaxed text-slate-500 sm:text-lg lg:mx-0"
-              style={{marginTop:"20px"}}
+              style={{ marginTop: "20px" }}
             >
-              اكتشف أفضل مدارس الدعم والتقوية في الجزائر. قارن بين المدارس، اقرأ التقييمات، واختر ما يناسبك بكل سهولة.
+              {t("home.hero.subtitle") /* falls back to feature/subtitle copy if hero.subtitle isn't set */
+                || t("home.features.subtitle")}
             </motion.p>
 
             {/* CTAs */}
@@ -557,8 +593,8 @@ export default function Home() {
                 <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
                   <Button className="h-14 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 px-8 text-sm font-bold text-white shadow-xl shadow-blue-600/25 hover:shadow-blue-600/40 gap-2 transition-all duration-300 w-full sm:w-auto">
                     <Search className="h-4 w-4" />
-                    تصفح المدارس
-                    <ArrowLeft className="h-4 w-4" />
+                    {t("home.hero.ctaBrowse")}
+                    <TrailingArrow className="h-4 w-4" />
                   </Button>
                 </motion.div>
               </Link>
@@ -566,7 +602,7 @@ export default function Home() {
                 <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
                   <Button variant="outline" className="h-14 rounded-2xl border-2 border-slate-200 px-8 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:border-slate-300 gap-2 transition-all duration-300 w-full sm:w-auto">
                     <BookOpen className="h-4 w-4 text-blue-500" />
-                    سجّل مدرستك
+                    {t("home.hero.ctaRegister")}
                   </Button>
                 </motion.div>
               </Link>
@@ -577,15 +613,10 @@ export default function Home() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.6, delay: 1 }}
-              className="mt-12 flex flex-col sm:flex-row items-center gap-5 justify-center lg:justify-start"
+              className={`mt-12 flex flex-col sm:flex-row items-center gap-5 justify-center lg:justify-start`}
             >
-              <div className="flex -space-x-3 space-x-reverse">
-                {[
-                  { bg: "#3B82F6", letter: "أ" },
-                  { bg: "#8B5CF6", letter: "ف" },
-                  { bg: "#10B981", letter: "م" },
-                  { bg: "#F59E0B", letter: "س" },
-                ].map((item, i) => (
+              <div className={`flex ${isRtl ? "-space-x-3 space-x-reverse" : "-space-x-3"}`}>
+                {avatarInitials.map((item, i) => (
                   <motion.div
                     key={i}
                     initial={{ opacity: 0, scale: 0 }}
@@ -594,12 +625,12 @@ export default function Home() {
                     className="flex h-10 w-10 items-center justify-center rounded-full border-[3px] border-white text-xs font-bold text-white shadow-lg"
                     style={{ background: item.bg, zIndex: 4 - i }}
                   >
-                    {item.letter}
+                    {t("home.visitor")[0]}
                   </motion.div>
                 ))}
               </div>
-              <div className="text-center sm:text-right">
-                <div className="flex items-center justify-center sm:justify-start gap-0.5 mb-1">
+              <div className={`text-center ${isRtl ? "sm:text-right" : "sm:text-left"}`}>
+                <div className={`flex items-center justify-center ${isRtl ? "sm:justify-start" : "sm:justify-start"} gap-0.5 mb-1`}>
                   {[...Array(5)].map((_, i) => (
                     <motion.div
                       key={i}
@@ -615,12 +646,10 @@ export default function Home() {
                   {statsLoading ? (
                     <span className="inline-flex items-center gap-2">
                       <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
-                      جاري التحميل...
+                      {t("home.hero.loading")}
                     </span>
                   ) : (
-                    <>
-                      <span className="font-bold text-slate-900">+{formatNumber(stats.students ?? 0)}</span> طالب يثقون في منصتنا
-                    </>
+                    t("home.hero.socialProof", { count: formatNumber(stats.students ?? 0, locale) })
                   )}
                 </p>
               </div>
@@ -639,7 +668,7 @@ export default function Home() {
               <div className="orbit-element absolute">
                 <div className="h-3 w-3 rounded-full bg-blue-400/60 shadow-lg shadow-blue-400/30" />
               </div>
-              <div className="orbit-reverse absolute" style={{ animationDelay: "-5s" }}>
+              <div className="orbit-reverse absolute">
                 <div className="h-2 w-2 rounded-full bg-violet-400/60 shadow-lg shadow-violet-400/30" />
               </div>
             </div>
@@ -647,24 +676,24 @@ export default function Home() {
             {/* Floating badges */}
             <FloatingBadge
               icon={School}
-              value={statsLoading ? "…" : formatNumber(stats.schools ?? 0)}
-              label="مدرسة مسجلة"
+              value={statsLoading ? "…" : formatNumber(stats.schools ?? 0, locale)}
+              label={t("home.badges.schools")}
               delay={0.5}
               position="right-4 top-8"
               color="blue"
             />
             <FloatingBadge
               icon={Users}
-              value={statsLoading ? "…" : formatNumber(stats.students ?? 0)}
-              label="طالب مسجل"
+              value={statsLoading ? "…" : formatNumber(stats.students ?? 0, locale)}
+              label={t("home.badges.students")}
               delay={0.7}
               position="left-0 top-36"
               color="emerald"
             />
             <FloatingBadge
               icon={PresentationIcon}
-              value={statsLoading ? "…" : formatNumber(stats.teachers ?? 0)}
-              label="أستاذ منضم"
+              value={statsLoading ? "…" : formatNumber(stats.teachers ?? 0, locale)}
+              label={t("home.badges.teachers")}
               delay={0.9}
               position="right-12 bottom-12"
               color="violet"
@@ -689,7 +718,7 @@ export default function Home() {
           </div>
         </motion.div>
 
-        <ScrollIndicator />
+        <ScrollIndicator label={scrollHintLabel} />
       </section>
 
       {/* ── Features ── */}
@@ -710,60 +739,28 @@ export default function Home() {
               className="mb-4 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-5 py-2 text-sm font-bold text-blue-600"
             >
               <Zap className="h-4 w-4" />
-              لماذا نحن؟
+              {t("home.features.tag")}
             </motion.span>
             <h2 className="mb-4 text-3xl font-black text-slate-900 sm:text-4xl md:text-5xl">
-              <AnimatedText text="كل ما تحتاجه في مكان واحد" />
+              <AnimatedText text={t("home.features.title")} />
             </h2>
-            <p className="mx-auto max-w-xl text-base leading-relaxed text-slate-500 sm:text-lg" style={{marginTop:"20px"}}>
-              منصة مصممة خصيصاً لربط الطلاب بأفضل مدارس الدعم في الجزائر بأسلوب عصري وذكي
+            <p className="mx-auto max-w-xl text-base leading-relaxed text-slate-500 sm:text-lg" style={{ marginTop: "20px" }}>
+              {t("home.features.subtitle")}
             </p>
           </motion.div>
 
           {/* Feature cards */}
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            <FeatureCard
-              icon={Shield}
-              title="مدارس معتمدة"
-              desc="جميع المدارس يتم التحقق منها لضمان أعلى مستوى من الجودة والموثوقية."
-              delay={0}
-              color="blue"
-            />
-            <FeatureCard
-              icon={Clock}
-              title="تسجيل سريع"
-              desc="عملية تسجيل بسيطة لا تتجاوز دقيقتين للطلاب والمدارس على حد سواء."
-              delay={0.1}
-              color="violet"
-            />
-            <FeatureCard
-              icon={TrendingUp}
-              title="تقييمات حقيقية"
-              desc="اقرأ تقييمات الطلاب الحقيقية وقارن قبل اتخاذ قرارك النهائي."
-              delay={0.2}
-              color="emerald"
-            />
-            <FeatureCard
-              icon={Award}
-              title="نتائج مضمونة"
-              desc="مدارس ذات سجل حافل بالنجاحات والنتائج المتميزة في البكالوريا."
-              delay={0.3}
-              color="blue"
-            />
-            <FeatureCard
-              icon={Heart}
-              title="مجتمع تفاعلي"
-              desc="انضم لمجتمع طلابي نشط يشارك الخبرات والنصائح التعليمية."
-              delay={0.4}
-              color="violet"
-            />
-            <FeatureCard
-              icon={MapPin}
-              title="بحث ذكي بالموقع"
-              desc="اعثر على أقرب المدارس إليك باستخدام خاصية البحث المتقدم بالموقع."
-              delay={0.5}
-              color="emerald"
-            />
+            {featureItems.map((item, i) => (
+              <FeatureCard
+                key={i}
+                icon={featureIcons[i] || Shield}
+                title={item.title}
+                desc={item.desc}
+                delay={i * 0.1}
+                color={featureColors[i] || "blue"}
+              />
+            ))}
           </div>
         </div>
       </section>
@@ -786,10 +783,10 @@ export default function Home() {
           >
             <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-5 py-2 text-sm font-bold text-blue-600">
               <TrendingUp className="h-4 w-4" />
-              أرقامنا
+              {t("home.stats.tag")}
             </span>
             <h2 className="text-3xl font-black text-slate-900 sm:text-4xl">
-              <AnimatedText text="مجتمع ينمو كل يوم" />
+              <AnimatedText text={t("home.stats.title")} />
             </h2>
           </motion.div>
 
@@ -803,20 +800,23 @@ export default function Home() {
                 <X className="h-8 w-8 text-red-400" />
               </div>
               <p className="text-sm font-medium text-red-600">
-                تعذر تحميل الإحصائيات في الوقت الحالي. حاول تحديث الصفحة.
+                {t("home.stats.error")}
               </p>
             </motion.div>
           ) : (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              <StatCard icon={School} value={stats.schools} label="مدرسة مسجلة" loading={statsLoading} delay={0} color="blue" />
-              <StatCard icon={Users} value={stats.students} label="طالب مسجل" loading={statsLoading} delay={0.15} color="emerald" />
-              <StatCard icon={PresentationIcon} value={stats.teachers} label="أستاذ منضم" loading={statsLoading} delay={0.3} color="violet" />
+              <StatCard icon={School} value={stats.schools} label={t("home.stats.schools")} loading={statsLoading} delay={0} color="blue" locale={locale} />
+              <StatCard icon={Users} value={stats.students} label={t("home.stats.students")} loading={statsLoading} delay={0.15} color="emerald" locale={locale} />
+              <StatCard icon={PresentationIcon} value={stats.teachers} label={t("home.stats.teachers")} loading={statsLoading} delay={0.3} color="violet" locale={locale} />
             </div>
           )}
         </div>
       </section>
 
-      {/* ── How it works ── */}
+      {/* ── How it works ──
+          NOTE: no translations exist yet for this section (home.howItWorks.*).
+          Using a local fallback object above; add real keys to translations.js
+          for fr/en and this will pick them up automatically. */}
       <section className="py-24 sm:py-32">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
@@ -828,50 +828,49 @@ export default function Home() {
           >
             <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-5 py-2 text-sm font-bold text-blue-600">
               <BookOpen className="h-4 w-4" />
-              كيف يعمل؟
+              {howItWorks.tag}
             </span>
             <h2 className="mb-4 text-3xl font-black text-slate-900 sm:text-4xl md:text-5xl">
-              <AnimatedText text="ثلاث خطوات فقط" />
+              <AnimatedText text={howItWorks.title} />
             </h2>
             <p className="mx-auto max-w-xl text-base text-slate-500">
-              ابدأ رحلتك التعليمية في دقائق معدودة
+              {howItWorks.subtitle}
             </p>
           </motion.div>
 
           <div className="grid gap-8 md:grid-cols-3">
-            {[
-              { step: "01", title: "ابحث", desc: "استخدم خاصية البحث المتقدم للعثور على المدارس القريبة منك", icon: Search },
-              { step: "02", title: "قارن", desc: "قارن بين المدارس بناءً على التقييمات والموقع والأسعار", icon: TrendingUp },
-              { step: "03", title: "سجّل", desc: "سجّل في المدرسة التي تناسبك بخطوات بسيطة وسريعة", icon: CheckCircle2 },
-            ].map((item, i) => (
-              <motion.div
-                key={item.step}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-60px" }}
-                transition={{ duration: 0.6, delay: i * 0.15 }}
-                className="group relative text-center"
-              >
-                {/* Connector line */}
-                {i < 2 && (
-                  <div className="absolute top-12 left-0 hidden h-0.5 w-full -translate-x-1/2 md:block">
-                    <div className="h-full w-full bg-gradient-to-l from-blue-200 to-transparent" />
-                  </div>
-                )}
-
+            {howItWorks.steps.map((item, i) => {
+              const StepIcon = [Search, TrendingUp, CheckCircle2][i] || Search;
+              return (
                 <motion.div
-                  whileHover={{ scale: 1.1, rotate: 5 }}
-                  className="relative mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-blue-50 to-blue-100 text-blue-600 shadow-lg shadow-blue-200/50 group-hover:shadow-blue-300/50 transition-shadow duration-500"
+                  key={i}
+                  initial={{ opacity: 0, y: 30 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-60px" }}
+                  transition={{ duration: 0.6, delay: i * 0.15 }}
+                  className="group relative text-center"
                 >
-                  <item.icon className="h-10 w-10" strokeWidth={1.5} />
-                  <div className="absolute -top-2 -right-2 flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white shadow-lg">
-                    {item.step}
-                  </div>
+                  {/* Connector line */}
+                  {i < howItWorks.steps.length - 1 && (
+                    <div className={`absolute top-12 ${isRtl ? "left-0 -translate-x-1/2" : "right-0 translate-x-1/2"} hidden h-0.5 w-full md:block`}>
+                      <div className={`h-full w-full bg-gradient-to-${isRtl ? "l" : "r"} from-blue-200 to-transparent`} />
+                    </div>
+                  )}
+
+                  <motion.div
+                    whileHover={{ scale: 1.1, rotate: 5 }}
+                    className="relative mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-blue-50 to-blue-100 text-blue-600 shadow-lg shadow-blue-200/50 group-hover:shadow-blue-300/50 transition-shadow duration-500"
+                  >
+                    <StepIcon className="h-10 w-10" strokeWidth={1.5} />
+                    <div className={`absolute -top-2 ${isRtl ? "-right-2" : "-left-2"} flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white shadow-lg`}>
+                      {String(i + 1).padStart(2, "0")}
+                    </div>
+                  </motion.div>
+                  <h3 className="mb-2 text-xl font-bold text-slate-900">{item.title}</h3>
+                  <p className="text-sm leading-relaxed text-slate-500 max-w-xs mx-auto">{item.desc}</p>
                 </motion.div>
-                <h3 className="mb-2 text-xl font-bold text-slate-900">{item.title}</h3>
-                <p className="text-sm leading-relaxed text-slate-500 max-w-xs mx-auto">{item.desc}</p>
-              </motion.div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
@@ -888,12 +887,12 @@ export default function Home() {
           {/* Animated background */}
           <div className="absolute inset-0 pointer-events-none">
             <div className="absolute right-0 top-0 h-96 w-96 rounded-full bg-blue-600/15 blur-[100px] glow-pulse" />
-            <div className="absolute left-0 bottom-0 h-96 w-96 rounded-full bg-violet-600/15 blur-[100px] glow-pulse" style={{ animationDelay: "1.5s" }} />
+            <div className="absolute left-0 bottom-0 h-96 w-96 rounded-full bg-violet-600/15 blur-[100px] glow-pulse" />
             <div className="absolute inset-0 opacity-[0.03]"
-              style={{ 
-                backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)", 
-                backgroundSize: "40px 40px" 
-              }} 
+              style={{
+                backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)",
+                backgroundSize: "40px 40px"
+              }}
             />
           </div>
 
@@ -905,15 +904,15 @@ export default function Home() {
               className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-5 py-2 text-sm font-bold text-blue-300 backdrop-blur-sm"
             >
               <Sparkles className="h-4 w-4" />
-              ابدأ مجاناً
+              {t("home.cta.tag")}
             </motion.span>
 
             <h2 className="mb-5 text-3xl font-black leading-tight sm:text-4xl md:text-5xl">
-              <AnimatedText text="ابدأ رحلتك التعليمية اليوم" />
+              <AnimatedText text={t("home.cta.title")} />
             </h2>
 
             <p className="mx-auto mb-10 max-w-xl text-base leading-relaxed text-slate-400 sm:text-lg">
-              انضم إلى آلاف الطلاب الذين يستخدمون منصتنا للعثور على أفضل مدارس الدعم في الجزائر
+              {t("home.cta.subtitle")}
             </p>
 
             <motion.div
@@ -923,8 +922,8 @@ export default function Home() {
             >
               <Link to="/schools">
                 <Button className="h-14 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 px-10 text-sm font-bold text-white shadow-2xl shadow-blue-600/30 hover:shadow-blue-600/50 gap-2 transition-all duration-300">
-                  تصفح المدارس الآن
-                  <ArrowLeft className="h-4 w-4" />
+                  {t("home.cta.button")}
+                  <TrailingArrow className="h-4 w-4" />
                 </Button>
               </Link>
             </motion.div>
@@ -941,14 +940,14 @@ export default function Home() {
                 <GraduationCap className="h-5 w-5" />
               </div>
               <div>
-                <p className="font-bold text-slate-900">منصة مدارس الدعم</p>
-                <p className="text-xs text-slate-400">© 2026 جميع الحقوق محفوظة</p>
+                <p className="font-bold text-slate-900">{t("home.footer.platformName")}</p>
+                <p className="text-xs text-slate-400">{t("home.footer.rights")}</p>
               </div>
             </div>
             <nav className="flex flex-wrap justify-center gap-6 text-sm text-slate-500">
-              <Link to="/" className="hover:text-blue-600 transition-colors font-medium">الرئيسية</Link>
-              <Link to="/schools" className="hover:text-blue-600 transition-colors font-medium">المدارس</Link>
-              <Link to="/login" className="hover:text-blue-600 transition-colors font-medium">تسجيل الدخول</Link>
+              <Link to="/" className="hover:text-blue-600 transition-colors font-medium">{t("home.footer.nav.home")}</Link>
+              <Link to="/schools" className="hover:text-blue-600 transition-colors font-medium">{t("home.footer.nav.schools")}</Link>
+              <Link to="/login" className="hover:text-blue-600 transition-colors font-medium">{t("home.footer.nav.login")}</Link>
             </nav>
           </div>
         </div>

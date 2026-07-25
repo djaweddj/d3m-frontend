@@ -5,13 +5,8 @@ import api from "../api";
 import { RefreshCw, AlertCircle, ChevronDown, TrendingUp, TrendingDown } from "lucide-react";
 
 // ══════════════════════════════════════════════════════════════════
-//  CONSTANTS & HELPERS
+//  HELPERS (language-agnostic — take `months` / `t` / `locale` as args)
 // ══════════════════════════════════════════════════════════════════
-const ARABIC_MONTHS = [
-  "جانفي", "فيفري", "مارس", "أفريل", "ماي", "جوان",
-  "جويلية", "أوت", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر",
-];
-
 const todayYM = () => {
   const d = new Date();
   return { y: d.getFullYear(), m: d.getMonth() + 1 };
@@ -23,36 +18,28 @@ const parseYM = (str) => {
   return { y, m };
 };
 const ymToStr = ({ y, m }) => `${y}-${String(m).padStart(2, "0")}`;
-const ymLabel = ({ y, m }) => `${ARABIC_MONTHS[m - 1]} ${y}`;
-const ymShortLabel = ({ y, m }) => `${ARABIC_MONTHS[m - 1].slice(0, 4)}`;
 
 const shiftYM = ({ y, m }, delta) => {
   const total = y * 12 + (m - 1) + delta;
   return { y: Math.floor(total / 12), m: (total % 12) + 1 };
 };
 
-const ymLTE = (a, b) => a.y < b.y || (a.y === b.y && a.m <= b.m);
+// Formats numbers using the active locale instead of a hardcoded "en-US"
+const fmtMoney = (n, locale, currencySuffix) =>
+  (n ?? 0).toLocaleString(locale) + currencySuffix;
 
-const fmtMoney = (n) => (n ?? 0).toLocaleString("en-US") + " دج";
-const fmtMoneyShort = (n) => {
+const fmtMoneyShort = (n, locale) => {
   const v = n ?? 0;
-  if (Math.abs(v) >= 1_000_000) return (v / 1_000_000).toFixed(1).replace(/\.0$/, "") + "م";
-  if (Math.abs(v) >= 1_000) return (v / 1_000).toFixed(0) + "ك";
-  return String(v);
-};
-
-const STATUS_META = {
-  PAID:    { bg: "#E1F5EE", color: "#0B6B52", label: "مدفوعة" },
-  PENDING: { bg: "#FCF0DA", color: "#9A6208", label: "معلقة" },
-  OVERDUE: { bg: "#FCE4E4", color: "#C0362C", label: "متأخرة" },
-  CANCELLED: { bg: "#F1F5F9", color: "#64748B", label: "ملغاة" },
+  if (Math.abs(v) >= 1_000_000) return (v / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
+  if (Math.abs(v) >= 1_000) return (v / 1_000).toFixed(0) + "K";
+  return v.toLocaleString(locale);
 };
 
 // ══════════════════════════════════════════════════════════════════
 //  PRIMITIVES
 // ══════════════════════════════════════════════════════════════════
 
-function StatCard({ emoji, label, value, sub, subNeutral, accent, iconBg, trend }) {
+function StatCard({ emoji, label, value, sub, subNeutral, accent, iconBg, trend, trendLabel }) {
   return (
     <div className="stat-card" style={{ "--accent": accent, "--iconBg": iconBg }}>
       <div className="stat-card__bar" />
@@ -62,7 +49,7 @@ function StatCard({ emoji, label, value, sub, subNeutral, accent, iconBg, trend 
       {trend !== undefined && trend !== null ? (
         <div className={`stat-card__trend ${trend >= 0 ? "up" : "down"}`}>
           {trend >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-          {Math.abs(trend).toFixed(0)}٪ عن الشهر الماضي
+          {Math.abs(trend).toFixed(0)}% {trendLabel}
         </div>
       ) : (
         <div className="stat-card__sub" style={{ opacity: subNeutral ? 0.6 : 1 }}>
@@ -102,9 +89,11 @@ function InfoItem({ label, value, highlight }) {
 }
 
 // ── Month range picker ──────────────────────────────────────────
-function MonthRangePicker({ from, to, onChange }) {
+function MonthRangePicker({ from, to, onChange, t, months }) {
   const [open, setOpen] = useState(false);
   const boxRef = useRef(null);
+
+  const ymLabel = ({ y, m }) => `${months[m - 1]} ${y}`;
 
   useEffect(() => {
     const onClick = (e) => {
@@ -115,9 +104,9 @@ function MonthRangePicker({ from, to, onChange }) {
   }, []);
 
   const presets = [
-    { label: "٦ أشهر", n: 6 },
-    { label: "١٢ شهر", n: 12 },
-    { label: "٣ أشهر", n: 3 },
+    { label: t("dashboard.range.presets.threeMonths"), n: 3 },
+    { label: t("dashboard.range.presets.sixMonths"), n: 6 },
+    { label: t("dashboard.range.presets.twelveMonths"), n: 12 },
   ];
 
   const applyPreset = (n) => {
@@ -143,7 +132,7 @@ function MonthRangePicker({ from, to, onChange }) {
           </div>
           <div className="range-picker__custom">
             <label>
-              من
+              {t("dashboard.range.from")}
               <input
                 type="month"
                 value={ymToStr(from)}
@@ -152,7 +141,7 @@ function MonthRangePicker({ from, to, onChange }) {
               />
             </label>
             <label>
-              إلى
+              {t("dashboard.range.to")}
               <input
                 type="month"
                 value={ymToStr(to)}
@@ -169,9 +158,11 @@ function MonthRangePicker({ from, to, onChange }) {
 }
 
 // ── Comparison chart: collected vs school part, per month ───────
-function ComparisonChart({ data, highlightIndex }) {
+function ComparisonChart({ data, highlightIndex, t, months, locale, dir }) {
   const ref = useRef(null);
   const chartRef = useRef(null);
+
+  const ymShortLabel = ({ m }) => months[m - 1].slice(0, 4);
 
   useEffect(() => {
     if (!ref.current || !window.Chart || !data.length) return;
@@ -180,6 +171,7 @@ function ComparisonChart({ data, highlightIndex }) {
     const labels = data.map((d) => ymShortLabel(parseYM(d.period)));
     const collected = data.map((d) => d.totalCollected ?? 0);
     const schoolPart = data.map((d) => d.schoolPart ?? 0);
+    const isRTL = dir === "rtl";
 
     chartRef.current = new window.Chart(ref.current, {
       type: "bar",
@@ -187,7 +179,7 @@ function ComparisonChart({ data, highlightIndex }) {
         labels,
         datasets: [
           {
-            label: "المحصّل",
+            label: t("dashboard.chart.incomeLabel"),
             data: collected,
             backgroundColor: collected.map((_, i) => (i === highlightIndex ? "#185FA5" : "#BBD8F3")),
             borderRadius: 6,
@@ -195,7 +187,7 @@ function ComparisonChart({ data, highlightIndex }) {
             maxBarThickness: 26,
           },
           {
-            label: "حصة المدرسة",
+            label: t("dashboard.schoolInfo.monthIncome"),
             data: schoolPart,
             backgroundColor: schoolPart.map((_, i) => (i === highlightIndex ? "#0F6E56" : "#A9DDC9")),
             borderRadius: 6,
@@ -214,16 +206,18 @@ function ComparisonChart({ data, highlightIndex }) {
             labels: { font: { family: "Cairo", size: 11 }, boxWidth: 10, boxHeight: 10, padding: 14, usePointStyle: true, pointStyle: "circle" },
           },
           tooltip: {
-            rtl: true,
+            rtl: isRTL,
             titleFont: { family: "Cairo" },
             bodyFont: { family: "Cairo" },
-            callbacks: { label: (v) => `${v.dataset.label}: ${v.raw.toLocaleString("en-US")} دج` },
+            callbacks: {
+              label: (v) => `${v.dataset.label}: ${v.raw.toLocaleString(locale)}${t("dashboard.currencySuffix")}`,
+            },
           },
         },
         scales: {
           x: { ticks: { font: { family: "Cairo", size: 11 } }, grid: { display: false }, border: { display: false } },
           y: {
-            ticks: { font: { family: "Cairo", size: 10 }, callback: (v) => fmtMoneyShort(v) },
+            ticks: { font: { family: "Cairo", size: 10 }, callback: (v) => fmtMoneyShort(v, locale) },
             grid: { color: "#F1F5F9" },
             border: { display: false },
           },
@@ -231,7 +225,7 @@ function ComparisonChart({ data, highlightIndex }) {
       },
     });
     return () => chartRef.current?.destroy();
-  }, [data, highlightIndex]);
+  }, [data, highlightIndex, locale, dir]); // eslint-disable-line
 
   return <div className="chart-wrap"><canvas ref={ref} /></div>;
 }
@@ -243,6 +237,11 @@ export default function Dashboard() {
   const { user } = useAuth();
   const { t, dir, locale } = useLanguage();
   const BLUE = "#185FA5";
+
+  // Month names now come from translations instead of a hardcoded Arabic array
+  const months = t("dashboard.months");
+  const ymLabel = ({ y, m }) => `${months[m - 1]} ${y}`;
+  const currencySuffix = t("dashboard.currencySuffix");
 
   const [schoolInfo, setSchoolInfo] = useState(null);
   const [range, setRange] = useState(() => {
@@ -288,46 +287,56 @@ export default function Dashboard() {
     return ((current.schoolPart - previous.schoolPart) / previous.schoolPart) * 100;
   }, [current, previous]);
 
+  // Status labels driven by translations (was a hardcoded Arabic-only map)
+  const STATUS_META = {
+    PAID:      { bg: "#E1F5EE", color: "#0B6B52", label: t("dashboard.invoices.status.paid") },
+    PENDING:   { bg: "#FCF0DA", color: "#9A6208", label: t("dashboard.invoices.status.pending") },
+    OVERDUE:   { bg: "#FCE4E4", color: "#C0362C", label: t("dashboard.invoices.status.overdue") },
+    CANCELLED: { bg: "#F1F5F9", color: "#64748B", label: t("dashboard.invoices.status.pending") },
+  };
+
   if (loading) {
     return (
-      <div dir="rtl" className="dash-loading">
+      <div dir={dir} className="dash-loading">
         <DashStyles />
         <div className="spinner" />
-        جارٍ تحميل البيانات...
+        {t("dashboard.loading")}
       </div>
     );
   }
 
   if (error) {
     return (
-      <div dir="rtl" className="dash-error">
+      <div dir={dir} className="dash-error">
         <DashStyles />
         <AlertCircle size={32} color="#E2A84B" />
         <p>{error}</p>
         <button className="btn btn--primary" onClick={() => load(range)}>
-          <RefreshCw size={13} /> إعادة المحاولة
+          <RefreshCw size={13} /> {t("dashboard.retry")}
         </button>
       </div>
     );
   }
 
-  const schoolName = schoolInfo?.schoolName ?? user?.schoolName ?? "المدرسة";
+  const schoolName = schoolInfo?.schoolName ?? user?.schoolName ?? t("dashboard.schoolInfo.name");
   const wilaya = schoolInfo?.wilaya ?? user?.wilaya ?? "";
 
   return (
-    <div dir="rtl" className="dash">
+    <div dir={dir} className="dash">
       <DashStyles />
 
       {/* ── Header ── */}
       <div className="dash-header">
         <div>
-          <div className="dash-header__title">لوحة التحكم — {schoolName}</div>
+          <div className="dash-header__title">
+            {t("dashboard.headerTitle", { school: schoolName })}
+          </div>
           <div className="dash-header__sub">{wilaya}</div>
         </div>
         <div className="dash-header__actions">
-          <MonthRangePicker from={range.from} to={range.to} onChange={setRange} />
+          <MonthRangePicker from={range.from} to={range.to} onChange={setRange} t={t} months={months} />
           <button className="btn btn--ghost" onClick={() => load(range)}>
-            <RefreshCw size={13} /> تحديث
+            <RefreshCw size={13} /> {t("dashboard.refresh")}
           </button>
         </div>
       </div>
@@ -335,37 +344,40 @@ export default function Dashboard() {
       {/* ── Stat cards ── */}
       <div className="stat-grid">
         <StatCard
-          emoji="💰" label={`المحصّل — ${current ? ymLabel(parseYM(current.period)) : ""}`}
-          value={fmtMoney(current?.totalCollected)}
+          emoji="💰"
+          label={t("dashboard.stat.collected.labelFor", { period: current ? ymLabel(parseYM(current.period)) : "" })}
+          value={fmtMoney(current?.totalCollected, locale, currencySuffix)}
           trend={trendPct}
+          trendLabel={t("dashboard.trend.vsLastMonth")}
           accent={BLUE} iconBg="#EBF4FE"
         />
         <StatCard
-          emoji="🏫" label="حصة المدرسة"
-          value={fmtMoney(current?.schoolPart)}
+          emoji="🏫" label={t("dashboard.schoolInfo.monthIncome")}
+          value={fmtMoney(current?.schoolPart, locale, currencySuffix)}
           trend={schoolPartTrendPct}
+          trendLabel={t("dashboard.trend.vsLastMonth")}
           accent="#0F6E56" iconBg="#E1F5EE"
         />
         <StatCard
-          emoji="⏳" label="المبلغ المعلق"
-          value={fmtMoney(current?.totalPending)}
-          sub="فواتير معلقة" accent="#BA7517" iconBg="#FCF0DA"
+          emoji="⏳" label={t("dashboard.stat.pending.label")}
+          value={fmtMoney(current?.totalPending, locale, currencySuffix)}
+          sub={t("dashboard.stat.pending.sub")} accent="#BA7517" iconBg="#FCF0DA"
           subNeutral={!current?.totalPending}
         />
         <StatCard
-          emoji="🔴" label="المبلغ المتأخر"
-          value={fmtMoney(current?.totalOverdue)}
-          sub="فواتير متأخرة" accent="#DC2626" iconBg="#FCE4E4"
+          emoji="🔴" label={t("dashboard.stat.overdue.label")}
+          value={fmtMoney(current?.totalOverdue, locale, currencySuffix)}
+          sub={t("dashboard.stat.overdue.sub")} accent="#DC2626" iconBg="#FCE4E4"
           subNeutral={!current?.totalOverdue}
         />
         <StatCard
           emoji="🎓" label={t("dashboard.stat.students.label")}
           value={schoolInfo?.totalStudents ?? "—"}
-          sub="طالب مسجّل" accent="#534AB7" iconBg="#EEEDFE"
+          sub={t("dashboard.stat.students.sub")} accent="#534AB7" iconBg="#EEEDFE"
           subNeutral={!schoolInfo?.totalStudents}
         />
         <StatCard
-          emoji="📄" label="عدد الفواتير"
+          emoji="📄" label={t("dashboard.stat.invoiceCount.label")}
           value={current?.invoiceCount ?? "—"}
           sub={current ? ymLabel(parseYM(current.period)) : ""} accent="#64748B" iconBg="#F1F5F9" subNeutral
         />
@@ -374,23 +386,23 @@ export default function Dashboard() {
       {/* ── Chart + School info ── */}
       <div className="two-col">
         <Card
-          title="مقارنة الدخل بين الأشهر"
+          title={t("dashboard.chart.title")}
           sub={`${ymLabel(range.from)} – ${ymLabel(range.to)}`}
           className="chart-card"
         >
           {rangeData.length > 0 && rangeData.some((d) => (d.totalCollected ?? 0) > 0)
-            ? <ComparisonChart data={rangeData} highlightIndex={rangeData.length - 1} />
-            : <div className="empty-state">لا توجد بيانات دخل لهذه الفترة</div>
+            ? <ComparisonChart data={rangeData} highlightIndex={rangeData.length - 1} t={t} months={months} locale={locale} dir={dir} />
+            : <div className="empty-state">{t("dashboard.chart.noData")}</div>
           }
         </Card>
 
-        <Card title="معلومات المدرسة">
+        <Card title={t("dashboard.schoolInfo.title")}>
           <div className="info-list">
-            <InfoItem label="اسم المدرسة" value={schoolInfo?.schoolName} />
-            <InfoItem label="المالك" value={schoolInfo?.ownerName} />
-            <InfoItem label="الولاية" value={schoolInfo?.wilaya} />
-            <InfoItem label="البريد" value={schoolInfo?.email} />
-            <InfoItem label="حالة الاشتراك" value={schoolInfo?.subscriptionStatus} highlight />
+            <InfoItem label={t("dashboard.schoolInfo.name")} value={schoolInfo?.schoolName} />
+            <InfoItem label={t("dashboard.schoolInfo.owner")} value={schoolInfo?.ownerName} />
+            <InfoItem label={t("dashboard.schoolInfo.wilaya")} value={schoolInfo?.wilaya} />
+            <InfoItem label={t("dashboard.schoolInfo.email")} value={schoolInfo?.email} />
+            <InfoItem label={t("dashboard.schoolInfo.subscriptionStatus")} value={schoolInfo?.subscriptionStatus} highlight />
             <InfoItem
               label={t("dashboard.schoolInfo.subscriptionExpiry")}
               value={
@@ -407,17 +419,20 @@ export default function Dashboard() {
 
       {/* ── Invoices list ── */}
       {current?.invoices?.length > 0 && (
-        <Card title="فواتير هذا الشهر" sub={`${current.invoices.length} فاتورة`}>
+        <Card
+          title={t("dashboard.invoices.title")}
+          sub={`${current.invoices.length} ${t("dashboard.invoices.countSuffix")}`}
+        >
           <div className="invoice-list">
             {current.invoices.slice(0, 8).map((inv, i) => {
               const st = STATUS_META[inv.status] ?? STATUS_META.PENDING;
               return (
                 <div key={inv.id ?? i} className="invoice-row">
                   <div className="invoice-row__main">
-                    <div className="invoice-row__name">{inv.studentName ?? "—"}</div>
-                    <div className="invoice-row__module">{inv.moduleName ?? "—"}</div>
+                    <div className="invoice-row__name">{inv.studentName ?? t("dashboard.invoices.fallbackName")}</div>
+                    <div className="invoice-row__module">{inv.moduleName ?? t("dashboard.invoices.fallbackModule")}</div>
                   </div>
-                  <div className="invoice-row__amount">{fmtMoney(inv.amount)}</div>
+                  <div className="invoice-row__amount">{fmtMoney(inv.amount, locale, currencySuffix)}</div>
                   <span className="invoice-row__badge" style={{ background: st.bg, color: st.color }}>
                     {st.label}
                   </span>
@@ -494,7 +509,7 @@ function DashStyles() {
       }
       .range-picker__trigger:hover { border-color: #CBD5E1; }
       .range-picker__panel {
-        position: absolute; top: calc(100% + 8px); left: 0; z-index: 20;
+        position: absolute; top: calc(100% + 8px); inset-inline-start: 0; z-index: 20;
         background: #fff; border: 1.5px solid #E8EEF6; border-radius: 12px;
         padding: 12px; box-shadow: 0 10px 30px rgba(15,23,42,.12);
         min-width: 240px;
@@ -527,8 +542,8 @@ function DashStyles() {
       }
       .stat-card:hover { border-color: #CBD5E1; box-shadow: 0 6px 20px rgba(15,23,42,.06); transform: translateY(-1px); }
       .stat-card__bar {
-        position: absolute; top: 0; right: 0; width: 4px; height: 100%;
-        background: var(--accent); border-radius: 0 14px 14px 0;
+        position: absolute; top: 0; inset-inline-end: 0; width: 4px; height: 100%;
+        background: var(--accent); border-radius: 14px 0 0 14px;
       }
       .stat-card__icon {
         width: 32px; height: 32px; border-radius: 9px; background: var(--iconBg);
@@ -568,7 +583,7 @@ function DashStyles() {
       .info-list { display: flex; flex-direction: column; gap: 13px; margin-top: 6px; }
       .info-item { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; gap: 8px; }
       .info-item__label { color: #64748B; flex-shrink: 0; }
-      .info-item__value { font-weight: 600; color: #0F172A; text-align: left; word-break: break-word; }
+      .info-item__value { font-weight: 600; color: #0F172A; text-align: end; word-break: break-word; }
       .info-item__value--pill {
         color: #0B6B52; background: #E1F5EE; padding: 2px 10px;
         border-radius: 20px; border: 1px solid #5DCAA5; font-size: 10.5px;

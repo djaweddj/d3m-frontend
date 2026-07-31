@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Plus, X, Edit2, Trash2, Users, Check, XCircle, Clock4, MinusCircle,
   RefreshCw, AlertCircle, Clock, BookOpen, GripVertical, ChevronDown,
-  Calendar, LayoutGrid, ChevronLeft, ChevronRight,
+  Calendar, LayoutGrid, ChevronLeft, ChevronRight, Repeat, ArrowLeft,
 } from "lucide-react";
 import { useAuth } from "../context/authContext";
 import { useLanguage } from "../context/LanguageContext";
@@ -17,13 +17,15 @@ const scheduleApi = {
   updateSchedule:      (moduleId, day, data) => api.put(`api/modules/${moduleId}/schedules/${day}`, data),
   archiveModule:       (moduleId)            => api.patch(`api/modules/${moduleId}/archive`),
 
-  // ── NEW: agenda / week endpoints ──
   getSessionsByDate:   (schoolId, date)      => api.get("api/sessions/by-date", { params: { schoolId, date } }),
   getWeek:             (schoolId, date)      => api.get("api/sessions/week", { params: { schoolId, date } }),
 
-  // ── NEW: real attendance sheet (per session, not per module) ──
   getAttendanceSheet:  (sessionId)           => api.get(`api/sessions/${sessionId}/attendance-sheet`),
   submitAttendance:    (sessionId, entries,user)  => api.post(`api/sessions/${sessionId}/attendance`, entries,user),
+
+  // ── تعويض (makeup attendance) ──
+  getSiblingModules:   (moduleId)            => api.get(`api/sessions/module/${moduleId}/siblings`),
+  getStudentsByModule: (moduleId)            => api.get(`api/students/by-module/${moduleId}`),
 };
 
 // ══════════════════════════════════════════════════════════════════
@@ -36,7 +38,7 @@ const DAY_TO_IDX = {
 const IDX_TO_DAY = ["FRIDAY","SATURDAY","SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY"];
 
 const fmtTime = (t) => (t ? String(t).slice(0, 5) : "—");
-const toLocalDate = (d) => d.toLocaleDateString("fr-CA"); // YYYY-MM-DD (ISO key format, not display)
+const toLocalDate = (d) => d.toLocaleDateString("fr-CA");
 
 const PALETTE = [
   { bg: "#EEF2FF", text: "#4338CA", border: "#C7D2FE", accent: "#6366F1" },
@@ -50,6 +52,7 @@ const PALETTE = [
 ];
 const colFor = (id) => PALETTE[(Number(id) || 0) % PALETTE.length];
 const P = "#185FA5";
+const MAKEUP_COLOR = "#7C3AED";
 
 // ══════════════════════════════════════════════════════════════════
 //  SHARED PRIMITIVES
@@ -63,11 +66,11 @@ function Spinner({ size = 18, color = P }) {
   );
 }
 
-function ModalWrap({ onClose, children, maxWidth = 420 }) {
+function ModalWrap({ onClose, children, maxWidth = 420, zIndex = 300 }) {
   const { dir } = useLanguage();
   return (
     <div onClick={(e) => e.target === e.currentTarget && onClose()}
-      style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 300, padding: "1rem", backdropFilter: "blur(2px)" }}>
+      style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex, padding: "1rem", backdropFilter: "blur(2px)" }}>
       <div dir={dir} style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth, border: "1.5px solid #E2E8F0", overflow: "hidden", fontFamily: "'Cairo',sans-serif", maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,.18)" }}>
         {children}
       </div>
@@ -75,10 +78,17 @@ function ModalWrap({ onClose, children, maxWidth = 420 }) {
   );
 }
 
-function ModalHeader({ title, onClose }) {
+function ModalHeader({ title, onClose, onBack }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.25rem", borderBottom: "1.5px solid #F1F5F9", background: "#FAFCFF", flexShrink: 0 }}>
-      <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>{title}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        {onBack && (
+          <button onClick={onBack} style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid #E2E8F0", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <ArrowLeft size={13} color="#64748B" />
+          </button>
+        )}
+        <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>{title}</div>
+      </div>
       <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <X size={14} color="#64748B" />
       </button>
@@ -127,7 +137,7 @@ const inp_css = {
 };
 
 // ══════════════════════════════════════════════════════════════════
-//  ADD SESSION MODAL
+//  ADD SESSION MODAL  (unchanged)
 // ══════════════════════════════════════════════════════════════════
 function AddModal({ modules, defaultDayIdx, onClose, onCreated }) {
   const { t, locale } = useLanguage();
@@ -237,7 +247,7 @@ function AddModal({ modules, defaultDayIdx, onClose, onCreated }) {
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  EDIT TIMING MODAL
+//  EDIT TIMING MODAL  (unchanged)
 // ══════════════════════════════════════════════════════════════════
 function EditModal({ slot, onClose, onSaved }) {
   const { t } = useLanguage();
@@ -299,7 +309,7 @@ function EditModal({ slot, onClose, onSaved }) {
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  ARCHIVE MODAL
+//  ARCHIVE MODAL  (unchanged)
 // ══════════════════════════════════════════════════════════════════
 function ArchiveModal({ slot, onClose, onConfirm }) {
   const { t } = useLanguage();
@@ -342,20 +352,137 @@ function ArchiveModal({ slot, onClose, onConfirm }) {
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  REAL ATTENDANCE SHEET MODAL — session-based
-//  Uses GET /api/sessions/{id}/attendance-sheet
-//       POST /api/sessions/{id}/attendance
+//  تعويض PICKER MODAL
+//  Step 1: pick a sibling group (same subject + same teacher + same level)
+//  Step 2: pick a student from that group's roster
+//  No creditedModuleId sent — backend auto-detects and redirects the mark
+//  to the student's own session for this subject, same week.
+// ══════════════════════════════════════════════════════════════════
+function MakeupPickerModal({ moduleId, alreadyAddedIds, onClose, onPick }) {
+  const { t } = useLanguage();
+
+  const [step,        setStep]        = useState(1); // 1 = pick group, 2 = pick student
+  const [siblings,     setSiblings]     = useState([]);
+  const [loadingSibs,  setLoadingSibs]  = useState(true);
+  const [siblingError, setSiblingError] = useState("");
+
+  const [chosenGroup,  setChosenGroup]  = useState(null);
+  const [roster,       setRoster]       = useState([]);
+  const [loadingRoster, setLoadingRoster] = useState(false);
+  const [rosterError,  setRosterError]  = useState("");
+
+  useEffect(() => {
+    scheduleApi.getSiblingModules(moduleId)
+      .then((r) => setSiblings(r.data ?? []))
+      .catch((err) => setSiblingError(err?.response?.data?.message || t("schedule.makeup.errors.loadGroupsFailed")))
+      .finally(() => setLoadingSibs(false));
+  }, [moduleId]);
+
+  const handlePickGroup = (group) => {
+    setChosenGroup(group);
+    setStep(2);
+    setLoadingRoster(true);
+    setRosterError("");
+    scheduleApi.getStudentsByModule(group.id)
+      .then((r) => setRoster(r.data?.content ?? r.data ?? []))
+      .catch((err) => setRosterError(err?.response?.data?.message || t("schedule.makeup.errors.loadRosterFailed")))
+      .finally(() => setLoadingRoster(false));
+  };
+
+  const handlePickStudent = (student) => {
+    onPick({
+      studentId:     student.id,
+      fullName:       student.fullName ?? student.name,
+      level:          student.level,
+      fromGroupName:  chosenGroup.name, // local display only, not sent to backend
+    });
+    onClose();
+  };
+
+  return (
+    <ModalWrap onClose={onClose} maxWidth={380} zIndex={320}>
+      <ModalHeader
+        title={step === 1 ? t("schedule.makeup.pickGroupTitle") : t("schedule.makeup.pickStudentTitle", { group: chosenGroup?.name })}
+        onClose={onClose}
+        onBack={step === 2 ? () => setStep(1) : null}
+      />
+      <div style={{ padding: "0.75rem", overflowY: "auto", minHeight: 220 }}>
+        {step === 1 && (
+          loadingSibs ? (
+            <div style={{ display: "flex", justifyContent: "center", padding: "2rem" }}><Spinner size={22} /></div>
+          ) : siblingError ? (
+            <div style={{ padding: "1rem" }}><ErrorBox msg={siblingError} /></div>
+          ) : siblings.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "2rem", color: "#94A3B8", fontSize: 12 }}>
+              {t("schedule.makeup.noGroups")}
+            </div>
+          ) : siblings.map((g) => {
+            const c = colFor(g.id);
+            return (
+              <div key={g.id} onClick={() => handlePickGroup(g)}
+                style={{ padding: "10px 14px", borderRadius: 10, cursor: "pointer", display: "flex", alignItems: "center", gap: 10, marginBottom: 6, background: c.bg, border: `1.5px solid ${c.border}` }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: c.accent, flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: c.text }}>{g.name}</div>
+                  {g.level && <div style={{ fontSize: 10, color: c.text, opacity: .7, marginTop: 1 }}>{g.level}</div>}
+                </div>
+                <ChevronDown size={13} color={c.text} style={{ transform: "rotate(-90deg)" }} />
+              </div>
+            );
+          })
+        )}
+
+        {step === 2 && (
+          loadingRoster ? (
+            <div style={{ display: "flex", justifyContent: "center", padding: "2rem" }}><Spinner size={22} /></div>
+          ) : rosterError ? (
+            <div style={{ padding: "1rem" }}><ErrorBox msg={rosterError} /></div>
+          ) : roster.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "2rem", color: "#94A3B8", fontSize: 12 }}>
+              {t("schedule.makeup.noStudents")}
+            </div>
+          ) : roster.map((s) => {
+            const disabled = alreadyAddedIds.includes(s.id);
+            return (
+              <div key={s.id} onClick={() => !disabled && handlePickStudent(s)}
+                style={{ padding: "9px 14px", borderRadius: 9, cursor: disabled ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 10, marginBottom: 4, opacity: disabled ? .45 : 1, background: "#FAFCFF", border: "1px solid #F1F5F9" }}>
+                <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#EBF4FE", border: "2px solid #B5D4F4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#0C447C", flexShrink: 0 }}>
+                  {(s.fullName ?? s.name)?.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?"}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "#0F172A" }}>{s.fullName ?? s.name}</div>
+                  {disabled && <div style={{ fontSize: 10, color: "#94A3B8" }}>{t("schedule.makeup.alreadyAdded")}</div>}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </ModalWrap>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  ATTENDANCE SHEET MODAL — session-based, month badge + تعويض
+//  تعويض marks now save directly onto the student's OWN session (same week,
+//  auto-detected by backend) — not onto this session. So after saving, a
+//  تعويض student won't reappear here on reload; their mark lives in their
+//  own group's history instead.
 // ══════════════════════════════════════════════════════════════════
 function AttendanceSheetModal({ session, onClose }) {
   const { user } = useAuth();
   const { t, locale } = useLanguage();
   const c = colFor(session.moduleId);
 
-  const [sheet,     setSheet]     = useState(null);   // AttendanceSheetDto
+  const [sheet,     setSheet]     = useState(null);
   const [loading,   setLoading]   = useState(true);
   const [saving,    setSaving]    = useState(false);
   const [error,     setError]     = useState("");
-  const [marks,     setMarks]     = useState({});     // studentId -> "PRESENT"|"ABSENT"|"LATE"|"EXCUSED"
+  const [marks,     setMarks]     = useState({});
+
+  // Newly picked تعويض students this session (local only, until saved)
+  const [makeupEntries, setMakeupEntries] = useState([]); // [{studentId, fullName, level, fromGroupName}]
+  const [pickerOpen,    setPickerOpen]    = useState(false);
 
   const [submitted, setSubmitted] = useState(false);
 
@@ -364,43 +491,62 @@ function AttendanceSheetModal({ session, onClose }) {
       .then((r) => {
         setSheet(r.data);
         const initMarks = {};
-
         (r.data.students ?? []).forEach((s) => {
           if (s.status) initMarks[s.studentId] = s.status;
-
         });
         setMarks(initMarks);
-
       })
       .catch((err) => setError(err?.response?.data?.message || t("schedule.attendance.loadFailed")))
       .finally(() => setLoading(false));
   }, [session.id]);
 
+  const students = sheet?.students ?? [];
+
   const mark = (id, status) => setMarks((prev) => ({ ...prev, [id]: prev[id] === status ? null : status }));
   const markAll = (status) => {
     const all = {};
-    (sheet?.students ?? []).forEach((s) => { all[s.studentId] = status; });
+    students.forEach((s) => { all[s.studentId] = status; });
+    makeupEntries.forEach((m) => { all[m.studentId] = marks[m.studentId] ?? "PRESENT"; });
     setMarks(all);
   };
 
-  const students = sheet?.students ?? [];
   const presentCount = Object.values(marks).filter((v) => v === "PRESENT").length;
   const absentCount  = Object.values(marks).filter((v) => v === "ABSENT").length;
-
   const markedCount  = Object.values(marks).filter(Boolean).length;
+  const totalPeople  = students.length + makeupEntries.length;
+
+  const handleAddMakeup = (entry) => {
+    setMakeupEntries((prev) => [...prev, entry]);
+    setMarks((prev) => ({ ...prev, [entry.studentId]: "PRESENT" }));
+  };
+
+  const handleRemoveMakeup = (studentId) => {
+    setMakeupEntries((prev) => prev.filter((m) => m.studentId !== studentId));
+    setMarks((prev) => { const next = { ...prev }; delete next[studentId]; return next; });
+  };
 
   const handleSave = async () => {
     setSaving(true); setError("");
     try {
-      const entries = students
+      const rosterEntries = students
         .filter((s) => marks[s.studentId])
         .map((s) => ({
           studentId: s.studentId,
           status:    marks[s.studentId],
-
         }));
 
-      await scheduleApi.submitAttendance(session.id, entries,user);
+      const makeupSubmitEntries = makeupEntries
+        .filter((m) => marks[m.studentId])
+        .map((m) => ({
+          studentId: m.studentId,
+          status:    marks[m.studentId],
+          // no creditedModuleId — backend detects they're not enrolled here and
+          // auto-redirects the mark onto their own session for this subject, same week
+        }));
+
+      const entries = [...rosterEntries, ...makeupSubmitEntries];
+
+      await scheduleApi.submitAttendance(session.id, entries, user);
       setSubmitted(true);
       setTimeout(onClose, 900);
     } catch (err) {
@@ -411,113 +557,193 @@ function AttendanceSheetModal({ session, onClose }) {
   };
 
   const STATUS_BTNS = [
-    { key: "PRESENT", Icon: Check,        activeColor: "#0F6E56", activeBg: "#E1F5EE", title: t("schedule.attendance.presentTitle") },
-    { key: "ABSENT",  Icon: XCircle,      activeColor: "#DC2626", activeBg: "#FEE2E2", title: t("schedule.attendance.absentTitle") },
-
+    { key: "PRESENT", Icon: Check,   activeColor: "#0F6E56", activeBg: "#E1F5EE", title: t("schedule.attendance.presentTitle") },
+    { key: "ABSENT",  Icon: XCircle, activeColor: "#DC2626", activeBg: "#FEE2E2", title: t("schedule.attendance.absentTitle") },
   ];
 
   return (
-    <ModalWrap onClose={onClose} maxWidth={560}>
-      <div style={{ padding: "1.1rem 1.25rem", background: c.bg, borderBottom: `1.5px solid ${c.border}`, flexShrink: 0 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: c.text }}>
-              {sheet?.subjectName ?? session.subjectName ?? session.moduleName}
+    <>
+      <ModalWrap onClose={onClose} maxWidth={560}>
+        <div style={{ padding: "1.1rem 1.25rem", background: c.bg, borderBottom: `1.5px solid ${c.border}`, flexShrink: 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: c.text }}>
+                  {sheet?.subjectName ?? session.subjectName ?? session.moduleName}
+                </div>
+                {!loading && sheet?.totalSessionsInMonth > 0 && (
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 9px", borderRadius: 20, background: "rgba(255,255,255,.7)", color: c.text, border: `1px solid ${c.border}` }}>
+                    {t("schedule.attendance.sessionOfMonth", { ordinal: sheet.sessionOrdinalInMonth, total: sheet.totalSessionsInMonth })}
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: 11, color: c.text, opacity: .8, marginTop: 3, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <span>{t("schedule.attendance.teacherLabel", { name: sheet?.teacherName ?? session.teacherName ?? "—" })}</span>
+                <span>🕐 {fmtTime(sheet?.startTime ?? session.startTime)} – {fmtTime(sheet?.endTime ?? session.endTime)}</span>
+                <span>📅 {sheet?.date ? new Date(sheet.date).toLocaleDateString(locale, { day: "numeric", month: "long" }) : "—"}</span>
+              </div>
             </div>
-            <div style={{ fontSize: 11, color: c.text, opacity: .8, marginTop: 3, display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <span>{t("schedule.attendance.teacherLabel", { name: sheet?.teacherName ?? session.teacherName ?? "—" })}</span>
-              <span>🕐 {fmtTime(sheet?.startTime ?? session.startTime)} – {fmtTime(sheet?.endTime ?? session.endTime)}</span>
-              <span>📅 {sheet?.date ? new Date(sheet.date).toLocaleDateString(locale, { day: "numeric", month: "long" }) : "—"}</span>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <button
+                onClick={() => setPickerOpen(true)}
+                title={t("schedule.makeup.buttonTitle")}
+                style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${MAKEUP_COLOR}55`, background: "#F5F3FF", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Repeat size={14} color={MAKEUP_COLOR} />
+              </button>
+              <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${c.border}`, background: "rgba(255,255,255,.5)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <X size={14} color={c.text} />
+              </button>
             </div>
           </div>
-          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${c.border}`, background: "rgba(255,255,255,.5)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <X size={14} color={c.text} />
-          </button>
+
+          {!loading && (
+            <div style={{ display: "flex", gap: 7, marginTop: 10, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "rgba(255,255,255,.6)", color: c.text, border: `1px solid ${c.border}` }}>
+                {t("schedule.attendance.studentsCount", { count: totalPeople })}
+              </span>
+              <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "rgba(16,185,129,.15)", color: c.text, border: `1px solid ${c.border}` }}>
+                {t("schedule.attendance.presentCount", { count: presentCount })}
+              </span>
+              <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "rgba(239,68,68,.15)", color: c.text, border: `1px solid ${c.border}` }}>
+                {t("schedule.attendance.absentCount", { count: absentCount })}
+              </span>
+              {makeupEntries.length > 0 && (
+                <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "#EDE9FE", color: MAKEUP_COLOR, border: `1px solid ${MAKEUP_COLOR}55` }}>
+                  {t("schedule.makeup.countBadge", { count: makeupEntries.length })}
+                </span>
+              )}
+
+              {students.length > 0 && (
+                <>
+                  <button onClick={() => markAll("PRESENT")} style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "#E1F5EE", color: "#0F6E56", border: "1px solid #A7F3D0", cursor: "pointer", fontFamily: "inherit" }}>{t("schedule.attendance.markAllPresent")}</button>
+                  <button onClick={() => markAll("ABSENT")} style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "#FEE2E2", color: "#DC2626", border: "1px solid #FECACA", cursor: "pointer", fontFamily: "inherit" }}>{t("schedule.attendance.markAllAbsent")}</button>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
-        {!loading && (
-          <div style={{ display: "flex", gap: 7, marginTop: 10, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "rgba(255,255,255,.6)", color: c.text, border: `1px solid ${c.border}` }}>
-              {t("schedule.attendance.studentsCount", { count: students.length })}
-            </span>
-            <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "rgba(16,185,129,.15)", color: c.text, border: `1px solid ${c.border}` }}>
-              {t("schedule.attendance.presentCount", { count: presentCount })}
-            </span>
-            <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "rgba(239,68,68,.15)", color: c.text, border: `1px solid ${c.border}` }}>
-              {t("schedule.attendance.absentCount", { count: absentCount })}
-            </span>
-
-            {students.length > 0 && (
-              <>
-                <button onClick={() => markAll("PRESENT")} style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "#E1F5EE", color: "#0F6E56", border: "1px solid #A7F3D0", cursor: "pointer", fontFamily: "inherit" }}>{t("schedule.attendance.markAllPresent")}</button>
-                <button onClick={() => markAll("ABSENT")} style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "#FEE2E2", color: "#DC2626", border: "1px solid #FECACA", cursor: "pointer", fontFamily: "inherit" }}>{t("schedule.attendance.markAllAbsent")}</button>
-              </>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div style={{ overflowY: "auto", flex: 1 }}>
-        {loading ? (
-          <div style={{ display: "flex", justifyContent: "center", padding: "2.5rem" }}><Spinner size={26} /></div>
-        ) : error && !sheet ? (
-          <div style={{ padding: "2.5rem", textAlign: "center" }}>
-            <AlertCircle size={32} color="#E2A84B" style={{ marginBottom: 8 }} />
-            <div style={{ fontSize: 13, color: "#64748B" }}>{error}</div>
-          </div>
-        ) : students.length === 0 ? (
-          <div style={{ padding: "2.5rem", textAlign: "center", color: "#94A3B8", fontSize: 13 }}>
-            <Users size={32} color="#E2E8F0" style={{ marginBottom: 8 }} />
-            <div>{t("schedule.attendance.noStudents")}</div>
-          </div>
-        ) : students.map((s, i) => {
-          const status = marks[s.studentId];
-          const rowBg =
-            status === "PRESENT" ? "rgba(225,245,238,.55)" :
-            status === "ABSENT"  ? "rgba(254,226,226,.45)" :
-
-            "#fff";
-          return (
-            <div key={s.studentId} style={{ padding: "10px 1.25rem", borderBottom: i < students.length - 1 ? "1px solid #F8FAFC" : "none", background: rowBg, transition: "background .2s" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#EBF4FE", border: "2px solid #B5D4F4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#0C447C", flexShrink: 0 }}>
-                  {s.fullName?.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?"}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>{s.fullName}</div>
-                  <div style={{ fontSize: 10, color: "#94A3B8", marginTop: 1 }}>{s.level ?? s.parentPhone ?? ""}</div>
-                </div>
-                <div style={{ display: "flex", gap: 5 }}>
-                  {STATUS_BTNS.map(({ key, Icon, activeColor, activeBg, title }) => (
-                    <button key={key} title={title} onClick={() => mark(s.studentId, key)}
-                      style={{ width: 30, height: 30, borderRadius: 8, cursor: "pointer", border: `1.5px solid ${status === key ? activeColor : "#E2E8F0"}`, background: status === key ? activeBg : "#fff", color: status === key ? activeColor : "#CBD5E1", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s" }}>
-                      <Icon size={13} />
-                    </button>
-                  ))}
-                </div>
-              </div>
-
+        <div style={{ overflowY: "auto", flex: 1 }}>
+          {loading ? (
+            <div style={{ display: "flex", justifyContent: "center", padding: "2.5rem" }}><Spinner size={26} /></div>
+          ) : error && !sheet ? (
+            <div style={{ padding: "2.5rem", textAlign: "center" }}>
+              <AlertCircle size={32} color="#E2A84B" style={{ marginBottom: 8 }} />
+              <div style={{ fontSize: 13, color: "#64748B" }}>{error}</div>
             </div>
-          );
-        })}
-      </div>
+          ) : totalPeople === 0 ? (
+            <div style={{ padding: "2.5rem", textAlign: "center", color: "#94A3B8", fontSize: 13 }}>
+              <Users size={32} color="#E2E8F0" style={{ marginBottom: 8 }} />
+              <div>{t("schedule.attendance.noStudents")}</div>
+            </div>
+          ) : (
+            <>
+              {students.map((s) => {
+                const status = marks[s.studentId];
+                const rowBg =
+                  status === "PRESENT" ? "rgba(225,245,238,.55)" :
+                  status === "ABSENT"  ? "rgba(254,226,226,.45)" :
+                  "#fff";
+                return (
+                  <div key={s.studentId} style={{ padding: "10px 1.25rem", borderBottom: "1px solid #F8FAFC", background: rowBg, transition: "background .2s" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#EBF4FE", border: "2px solid #B5D4F4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#0C447C", flexShrink: 0 }}>
+                        {s.fullName?.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?"}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>{s.fullName}</span>
+                          {s.isMakeup && (
+                            <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 7px", borderRadius: 20, background: "#EDE9FE", color: MAKEUP_COLOR }}>
+                              {t("schedule.makeup.tag")}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 10, color: "#94A3B8", marginTop: 1 }}>{s.level ?? s.parentPhone ?? ""}</div>
+                      </div>
+                      <div style={{ display: "flex", gap: 5 }}>
+                        {STATUS_BTNS.map(({ key, Icon, activeColor, activeBg, title }) => (
+                          <button key={key} title={title} onClick={() => mark(s.studentId, key)}
+                            style={{ width: 30, height: 30, borderRadius: 8, cursor: "pointer", border: `1.5px solid ${status === key ? activeColor : "#E2E8F0"}`, background: status === key ? activeBg : "#fff", color: status === key ? activeColor : "#CBD5E1", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s" }}>
+                            <Icon size={13} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
 
-      {error && sheet && <div style={{ padding: "0 1.25rem" }}><ErrorBox msg={error} /></div>}
+              {/* Newly picked تعويض students this session — not yet saved */}
+              {makeupEntries.map((m) => {
+                const status = marks[m.studentId];
+                const rowBg =
+                  status === "PRESENT" ? "rgba(225,245,238,.55)" :
+                  status === "ABSENT"  ? "rgba(254,226,226,.45)" :
+                  "#FAF5FF";
+                return (
+                  <div key={`makeup-${m.studentId}`} style={{ padding: "10px 1.25rem", borderBottom: "1px solid #F8FAFC", background: rowBg, borderInlineStart: `3px solid ${MAKEUP_COLOR}` }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#EDE9FE", border: `2px solid ${MAKEUP_COLOR}88`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: MAKEUP_COLOR, flexShrink: 0 }}>
+                        {m.fullName?.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?"}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>{m.fullName}</span>
+                          <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 7px", borderRadius: 20, background: "#EDE9FE", color: MAKEUP_COLOR }}>
+                            {t("schedule.makeup.tag")}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 10, color: "#94A3B8", marginTop: 1 }}>
+                          {t("schedule.makeup.fromGroup", { group: m.fromGroupName })}
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: 5 }}>
+                        {STATUS_BTNS.map(({ key, Icon, activeColor, activeBg, title }) => (
+                          <button key={key} title={title} onClick={() => mark(m.studentId, key)}
+                            style={{ width: 30, height: 30, borderRadius: 8, cursor: "pointer", border: `1.5px solid ${status === key ? activeColor : "#E2E8F0"}`, background: status === key ? activeBg : "#fff", color: status === key ? activeColor : "#CBD5E1", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s" }}>
+                            <Icon size={13} />
+                          </button>
+                        ))}
+                        <button title={t("schedule.makeup.remove")} onClick={() => handleRemoveMakeup(m.studentId)}
+                          style={{ width: 30, height: 30, borderRadius: 8, cursor: "pointer", border: "1.5px solid #FECACA", background: "#fff", color: "#DC2626", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <X size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
+        </div>
 
-      <div style={{ padding: ".85rem 1.25rem", borderTop: "1.5px solid #F1F5F9", background: "#FAFCFF", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
-        <span style={{ fontSize: 11, color: "#94A3B8" }}>{t("schedule.attendance.markedCount", { marked: markedCount, total: students.length })}</span>
-        <button onClick={handleSave} disabled={submitted || saving || students.length === 0}
-          style={{ padding: "8px 20px", borderRadius: 9, border: "none", background: submitted ? "#10B981" : P, color: "#fff", fontSize: 13, fontWeight: 600, cursor: submitted ? "default" : "pointer", fontFamily: "'Cairo',sans-serif", display: "flex", alignItems: "center", gap: 6, transition: "background .3s" }}>
-          {saving ? <Spinner size={14} color="#fff" /> : submitted ? <><Check size={14} /> {t("schedule.attendance.saved")}</> : t("schedule.attendance.save")}
-        </button>
-      </div>
-    </ModalWrap>
+        {error && sheet && <div style={{ padding: "0 1.25rem" }}><ErrorBox msg={error} /></div>}
+
+        <div style={{ padding: ".85rem 1.25rem", borderTop: "1.5px solid #F1F5F9", background: "#FAFCFF", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+          <span style={{ fontSize: 11, color: "#94A3B8" }}>{t("schedule.attendance.markedCount", { marked: markedCount, total: totalPeople })}</span>
+          <button onClick={handleSave} disabled={submitted || saving || totalPeople === 0}
+            style={{ padding: "8px 20px", borderRadius: 9, border: "none", background: submitted ? "#10B981" : P, color: "#fff", fontSize: 13, fontWeight: 600, cursor: submitted ? "default" : "pointer", fontFamily: "'Cairo',sans-serif", display: "flex", alignItems: "center", gap: 6, transition: "background .3s" }}>
+            {saving ? <Spinner size={14} color="#fff" /> : submitted ? <><Check size={14} /> {t("schedule.attendance.saved")}</> : t("schedule.attendance.save")}
+          </button>
+        </div>
+      </ModalWrap>
+
+      {pickerOpen && (
+        <MakeupPickerModal
+          moduleId={session.moduleId}
+          alreadyAddedIds={[...students.map((s) => s.studentId), ...makeupEntries.map((m) => m.studentId)]}
+          onClose={() => setPickerOpen(false)}
+          onPick={handleAddMakeup}
+        />
+      )}
+    </>
   );
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  AGENDA VIEW — day-by-day session list with attendance status
-//  Uses GET /api/sessions/by-date
+//  AGENDA VIEW  (unchanged)
 // ══════════════════════════════════════════════════════════════════
 function AgendaSessionRow({ session, onAttendance }) {
   const { t } = useLanguage();
@@ -613,7 +839,6 @@ function AgendaView({ schoolId, onAttendance, refreshKey }) {
 
   return (
     <div>
-      {/* Date navigator */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <button onClick={() => shiftDay(-1)} style={{ width: 30, height: 30, borderRadius: 8, border: "1.5px solid #E2E8F0", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -648,7 +873,6 @@ function AgendaView({ schoolId, onAttendance, refreshKey }) {
         />
       </div>
 
-      {/* Sessions list */}
       {loading ? (
         <div style={{ display: "flex", justifyContent: "center", padding: "3rem" }}><Spinner size={26} /></div>
       ) : sessions.length === 0 ? (
@@ -676,7 +900,7 @@ function AgendaView({ schoolId, onAttendance, refreshKey }) {
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  WEEK GRID VIEW — existing drag/drop timetable, kept mostly as-is
+//  WEEK GRID VIEW  (unchanged)
 // ══════════════════════════════════════════════════════════════════
 function ModuleChip({ slot, onEdit, onArchive, onDragStart, onDragEnd }) {
   const { t } = useLanguage();
@@ -866,14 +1090,14 @@ function WeekGrid({ modules, onAddModal, setEditSlot, setArchiveSlot, onModuleAr
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  MAIN SCHEDULE PAGE
+//  MAIN SCHEDULE PAGE  (unchanged)
 // ══════════════════════════════════════════════════════════════════
 export default function Schedule() {
   const { user } = useAuth();
   const { t, dir } = useLanguage();
   const schoolId = user?.schoolId;
 
-  const [view, setView] = useState("agenda"); // "agenda" | "grid"
+  const [view, setView] = useState("agenda");
   const [modules, setModules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
@@ -904,7 +1128,7 @@ export default function Schedule() {
 
   const handleAttendanceClosed = () => {
     setAttendanceSession(null);
-    setRefreshKey((k) => k + 1); // refresh agenda to show updated attendanceMarked flags
+    setRefreshKey((k) => k + 1);
   };
 
   const totalSessions = modules.reduce((sum, m) => sum + (m.schedules?.length ?? 0), 0);
@@ -912,7 +1136,6 @@ export default function Schedule() {
   return (
     <div dir={dir} style={{ padding: "1.25rem 1.5rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
 
-      {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
         <div>
           <h1 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("schedule.title")}</h1>
@@ -921,7 +1144,6 @@ export default function Schedule() {
           </p>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {/* View toggle */}
           <div style={{ display: "flex", padding: 3, borderRadius: 10, background: "#fff", border: "1.5px solid #E2E8F0" }}>
             <button onClick={() => setView("agenda")}
               style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, fontFamily: "inherit", background: view === "agenda" ? P : "transparent", color: view === "agenda" ? "#fff" : "#64748B" }}>

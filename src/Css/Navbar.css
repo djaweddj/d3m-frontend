@@ -4,16 +4,16 @@
 :root {
   --nav-bg: rgba(255, 255, 255, 0.85);
   --nav-border: #E8EEF6;
-  --nav-blue: #185FA5;
-  --nav-blue-dark: #0C447C;
+  --nav-blue: #08880f;
+  --nav-blue-dark: #0a5f1c;
   --nav-blue-tint: #EBF4FE;
-  --nav-blue-tint-border: #B5D4F4;
+  --nav-blue-tint-border: #54db81;
   --nav-blue-soft: #EEF6FF;
   --nav-blue-soft-border: #BFDBFE;
   --nav-blue-soft-hover: #DBEAFE;
-  --nav-text: #0F172A;
-  --nav-text-muted: #475569;
-  --nav-text-faint: #94A3B8;
+  --nav-text: #0f5a28;
+  --nav-text-muted: #1f9914;
+  --nav-text-faint: #375e4e;
   --nav-surface: #F8FAFC;
   --nav-danger: #DC2626;
   --nav-danger-bg: #FEE2E2;
@@ -21,6 +21,59 @@
   --nav-height: 64px;
   --nav-radius: 10px;
   --nav-ease: cubic-bezier(0.4, 0, 0.2, 1);
+}
+/* ===========================
+   NUMERIA BRAND
+=========================== */
+
+.navbar{
+    height:72px;
+    background:#FAFAF7;
+    border-bottom:1px solid rgba(200,162,75,.18);
+    padding:0 32px;
+}
+
+.navbar__logo{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    text-decoration:none;
+    flex-shrink:0;
+}
+
+.navbar__logo-image{
+    width: 105px;
+    height:105px;
+    object-fit:contain;
+    flex-shrink:0;
+    transition:.25s;
+}
+
+.navbar__logo:hover .navbar__logo-image{
+    transform:scale(1.05);
+}
+
+.navbar__brand{
+    display:flex;
+    flex-direction:column;
+    line-height:1;
+}
+
+.navbar__logo-text{
+    font-family:"Cinzel", serif;
+    font-size:23px;
+    font-weight:700;
+    color:#0F5A46;
+    letter-spacing:.5px;
+}
+
+.navbar__logo-subtitle{
+    margin-top:5px;
+    font-size:10px;
+    font-weight:600;
+    color:#8A8A8A;
+    letter-spacing:2px;
+    text-transform:uppercase;
 }
 
 /* ==========================================================================

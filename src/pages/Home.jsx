@@ -18,6 +18,18 @@ const API_BASE_URL = import.meta.env.VITE_API_URL;
 // Maps language code -> Intl locale, matching translations.js's LOCALE_MAP
 const LOCALE_MAP = { ar: "ar-DZ", fr: "fr-FR", en: "en-US" };
 
+// ─── Numeria brand tokens ──────────────────────────────────
+// Primary: Deep Emerald · Secondary: Royal Gold · Accent: Algerian Red (used sparingly)
+// Background: Warm Off White
+const BRAND = {
+  emerald: "#0F5A46",
+  emeraldDeep: "#0B4436",
+  gold: "#C8A24B",
+  goldDeep: "#96751F",
+  red: "#C53030",
+  bg: "#FAFAF7",
+};
+
 // ─── helpers ──────────────────────────────────────────────
 const getInitials = (name, fallback) =>
   (name ?? fallback).split(" ").map((w) => w[0]).join("").slice(0, 2);
@@ -93,9 +105,9 @@ function UserPill({ user }) {
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="flex items-center gap-2.5 rounded-full border border-blue-200/60 bg-white/80 backdrop-blur-md px-4 py-2 shadow-sm"
+        className="flex items-center gap-2.5 rounded-full border border-[#0F5A46]/20 bg-white/80 backdrop-blur-md px-4 py-2 shadow-sm"
       >
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-blue-700 text-[11px] font-bold text-white shadow-lg shadow-blue-600/25">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#0F5A46] to-[#0B4436] text-[11px] font-bold text-white shadow-lg shadow-[#0F5A46]/25">
           {getInitials(user.name, t("home.visitor")[0])}
         </div>
         <span className="text-sm font-semibold text-slate-800">{user.name}</span>
@@ -110,7 +122,7 @@ function UserPill({ user }) {
     >
       <UserCircle2 className="h-4 w-4 text-slate-400" />
       <span className="text-sm font-medium text-slate-500">{t("home.visitor")}</span>
-      <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse shadow-sm shadow-amber-400/50" />
+      <span className="h-2 w-2 rounded-full bg-[#C8A24B] animate-pulse shadow-sm shadow-[#C8A24B]/50" />
     </motion.div>
   );
 }
@@ -119,14 +131,15 @@ function UserPill({ user }) {
 function StatCard({ icon: Icon, value, label, loading, delay, color, locale }) {
   const { display, ref, hasStarted } = useCountUp(loading ? null : value);
 
+  // Two brand hues carry the set; red appears once, reserved for the Teachers
+  // card so the accent stays a rare flourish rather than a repeated color.
   const colorSchemes = {
-    blue: { bg: "bg-blue-50", text: "text-blue-600", glow: "bg-blue-400/20", border: "border-blue-200/60" },
-    emerald: { bg: "bg-emerald-50", text: "text-emerald-600", glow: "bg-emerald-400/20", border: "border-emerald-200/60" },
-    violet: { bg: "bg-violet-50", text: "text-violet-600", glow: "bg-violet-400/20", border: "border-violet-200/60" },
-    amber: { bg: "bg-amber-50", text: "text-amber-600", glow: "bg-amber-400/20", border: "border-amber-200/60" },
+    emerald: { bg: "bg-[#0F5A46]/8", text: "text-[#0F5A46]", glow: "bg-[#0F5A46]/20", border: "border-[#0F5A46]/25" },
+    gold: { bg: "bg-[#C8A24B]/12", text: "text-[#96751F]", glow: "bg-[#C8A24B]/25", border: "border-[#C8A24B]/30" },
+    red: { bg: "bg-[#C53030]/8", text: "text-[#C53030]", glow: "bg-[#C53030]/20", border: "border-[#C53030]/25" },
   };
 
-  const scheme = colorSchemes[color] || colorSchemes.blue;
+  const scheme = colorSchemes[color] || colorSchemes.emerald;
 
   return (
     <motion.div
@@ -178,12 +191,12 @@ function StatCard({ icon: Icon, value, label, loading, delay, color, locale }) {
 // ─── Feature card ─────────────────────────────────────────
 function FeatureCard({ icon: Icon, title, desc, delay, color }) {
   const colorSchemes = {
-    blue: "bg-blue-50 text-blue-600 shadow-blue-200/50",
-    violet: "bg-violet-50 text-violet-600 shadow-violet-200/50",
-    emerald: "bg-emerald-50 text-emerald-600 shadow-emerald-200/50",
+    emerald: "bg-[#0F5A46]/8 text-[#0F5A46] shadow-[#0F5A46]/20",
+    gold: "bg-[#C8A24B]/12 text-[#96751F] shadow-[#C8A24B]/25",
+    red: "bg-[#C53030]/8 text-[#C53030] shadow-[#C53030]/20",
   };
 
-  const scheme = colorSchemes[color] || colorSchemes.blue;
+  const scheme = colorSchemes[color] || colorSchemes.emerald;
 
   return (
     <motion.div
@@ -215,9 +228,9 @@ function FeatureCard({ icon: Icon, title, desc, delay, color }) {
 // ─── Floating badge component ─────────────────────────────
 function FloatingBadge({ icon: Icon, value, label, delay, position, color }) {
   const colorMap = {
-    blue: "from-blue-600 to-blue-700 shadow-blue-600/30",
-    emerald: "from-emerald-600 to-emerald-700 shadow-emerald-600/30",
-    violet: "from-violet-600 to-violet-700 shadow-violet-600/30",
+    emerald: "from-[#0F5A46] to-[#0B4436] shadow-[#0F5A46]/30",
+    gold: "from-[#C8A24B] to-[#96751F] shadow-[#C8A24B]/30",
+    red: "from-[#C53030] to-[#9E2424] shadow-[#C53030]/30",
   };
 
   return (
@@ -300,7 +313,7 @@ function ParticleBackground() {
 
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(59, 130, 246, ${p.opacity})`;
+        ctx.fillStyle = `rgba(15, 90, 70, ${p.opacity})`;
         ctx.fill();
       });
 
@@ -312,7 +325,7 @@ function ParticleBackground() {
             ctx.beginPath();
             ctx.moveTo(p1.x, p1.y);
             ctx.lineTo(p2.x, p2.y);
-            ctx.strokeStyle = `rgba(59, 130, 246, ${0.08 * (1 - dist / 120)})`;
+            ctx.strokeStyle = `rgba(15, 90, 70, ${0.08 * (1 - dist / 120)})`;
             ctx.lineWidth = 0.5;
             ctx.stroke();
           }
@@ -420,14 +433,16 @@ export default function Home() {
 
   const featureItems = t("home.features.items");
   const featureIcons = [Shield, Clock, TrendingUp, Award, Heart, MapPin];
-  const featureColors = ["blue", "violet", "emerald", "blue", "violet", "emerald"];
+  // Emerald and gold carry the set; red surfaces once (Heart/community) so the
+  // accent reads as a deliberate flourish rather than a repeated color.
+  const featureColors = ["emerald", "gold", "emerald", "gold", "red", "gold"];
 
   const avatarInitials = [
-    { bg: "#3B82F6" }, { bg: "#8B5CF6" }, { bg: "#10B981" }, { bg: "#F59E0B" },
+    { bg: BRAND.emerald }, { bg: BRAND.gold }, { bg: BRAND.red }, { bg: "#2F7A63" },
   ];
 
   return (
-    <div className="min-h-screen bg-[#fafafa] text-slate-900 overflow-x-hidden" dir={dir}>
+    <div className="min-h-screen bg-[#FAFAF7] text-slate-900 overflow-x-hidden" dir={dir}>
 
       {/* ── Global Styles & Keyframes ── */}
       <style>{`
@@ -505,21 +520,21 @@ export default function Home() {
           {/* Gradient orbs */}
           <motion.div
             style={{ y: bgY }}
-            className="absolute right-[-120px] top-[-120px] h-[500px] w-[500px] rounded-full bg-blue-100/50 blur-[100px] glow-pulse"
+            className="absolute right-[-120px] top-[-120px] h-[500px] w-[500px] rounded-full bg-[#0F5A46]/10 blur-[100px] glow-pulse"
           />
           <motion.div
             style={{ y: bgY }}
-            className="absolute left-[-100px] bottom-[-100px] h-[450px] w-[450px] rounded-full bg-indigo-100/40 blur-[100px] glow-pulse"
+            className="absolute left-[-100px] bottom-[-100px] h-[450px] w-[450px] rounded-full bg-[#C8A24B]/10 blur-[100px] glow-pulse"
           />
           <motion.div
             style={{ y: bgY }}
-            className="absolute left-1/3 top-1/3 h-[300px] w-[300px] rounded-full bg-violet-100/30 blur-[80px] glow-pulse"
+            className="absolute left-1/3 top-1/3 h-[300px] w-[300px] rounded-full bg-[#C53030]/6 blur-[80px] glow-pulse"
           />
 
           {/* Grid pattern */}
           <div className="absolute inset-0 opacity-[0.025] bg-grid-drift"
             style={{
-              backgroundImage: "linear-gradient(#1e3a8a 1px,transparent 1px),linear-gradient(90deg,#1e3a8a 1px,transparent 1px)",
+              backgroundImage: "linear-gradient(#0F5A46 1px,transparent 1px),linear-gradient(90deg,#0F5A46 1px,transparent 1px)",
               backgroundSize: "64px 64px"
             }}
           />
@@ -539,7 +554,7 @@ export default function Home() {
               initial={{ opacity: 0, y: 20, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{ duration: 0.5, delay: 0.1 }}
-              className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-200/60 bg-blue-50/80 backdrop-blur-sm px-5 py-2 text-sm font-bold text-blue-700 shadow-sm"
+              className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#0F5A46]/20 bg-[#0F5A46]/8 backdrop-blur-sm px-5 py-2 text-sm font-bold text-[#0F5A46] shadow-sm"
             >
               <motion.span
                 animate={{ rotate: [0, 15, -15, 0] }}
@@ -560,9 +575,9 @@ export default function Home() {
                 <AnimatedText text={t("home.hero.titleLine1")} delay={0.3} />
                 <br />
                 <span className="relative inline-block">
-                  <AnimatedText text={t("home.hero.titleHighlight")} delay={0.5} className="text-blue-600" />
+                  <AnimatedText text={t("home.hero.titleHighlight")} delay={0.5} className="text-[#0F5A46]" />
                   <svg className="absolute -bottom-2 right-0 left-0 w-full hidden sm:block" viewBox="0 0 200 10" preserveAspectRatio="none" style={{ height: 10 }}>
-                    <path className="hero-underline" d="M0 8 Q50 0 100 6 Q150 12 200 5" fill="none" stroke="#BFDBFE" strokeWidth="5" strokeLinecap="round" />
+                    <path className="hero-underline" d="M0 8 Q50 0 100 6 Q150 12 200 5" fill="none" stroke="#E4CE94" strokeWidth="5" strokeLinecap="round" />
                   </svg>
                 </span>
                 <br />
@@ -591,7 +606,7 @@ export default function Home() {
             >
               <Link to="/schools">
                 <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-                  <Button className="h-14 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 px-8 text-sm font-bold text-white shadow-xl shadow-blue-600/25 hover:shadow-blue-600/40 gap-2 transition-all duration-300 w-full sm:w-auto">
+                  <Button className="h-14 rounded-2xl bg-gradient-to-r from-[#0F5A46] to-[#0B4436] px-8 text-sm font-bold text-white shadow-xl shadow-[#0F5A46]/25 hover:shadow-[#0F5A46]/40 gap-2 transition-all duration-300 w-full sm:w-auto">
                     <Search className="h-4 w-4" />
                     {t("home.hero.ctaBrowse")}
                     <TrailingArrow className="h-4 w-4" />
@@ -601,7 +616,7 @@ export default function Home() {
               <Link to="/schoolregister">
                 <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
                   <Button variant="outline" className="h-14 rounded-2xl border-2 border-slate-200 px-8 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:border-slate-300 gap-2 transition-all duration-300 w-full sm:w-auto">
-                    <BookOpen className="h-4 w-4 text-blue-500" />
+                    <BookOpen className="h-4 w-4 text-[#C8A24B]" />
                     {t("home.hero.ctaRegister")}
                   </Button>
                 </motion.div>
@@ -638,14 +653,14 @@ export default function Home() {
                       animate={{ opacity: 1, rotate: 0 }}
                       transition={{ delay: 1.3 + i * 0.1, type: "spring", stiffness: 200 }}
                     >
-                      <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                      <Star className="h-4 w-4 fill-[#C8A24B] text-[#C8A24B]" />
                     </motion.div>
                   ))}
                 </div>
                 <p className="text-sm text-slate-500 font-medium">
                   {statsLoading ? (
                     <span className="inline-flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
+                      <span className="h-2 w-2 rounded-full bg-[#0F5A46]/70 animate-pulse" />
                       {t("home.hero.loading")}
                     </span>
                   ) : (
@@ -660,16 +675,16 @@ export default function Home() {
           <div className="relative hidden lg:flex items-center justify-center h-[500px] order-1 lg:order-2">
             {/* Central morphing blob */}
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="h-80 w-80 bg-gradient-to-br from-blue-100/60 to-indigo-100/60 morph-blob blur-2xl" />
+              <div className="h-80 w-80 bg-gradient-to-br from-[#0F5A46]/10 to-[#C8A24B]/10 morph-blob blur-2xl" />
             </div>
 
             {/* Orbiting elements */}
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="orbit-element absolute">
-                <div className="h-3 w-3 rounded-full bg-blue-400/60 shadow-lg shadow-blue-400/30" />
+                <div className="h-3 w-3 rounded-full bg-[#0F5A46]/50 shadow-lg shadow-[#0F5A46]/25" />
               </div>
               <div className="orbit-reverse absolute">
-                <div className="h-2 w-2 rounded-full bg-violet-400/60 shadow-lg shadow-violet-400/30" />
+                <div className="h-2 w-2 rounded-full bg-[#C8A24B]/60 shadow-lg shadow-[#C8A24B]/30" />
               </div>
             </div>
 
@@ -680,7 +695,7 @@ export default function Home() {
               label={t("home.badges.schools")}
               delay={0.5}
               position="right-4 top-8"
-              color="blue"
+              color="emerald"
             />
             <FloatingBadge
               icon={Users}
@@ -688,7 +703,7 @@ export default function Home() {
               label={t("home.badges.students")}
               delay={0.7}
               position="left-0 top-36"
-              color="emerald"
+              color="gold"
             />
             <FloatingBadge
               icon={PresentationIcon}
@@ -696,7 +711,7 @@ export default function Home() {
               label={t("home.badges.teachers")}
               delay={0.9}
               position="right-12 bottom-12"
-              color="violet"
+              color="red"
             />
 
             {/* Central icon */}
@@ -706,13 +721,13 @@ export default function Home() {
               transition={{ duration: 0.8, delay: 0.4, type: "spring", stiffness: 150 }}
               className="relative z-10"
             >
-              <div className="flex h-32 w-32 items-center justify-center rounded-[2rem] bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-2xl shadow-blue-600/30">
+              <div className="flex h-32 w-32 items-center justify-center rounded-[2rem] bg-gradient-to-br from-[#0F5A46] to-[#0B4436] text-white shadow-2xl shadow-[#0F5A46]/30">
                 <GraduationCap className="h-16 w-16" strokeWidth={1.5} />
               </div>
               {/* Ripple rings */}
               <div className="absolute inset-0 -z-10">
-                <div className="absolute inset-0 rounded-[2rem] border-2 border-blue-200/50 animate-ping" style={{ animationDuration: "3s" }} />
-                <div className="absolute inset-[-8px] rounded-[2.5rem] border border-blue-100/40 animate-ping" style={{ animationDuration: "3s", animationDelay: "0.5s" }} />
+                <div className="absolute inset-0 rounded-[2rem] border-2 border-[#0F5A46]/20 animate-ping" style={{ animationDuration: "3s" }} />
+                <div className="absolute inset-[-8px] rounded-[2.5rem] border border-[#0F5A46]/12 animate-ping" style={{ animationDuration: "3s", animationDelay: "0.5s" }} />
               </div>
             </motion.div>
           </div>
@@ -736,7 +751,7 @@ export default function Home() {
               initial={{ opacity: 0, scale: 0.9 }}
               whileInView={{ opacity: 1, scale: 1 }}
               viewport={{ once: true }}
-              className="mb-4 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-5 py-2 text-sm font-bold text-blue-600"
+              className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#0F5A46]/20 bg-[#0F5A46]/8 px-5 py-2 text-sm font-bold text-[#0F5A46]"
             >
               <Zap className="h-4 w-4" />
               {t("home.features.tag")}
@@ -758,7 +773,7 @@ export default function Home() {
                 title={item.title}
                 desc={item.desc}
                 delay={i * 0.1}
-                color={featureColors[i] || "blue"}
+                color={featureColors[i] || "emerald"}
               />
             ))}
           </div>
@@ -769,8 +784,8 @@ export default function Home() {
       <section className="relative overflow-hidden border-y border-slate-200 bg-white py-20 sm:py-28">
         {/* Background decoration */}
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute right-0 top-0 h-72 w-72 rounded-full bg-blue-50/50 blur-3xl" />
-          <div className="absolute left-0 bottom-0 h-72 w-72 rounded-full bg-violet-50/50 blur-3xl" />
+          <div className="absolute right-0 top-0 h-72 w-72 rounded-full bg-[#0F5A46]/6 blur-3xl" />
+          <div className="absolute left-0 bottom-0 h-72 w-72 rounded-full bg-[#C8A24B]/8 blur-3xl" />
         </div>
 
         <div className="container relative mx-auto px-4 sm:px-6 lg:px-8">
@@ -781,7 +796,7 @@ export default function Home() {
             transition={{ duration: 0.6 }}
             className="mb-14 text-center"
           >
-            <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-5 py-2 text-sm font-bold text-blue-600">
+            <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#0F5A46]/20 bg-[#0F5A46]/8 px-5 py-2 text-sm font-bold text-[#0F5A46]">
               <TrendingUp className="h-4 w-4" />
               {t("home.stats.tag")}
             </span>
@@ -794,20 +809,20 @@ export default function Home() {
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="mx-auto max-w-md rounded-2xl border border-red-100 bg-red-50 px-6 py-5 text-center"
+              className="mx-auto max-w-md rounded-2xl border border-[#C53030]/25 bg-[#C53030]/8 px-6 py-5 text-center"
             >
               <div className="mb-2 flex justify-center">
-                <X className="h-8 w-8 text-red-400" />
+                <X className="h-8 w-8 text-[#C53030]/70" />
               </div>
-              <p className="text-sm font-medium text-red-600">
+              <p className="text-sm font-medium text-[#C53030]">
                 {t("home.stats.error")}
               </p>
             </motion.div>
           ) : (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              <StatCard icon={School} value={stats.schools} label={t("home.stats.schools")} loading={statsLoading} delay={0} color="blue" locale={locale} />
-              <StatCard icon={Users} value={stats.students} label={t("home.stats.students")} loading={statsLoading} delay={0.15} color="emerald" locale={locale} />
-              <StatCard icon={PresentationIcon} value={stats.teachers} label={t("home.stats.teachers")} loading={statsLoading} delay={0.3} color="violet" locale={locale} />
+              <StatCard icon={School} value={stats.schools} label={t("home.stats.schools")} loading={statsLoading} delay={0} color="emerald" locale={locale} />
+              <StatCard icon={Users} value={stats.students} label={t("home.stats.students")} loading={statsLoading} delay={0.15} color="gold" locale={locale} />
+              <StatCard icon={PresentationIcon} value={stats.teachers} label={t("home.stats.teachers")} loading={statsLoading} delay={0.3} color="red" locale={locale} />
             </div>
           )}
         </div>
@@ -826,7 +841,7 @@ export default function Home() {
             transition={{ duration: 0.6 }}
             className="mb-16 text-center"
           >
-            <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-5 py-2 text-sm font-bold text-blue-600">
+            <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#0F5A46]/20 bg-[#0F5A46]/8 px-5 py-2 text-sm font-bold text-[#0F5A46]">
               <BookOpen className="h-4 w-4" />
               {howItWorks.tag}
             </span>
@@ -853,16 +868,16 @@ export default function Home() {
                   {/* Connector line */}
                   {i < howItWorks.steps.length - 1 && (
                     <div className={`absolute top-12 ${isRtl ? "left-0 -translate-x-1/2" : "right-0 translate-x-1/2"} hidden h-0.5 w-full md:block`}>
-                      <div className={`h-full w-full bg-gradient-to-${isRtl ? "l" : "r"} from-blue-200 to-transparent`} />
+                      <div className={`h-full w-full bg-gradient-to-${isRtl ? "l" : "r"} from-[#0F5A46]/25 to-transparent`} />
                     </div>
                   )}
 
                   <motion.div
                     whileHover={{ scale: 1.1, rotate: 5 }}
-                    className="relative mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-blue-50 to-blue-100 text-blue-600 shadow-lg shadow-blue-200/50 group-hover:shadow-blue-300/50 transition-shadow duration-500"
+                    className="relative mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-[#0F5A46]/8 to-[#0F5A46]/15 text-[#0F5A46] shadow-lg shadow-[#0F5A46]/20 group-hover:shadow-[#0F5A46]/30 transition-shadow duration-500"
                   >
                     <StepIcon className="h-10 w-10" strokeWidth={1.5} />
-                    <div className={`absolute -top-2 ${isRtl ? "-right-2" : "-left-2"} flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white shadow-lg`}>
+                    <div className={`absolute -top-2 ${isRtl ? "-right-2" : "-left-2"} flex h-8 w-8 items-center justify-center rounded-full bg-[#0F5A46] text-xs font-bold text-white shadow-lg`}>
                       {String(i + 1).padStart(2, "0")}
                     </div>
                   </motion.div>
@@ -882,12 +897,12 @@ export default function Home() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-100px" }}
           transition={{ duration: 0.7 }}
-          className="relative overflow-hidden rounded-[2.5rem] bg-slate-900 px-6 py-20 text-center text-white sm:px-12 sm:py-28"
+          className="relative overflow-hidden rounded-[2.5rem] bg-[#0A2E24] px-6 py-20 text-center text-white sm:px-12 sm:py-28"
         >
           {/* Animated background */}
           <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute right-0 top-0 h-96 w-96 rounded-full bg-blue-600/15 blur-[100px] glow-pulse" />
-            <div className="absolute left-0 bottom-0 h-96 w-96 rounded-full bg-violet-600/15 blur-[100px] glow-pulse" />
+            <div className="absolute right-0 top-0 h-96 w-96 rounded-full bg-[#0F5A46]/25 blur-[100px] glow-pulse" />
+            <div className="absolute left-0 bottom-0 h-96 w-96 rounded-full bg-[#C8A24B]/15 blur-[100px] glow-pulse" />
             <div className="absolute inset-0 opacity-[0.03]"
               style={{
                 backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)",
@@ -901,7 +916,7 @@ export default function Home() {
               initial={{ opacity: 0, scale: 0.9 }}
               whileInView={{ opacity: 1, scale: 1 }}
               viewport={{ once: true }}
-              className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-5 py-2 text-sm font-bold text-blue-300 backdrop-blur-sm"
+              className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-5 py-2 text-sm font-bold text-[#E3C97B] backdrop-blur-sm"
             >
               <Sparkles className="h-4 w-4" />
               {t("home.cta.tag")}
@@ -911,7 +926,7 @@ export default function Home() {
               <AnimatedText text={t("home.cta.title")} />
             </h2>
 
-            <p className="mx-auto mb-10 max-w-xl text-base leading-relaxed text-slate-400 sm:text-lg">
+            <p className="mx-auto mb-10 max-w-xl text-base leading-relaxed text-white/60 sm:text-lg">
               {t("home.cta.subtitle")}
             </p>
 
@@ -921,7 +936,7 @@ export default function Home() {
               className="inline-block"
             >
               <Link to="/schools">
-                <Button className="h-14 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 px-10 text-sm font-bold text-white shadow-2xl shadow-blue-600/30 hover:shadow-blue-600/50 gap-2 transition-all duration-300">
+                <Button className="h-14 rounded-2xl bg-gradient-to-r from-[#C8A24B] to-[#96751F] px-10 text-sm font-bold text-[#0A2E24] shadow-2xl shadow-[#C8A24B]/30 hover:shadow-[#C8A24B]/50 gap-2 transition-all duration-300">
                   {t("home.cta.button")}
                   <TrailingArrow className="h-4 w-4" />
                 </Button>
@@ -936,7 +951,7 @@ export default function Home() {
         <div className="container mx-auto px-4 py-12 sm:px-6 lg:px-8">
           <div className="flex flex-col items-center justify-between gap-8 md:flex-row">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-600/20">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#0F5A46] to-[#0B4436] text-white shadow-lg shadow-[#0F5A46]/20">
                 <GraduationCap className="h-5 w-5" />
               </div>
               <div>
@@ -945,9 +960,9 @@ export default function Home() {
               </div>
             </div>
             <nav className="flex flex-wrap justify-center gap-6 text-sm text-slate-500">
-              <Link to="/" className="hover:text-blue-600 transition-colors font-medium">{t("home.footer.nav.home")}</Link>
-              <Link to="/schools" className="hover:text-blue-600 transition-colors font-medium">{t("home.footer.nav.schools")}</Link>
-              <Link to="/login" className="hover:text-blue-600 transition-colors font-medium">{t("home.footer.nav.login")}</Link>
+              <Link to="/" className="hover:text-[#0F5A46] transition-colors font-medium">{t("home.footer.nav.home")}</Link>
+              <Link to="/schools" className="hover:text-[#0F5A46] transition-colors font-medium">{t("home.footer.nav.schools")}</Link>
+              <Link to="/login" className="hover:text-[#0F5A46] transition-colors font-medium">{t("home.footer.nav.login")}</Link>
             </nav>
           </div>
         </div>

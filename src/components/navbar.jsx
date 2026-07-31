@@ -4,6 +4,7 @@ import { GraduationCap, LayoutDashboard, LogOut, Globe } from "lucide-react";
 import { useAuth } from "../context/authContext";
 import { useLanguage } from "../context/LanguageContext";
 import "../Css/Navbar.css";
+import logo from "../assets/num3.png";
 
 import {
   Menu,
@@ -81,11 +82,21 @@ const changeLanguage = (lang) => {
     <header dir={dir} className="navbar">
       {/* Logo */}
       <Link to="/" className="navbar__logo" onClick={closeMenu}>
-        <div className="navbar__logo-mark">
-          <GraduationCap size={18} strokeWidth={2.4} />
-        </div>
-        <span className="navbar__logo-text">{t("navbar.platformName")}</span>
-      </Link>
+    <img
+        src={logo}
+        alt="Numeria Academy"
+        className="navbar__logo-image"
+    />
+
+    <div className="navbar__brand">
+        <span className="navbar__logo-text">
+            Numeria Academy
+        </span>
+
+        
+    </div>
+</Link>
+      
 
       {/* Desktop nav */}
       <nav className="navbar__nav navbar__nav--desktop">

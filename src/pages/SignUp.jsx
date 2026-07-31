@@ -13,10 +13,15 @@ import ArrowForwardOutlinedIcon from "@mui/icons-material/ArrowForwardOutlined";
 import PhoneOutlinedIcon from "@mui/icons-material/PhoneOutlined";
 import CakeOutlinedIcon from "@mui/icons-material/CakeOutlined";
 import FamilyRestroomOutlinedIcon from "@mui/icons-material/FamilyRestroomOutlined";
-import backImage from "../assets/back.jpg";
+import backImage from "../assets/numeria_login_background.png";
+import platformLogo from "../assets/num3 (2).png";
 import { useLanguage } from "../context/LanguageContext";
 
-const P = "#2563eb";
+// ── Brand palette ──
+const PRIMARY = "#0F5A46";   // Deep Emerald
+const SECONDARY = "#C8A24B"; // Royal Gold
+const ACCENT = "#C53030";    // Algerian Red
+const BG = "#FAFAF7";        // Warm Off White
 
 function TextInput({ value, onChange, placeholder, type = "text", min, disabled }) {
   return (
@@ -29,19 +34,19 @@ function TextInput({ value, onChange, placeholder, type = "text", min, disabled 
       disabled={disabled}
       style={{
         width: "100%",
-        padding: "10px 12px",
+        padding: "9px 12px",
         borderRadius: 10,
-        border: "1.5px solid #E2E8F0",
+        border: "1.5px solid #E2DFD5",
         fontSize: 13,
-        color: "#0F172A",
+        color: "#1C2B27",
         fontFamily: "'Cairo',sans-serif",
-        background: disabled ? "#F1F5F9" : "#FAFCFF",
+        background: disabled ? "#F1EFE7" : "#FFFFFF",
         outline: "none",
         boxSizing: "border-box",
         opacity: disabled ? 0.6 : 1,
       }}
-      onFocus={(e) => !disabled && (e.target.style.borderColor = P)}
-      onBlur={(e) => (e.target.style.borderColor = "#E2E8F0")}
+      onFocus={(e) => !disabled && (e.target.style.borderColor = PRIMARY)}
+      onBlur={(e) => (e.target.style.borderColor = "#E2DFD5")}
     />
   );
 }
@@ -249,7 +254,7 @@ export default function Signup() {
               </select>
 
               {level === otherLevelLabel && (
-                <div style={{ marginTop: 12 }}>
+                <div style={{ marginTop: 10 }}>
                   <TextInput
                     value={customLevel}
                     onChange={setCustomLevel}
@@ -331,6 +336,11 @@ export default function Signup() {
       {/* ── Right (decorative) ── */}
       <div style={styles.rightSide}>
         <div style={styles.rightSideOverlay}></div>
+
+        <Link to="/" className="home-btn" style={styles.homeButton} aria-label="Home">
+          <img src={platformLogo} alt="" style={styles.homeLogo} />
+        </Link>
+
         <div style={styles.rightSideContent}>
           <div style={styles.rightSideInner}>
             <h2 style={styles.rightSideTitle}>{t("signup.rightTitle")}</h2>
@@ -372,20 +382,21 @@ function InputRow({ icon, children }) {
   );
 }
 
-/* ── Styles (unchanged palette) ── */
+/* ── Styles (rebranded palette, tightened + higher-contrast) ── */
 const styles = {
   container: {
-    minHeight: "100vh",
+    height: "100vh",
     display: "flex",
-    backgroundColor: "#fafafa",
+    backgroundColor: BG,
+    overflow: "hidden",
   },
 
   alert: {
     position: "fixed",
     top: "20px",
     right: "20px",
-    backgroundColor: "#fee2e2",
-    color: "#991b1b",
+    backgroundColor: "#FBE4E4",
+    color: "#7A1F1F",
     padding: "12px 18px",
     borderRadius: "12px",
     display: "flex",
@@ -393,6 +404,7 @@ const styles = {
     gap: "10px",
     zIndex: 1000,
     boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
+    border: `1px solid ${ACCENT}33`,
   },
 
   alertClose: {
@@ -400,7 +412,7 @@ const styles = {
     border: "none",
     fontSize: "20px",
     cursor: "pointer",
-    color: "#991b1b",
+    color: "#7A1F1F",
   },
 
   leftSide: {
@@ -408,55 +420,55 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    padding: "40px",
-    backgroundColor: "#ffffff",
+    padding: "20px 40px",
+    backgroundColor: "#FFFFFF",
     overflowY: "auto",
   },
 
   formWrapper: {
     width: "100%",
     maxWidth: "420px",
-    paddingTop: "40px",
-    paddingBottom: "40px",
+    paddingTop: "12px",
+    paddingBottom: "12px",
   },
 
-  logoSection: { marginBottom: "32px" },
+  logoSection: { marginBottom: "16px", display: "flex", alignItems: "center", gap: "12px" },
 
   logoCircle: {
-    width: "56px",
-    height: "56px",
-    borderRadius: "18px",
-    backgroundColor: "#2563eb",
+    width: "44px",
+    height: "44px",
+    borderRadius: "14px",
+    backgroundColor: PRIMARY,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: "26px",
-    marginBottom: "14px",
+    fontSize: "20px",
     color: "white",
+    flexShrink: 0,
   },
 
-  logoSubtext: { color: "#64748b", fontSize: "15px" },
+  logoSubtext: { color: "#5B6B66", fontSize: "14px", margin: 0 },
 
-  welcomeSection: { marginBottom: "32px" },
+  welcomeSection: { marginBottom: "18px" },
 
   welcomeTitle: {
-    fontSize: "36px",
+    fontSize: "26px",
     fontWeight: "800",
-    color: "#0f172a",
-    marginBottom: "10px",
+    color: "#132420",
+    marginBottom: "4px",
   },
 
   welcomeSubtitle: {
-    color: "#64748b",
-    lineHeight: "1.7",
-    fontSize: "16px",
+    color: "#5B6B66",
+    lineHeight: "1.5",
+    fontSize: "14px",
   },
 
-  form: { display: "flex", flexDirection: "column", gap: "20px" },
+  form: { display: "flex", flexDirection: "column", gap: "13px" },
 
-  inputGroup: { display: "flex", flexDirection: "column", gap: "8px" },
+  inputGroup: { display: "flex", flexDirection: "column", gap: "5px" },
 
-  label: { fontSize: "14px", fontWeight: "600", color: "#334155" },
+  label: { fontSize: "13px", fontWeight: "600", color: "#334740" },
 
   inputWrapper: { position: "relative" },
 
@@ -469,15 +481,15 @@ const styles = {
     zIndex: 1,
   },
 
-  icon: { color: "#94a3b8", fontSize: "20px" },
+  icon: { color: "#8FA39C", fontSize: "19px" },
 
   input: {
     width: "100%",
-    height: "52px",
+    height: "44px",
     padding: "0 44px",
-    border: "1px solid #e2e8f0",
-    borderRadius: "14px",
-    fontSize: "15px",
+    border: "1px solid #E2DFD5",
+    borderRadius: "12px",
+    fontSize: "14px",
     backgroundColor: "#fff",
     outline: "none",
     transition: "all 0.2s ease",
@@ -498,19 +510,20 @@ const styles = {
 
   submitButton: {
     width: "100%",
-    height: "52px",
+    height: "46px",
     border: "none",
-    borderRadius: "14px",
-    backgroundColor: "#2563eb",
+    borderRadius: "12px",
+    backgroundColor: PRIMARY,
     color: "white",
     fontWeight: "700",
-    fontSize: "15px",
+    fontSize: "14px",
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     gap: "8px",
     transition: "all 0.2s ease",
+    marginTop: "4px",
   },
 
   spinner: {
@@ -524,25 +537,25 @@ const styles = {
 
   buttonIcon: { fontSize: "18px" },
 
-  loginContainer: { textAlign: "center" },
+  loginContainer: { textAlign: "center", marginTop: "2px" },
 
-  loginText: { color: "#64748b", fontSize: "14px" },
+  loginText: { color: "#5B6B66", fontSize: "13px" },
 
-  loginLink: { color: "#2563eb", fontWeight: "700", textDecoration: "none" },
+  loginLink: { color: PRIMARY, fontWeight: "700", textDecoration: "none" },
 
   rightSide: {
     flex: 1,
     position: "relative",
     display: "flex",
     overflow: "hidden",
-    backgroundColor: "#0f172a",
+    backgroundColor: PRIMARY,
   },
 
   rightSideOverlay: {
     position: "absolute",
     inset: 0,
     backgroundImage: `
-      linear-gradient(rgba(15,23,42,0.75), rgba(15,23,42,0.75)),
+      linear-gradient(rgba(15,45,37,0.86), rgba(15,45,37,0.86)),
       url(${backImage})
     `,
     backgroundSize: "cover",
@@ -550,51 +563,84 @@ const styles = {
     backgroundRepeat: "no-repeat",
   },
 
+  homeButton: {
+    position: "absolute",
+    top: "22px",
+    insetInlineEnd: "22px",
+    zIndex: 3,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "105px",
+    height: "105px",
+    borderRadius: "24px",
+    backgroundColor: "rgba(255,255,255,0.12)",
+    border: "1px solid rgba(255,255,255,0.28)",
+    backdropFilter: "blur(6px)",
+    textDecoration: "none",
+    boxShadow: `0 0 0 4px ${SECONDARY}1F, 0 4px 14px rgba(0,0,0,0.25)`,
+  },
+
+  homeLogo: {
+    width: "105px",
+    height: "105px",
+    objectFit: "contain",
+    borderRadius: "6px",
+  },
+
   rightSideContent: {
     position: "relative",
     zIndex: 2,
     display: "flex",
     alignItems: "center",
-    padding: "64px",
+    padding: "40px 56px",
+    width: "100%",
   },
 
   rightSideInner: { maxWidth: "520px", color: "white" },
 
   rightSideTitle: {
-    fontSize: "48px",
+    fontSize: "34px",
     fontWeight: "800",
-    lineHeight: "1.1",
-    marginBottom: "24px",
+    lineHeight: "1.15",
+    marginBottom: "14px",
+    color: "#FFFFFF",
   },
 
   rightSideDescription: {
-    fontSize: "18px",
-    lineHeight: "1.8",
-    color: "rgba(255,255,255,0.8)",
-    marginBottom: "40px",
+    fontSize: "15px",
+    lineHeight: "1.65",
+    color: "rgba(255,255,255,0.85)",
+    marginBottom: "26px",
   },
 
-  featuresList: { display: "flex", flexDirection: "column", gap: "24px" },
+  featuresList: { display: "flex", flexDirection: "column", gap: "16px" },
 
-  featureItem: { display: "flex", gap: "16px" },
+  featureItem: { display: "flex", gap: "14px", alignItems: "flex-start" },
 
+  // "Bloom" treatment: brighter gold, near-black bold glyph with a soft glow
+  // so the checkmark reads clearly against the dark green background.
   featureIcon: {
-    width: "34px",
-    height: "34px",
+    width: "30px",
+    height: "30px",
     borderRadius: "50%",
-    backgroundColor: "rgba(255,255,255,0.15)",
+    backgroundColor: SECONDARY,
+    color: "#0B140F",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
+    fontWeight: "900",
+    fontSize: "14px",
+    boxShadow: `0 0 0 4px ${SECONDARY}26, 0 0 14px ${SECONDARY}80`,
   },
 
-  featureTitle: { fontSize: "17px", fontWeight: "700", marginBottom: "4px" },
+  featureTitle: { fontSize: "16px", fontWeight: "700", marginBottom: "3px", color: "#FFFFFF" },
 
   featureDescription: {
-    fontSize: "14px",
-    color: "rgba(255,255,255,0.7)",
-    lineHeight: "1.7",
+    fontSize: "13px",
+    color: "rgba(255,255,255,0.75)",
+    lineHeight: "1.6",
   },
 };
 
@@ -606,9 +652,10 @@ styleSheet.textContent = `
   to   { transform: rotate(360deg); }
 }
 input:focus, select:focus {
-  border-color: #2563eb !important;
-  box-shadow: 0 0 0 4px rgba(37,99,235,0.1);
+  border-color: ${PRIMARY} !important;
+  box-shadow: 0 0 0 4px ${PRIMARY}1A;
 }
 button:hover { opacity: 0.95; }
+.home-btn:hover { background-color: rgba(255,255,255,0.22) !important; transform: translateY(-1px); }
 `;
 document.head.appendChild(styleSheet);

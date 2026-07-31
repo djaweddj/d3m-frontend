@@ -26,7 +26,7 @@ import SchoolRegister from "./pages/SchoolRegister";
 
 // Dashboard Pages
 import Dashboard from "./pages/Dashboard";
-import Students from "./pages/Students";
+import Students from "./pages/students";
 import Teachers from "./pages/Teachers";
 import Schedule from "./pages/Schedule";
 import Settings from "./pages/Settings";

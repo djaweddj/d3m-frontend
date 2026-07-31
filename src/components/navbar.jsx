@@ -52,7 +52,13 @@ const currentLanguage = LANGUAGES.find(
   (l) => l.code === language
 );
 
-  const dashboardPath = user?.role === "SCHOOL_ADMIN" ? "/Dashboard" : "/studentdashboard";
+
+const dashboardPath =
+  user?.role === "SCHOOL_ADMIN"
+    ? "/Dashboard"
+    : user?.role === "TEACHER"
+    ? "/teacherDashboard"
+    : "/studentdashboard";
 
   const initials =
     user?.avatar ||
@@ -75,7 +81,7 @@ const changeLanguage = (lang) => {
 };
 
 
-  const isLoggedIn = user?.role === "STUDENT" || user?.role === "SCHOOL_ADMIN";
+  const isLoggedIn = user?.role === "STUDENT" || user?.role === "SCHOOL_ADMIN" || user?.role ==="TEACHER";
 
   return (
     <header dir={dir} className="navbar">
@@ -175,45 +181,7 @@ const changeLanguage = (lang) => {
   </Menu>
 </div>
       </nav>
-       <nav className="navbar__nav navbar__nav--desktop" style={{display:user?.role !="TEACHER"?"none":"flex"}}>
-        {user?.role === "TEACHER"  ? (
-          <>
-            <button
-              className="nav-btn nav-btn--dashboard"
-              onClick={() => navigate("/teacherDashboard")}
-            >
-              <LayoutDashboard size={14} />
-              لوحتي
-            </button>
-
-            <div
-              className="navbar__user"
-              onClick={() => navigate("/teacherDashboard")}
-            >
-              <div className="navbar__avatar">{initials}</div>
-              <span className="navbar__user-name">{user.fullName}</span>
-            </div>
-
-            <button
-              className="nav-icon-btn"
-              onClick={logout}
-              title="تسجيل الخروج"
-              aria-label="تسجيل الخروج"
-            >
-              <LogOut size={14} />
-            </button>
-          </>
-        ) : (
-          <>
-            <Link to="/login" className="nav-btn nav-btn--ghost">
-              تسجيل الدخول
-            </Link>
-            <Link to="/signup" className="nav-btn nav-btn--solid">
-              إنشاء حساب
-            </Link>
-          </>
-        )}
-      </nav>
+      
 
       {/* Mobile hamburger */}
       <button

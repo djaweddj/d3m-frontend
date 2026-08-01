@@ -1,5 +1,5 @@
 import { Outlet } from "react-router";
-import Sidebar from "../components/Sidebar";
+import Sidebar from "../components/sidebar";
 import Topbar from "../components/Topbar";
 import { SchoolProvider } from "../context/SchoolContext";
 

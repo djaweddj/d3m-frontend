@@ -1472,7 +1472,7 @@ export default function SchoolDetails() {
     if (user?.role === "STUDENT") {
       api.get(`/api/enrollments/accepted/${id}`).then((res) => {
         setEnrolledIds(res.data.map((e) => e.moduleId));
-        console.log("accepted : ", res.data);
+   
       }).catch(() => {});
       api.get(`/api/enrollments/pending/${id}`).then((res) => {
         setPendingIds(res.data.map((e) => e.moduleId));
@@ -1485,7 +1485,7 @@ export default function SchoolDetails() {
     setCoursesLoading(true);
     api.get("/api/courses/browse", { params: { schoolId: id, level: "" } })
       .then((res) => {
-        console.log("dorat", res.data);
+       
         setCourses(res.data || []);
       })
       .catch(() => setCourses([]))

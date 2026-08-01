@@ -9,9 +9,16 @@ import MailOutlinedIcon from "@mui/icons-material/MailOutlined";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import ArrowForwardOutlinedIcon from "@mui/icons-material/ArrowForwardOutlined";
 
-import backImage from "../assets/back.jpg";
+import backImage from "../assets/numeria_login_background.png";
+import platformLogo from "../assets/num3 (2).png";
 import { useAuth } from "../context/authContext";
 import { useLanguage } from "../context/LanguageContext";
+
+// ── Brand palette ──
+const PRIMARY = "#0F5A46";   // Deep Emerald
+const SECONDARY = "#C8A24B"; // Royal Gold
+const ACCENT = "#C53030";    // Algerian Red
+const BG = "#FAFAF7";        // Warm Off White
 
 export default function Login() {
   const { t, dir } = useLanguage();
@@ -174,7 +181,7 @@ export default function Login() {
               </div>
             </div>
 
-            <Link to="/forgot-password" style={{ color: "blue", textDecoration: "underline" }}>
+            <Link to="/forgot-password" style={styles.forgotPasswordLink}>
               {t("login.forgotPassword")}
             </Link>
 
@@ -184,7 +191,7 @@ export default function Login() {
               disabled={loading || cooldown > 0}
               style={{
                 ...styles.submitButton,
-                backgroundColor: cooldown > 0 ? "#94a3b8" : "#2563eb",
+                backgroundColor: cooldown > 0 ? "#A9B5B1" : PRIMARY,
                 cursor: cooldown > 0 ? "not-allowed" : "pointer",
               }}
             >
@@ -219,6 +226,10 @@ export default function Login() {
       {/* Right Side */}
       <div style={styles.rightSide}>
         <div style={styles.rightSideOverlay}></div>
+
+        <Link to="/" className="home-btn" style={styles.homeButton} aria-label="Home">
+          <img src={platformLogo} alt="" style={styles.homeLogo} />
+        </Link>
 
         <div style={styles.rightSideContent}>
           <div style={styles.rightSideInner}>
@@ -260,17 +271,18 @@ export default function Login() {
 
 const styles = {
   container: {
-    minHeight: "100vh",
+    height: "100vh",
     display: "flex",
-    backgroundColor: "#fafafa",
+    backgroundColor: BG,
+    overflow: "hidden",
   },
 
   alert: {
     position: "fixed",
     top: "20px",
     right: "20px",
-    backgroundColor: "#fee2e2",
-    color: "#991b1b",
+    backgroundColor: "#FBE4E4",
+    color: "#7A1F1F",
     padding: "12px 18px",
     borderRadius: "12px",
     display: "flex",
@@ -278,6 +290,7 @@ const styles = {
     gap: "10px",
     zIndex: 1000,
     boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
+    border: `1px solid ${ACCENT}33`,
   },
 
   alertClose: {
@@ -285,7 +298,7 @@ const styles = {
     border: "none",
     fontSize: "20px",
     cursor: "pointer",
-    color: "#991b1b",
+    color: "#7A1F1F",
   },
 
   leftSide: {
@@ -293,8 +306,9 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    padding: "40px",
+    padding: "20px 40px",
     backgroundColor: "#ffffff",
+    overflowY: "auto",
   },
 
   formWrapper: {
@@ -303,60 +317,64 @@ const styles = {
   },
 
   logoSection: {
-    marginBottom: "40px",
+    marginBottom: "18px",
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
   },
 
   logoCircle: {
-    width: "56px",
-    height: "56px",
-    borderRadius: "18px",
-    backgroundColor: "#2563eb",
+    width: "44px",
+    height: "44px",
+    borderRadius: "14px",
+    backgroundColor: PRIMARY,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: "26px",
-    marginBottom: "14px",
+    fontSize: "20px",
     color: "white",
+    flexShrink: 0,
   },
 
   logoSubtext: {
-    color: "#64748b",
-    fontSize: "15px",
+    color: "#5B6B66",
+    fontSize: "14px",
+    margin: 0,
   },
 
   welcomeSection: {
-    marginBottom: "36px",
+    marginBottom: "20px",
   },
 
   welcomeTitle: {
-    fontSize: "40px",
+    fontSize: "28px",
     fontWeight: "800",
-    color: "#0f172a",
-    marginBottom: "10px",
+    color: "#132420",
+    marginBottom: "5px",
   },
 
   welcomeSubtitle: {
-    color: "#64748b",
-    lineHeight: "1.7",
-    fontSize: "16px",
+    color: "#5B6B66",
+    lineHeight: "1.5",
+    fontSize: "14px",
   },
 
   form: {
     display: "flex",
     flexDirection: "column",
-    gap: "24px",
+    gap: "16px",
   },
 
   inputGroup: {
     display: "flex",
     flexDirection: "column",
-    gap: "10px",
+    gap: "6px",
   },
 
   label: {
-    fontSize: "14px",
+    fontSize: "13px",
     fontWeight: "600",
-    color: "#334155",
+    color: "#334740",
   },
 
   inputWrapper: {
@@ -371,17 +389,17 @@ const styles = {
   },
 
   icon: {
-    color: "#94a3b8",
-    fontSize: "20px",
+    color: "#8FA39C",
+    fontSize: "19px",
   },
 
   input: {
     width: "100%",
-    height: "52px",
+    height: "46px",
     padding: "0 44px",
-    border: "1px solid #e2e8f0",
-    borderRadius: "14px",
-    fontSize: "15px",
+    border: "1px solid #E2DFD5",
+    borderRadius: "12px",
+    fontSize: "14px",
     backgroundColor: "#fff",
     outline: "none",
     transition: "all 0.2s ease",
@@ -398,15 +416,23 @@ const styles = {
     cursor: "pointer",
   },
 
+  forgotPasswordLink: {
+    color: PRIMARY,
+    textDecoration: "underline",
+    fontSize: "13px",
+    fontWeight: "600",
+    alignSelf: "flex-start",
+  },
+
   submitButton: {
     width: "100%",
-    height: "52px",
+    height: "46px",
     border: "none",
-    borderRadius: "14px",
-    backgroundColor: "#2563eb",
+    borderRadius: "12px",
+    backgroundColor: PRIMARY,
     color: "white",
     fontWeight: "700",
-    fontSize: "15px",
+    fontSize: "14px",
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
@@ -433,12 +459,12 @@ const styles = {
   },
 
   signupText: {
-    color: "#64748b",
-    fontSize: "14px",
+    color: "#5B6B66",
+    fontSize: "13px",
   },
 
   signupLink: {
-    color: "#2563eb",
+    color: PRIMARY,
     fontWeight: "700",
     textDecoration: "none",
   },
@@ -448,7 +474,7 @@ const styles = {
     position: "relative",
     display: "flex",
     overflow: "hidden",
-    backgroundColor: "#0f172a",
+    backgroundColor: PRIMARY,
   },
 
   rightSideOverlay: {
@@ -457,8 +483,8 @@ const styles = {
 
     backgroundImage: `
       linear-gradient(
-        rgba(15,23,42,0.75),
-        rgba(15,23,42,0.75)
+        rgba(15,45,37,0.86),
+        rgba(15,45,37,0.86)
       ),
       url(${backImage})
     `,
@@ -468,12 +494,38 @@ const styles = {
     backgroundRepeat: "no-repeat",
   },
 
+  homeButton: {
+    position: "absolute",
+    top: "22px",
+    insetInlineEnd: "22px",
+    zIndex: 3,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "105px",
+    height: "105px",
+    borderRadius: "24px",
+    backgroundColor: "rgba(255,255,255,0.12)",
+    border: "1px solid rgba(255,255,255,0.28)",
+    backdropFilter: "blur(6px)",
+    textDecoration: "none",
+    boxShadow: `0 0 0 4px ${SECONDARY}1F, 0 4px 14px rgba(0,0,0,0.25)`,
+  },
+
+  homeLogo: {
+    width: "105px",
+    height: "105px",
+    objectFit: "contain",
+    borderRadius: "6px",
+  },
+
   rightSideContent: {
     position: "relative",
     zIndex: 2,
     display: "flex",
     alignItems: "center",
-    padding: "64px",
+    padding: "40px 56px",
+    width: "100%",
   },
 
   rightSideInner: {
@@ -482,51 +534,60 @@ const styles = {
   },
 
   rightSideTitle: {
-    fontSize: "48px",
+    fontSize: "34px",
     fontWeight: "800",
-    lineHeight: "1.1",
-    marginBottom: "24px",
+    lineHeight: "1.15",
+    marginBottom: "14px",
+    color: "#FFFFFF",
   },
 
   rightSideDescription: {
-    fontSize: "18px",
-    lineHeight: "1.8",
-    color: "rgba(255,255,255,0.8)",
-    marginBottom: "40px",
+    fontSize: "15px",
+    lineHeight: "1.65",
+    color: "rgba(255,255,255,0.85)",
+    marginBottom: "26px",
   },
 
   featuresList: {
     display: "flex",
     flexDirection: "column",
-    gap: "24px",
+    gap: "16px",
   },
 
   featureItem: {
     display: "flex",
-    gap: "16px",
+    gap: "14px",
+    alignItems: "flex-start",
   },
 
+  // "Bloom" treatment: brighter gold ring, near-black bold glyph with a soft
+  // glow so the checkmark reads clearly against the dark green background.
   featureIcon: {
-    width: "34px",
-    height: "34px",
+    width: "30px",
+    height: "30px",
     borderRadius: "50%",
-    backgroundColor: "rgba(255,255,255,0.15)",
+    backgroundColor: SECONDARY,
+    color: "#0B140F",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
+    fontWeight: "900",
+    fontSize: "14px",
+    boxShadow: `0 0 0 4px ${SECONDARY}26, 0 0 14px ${SECONDARY}80`,
   },
 
   featureTitle: {
-    fontSize: "17px",
+    fontSize: "16px",
     fontWeight: "700",
-    marginBottom: "4px",
+    marginBottom: "3px",
+    color: "#FFFFFF",
   },
 
   featureDescription: {
-    fontSize: "14px",
-    color: "rgba(255,255,255,0.7)",
-    lineHeight: "1.7",
+    fontSize: "13px",
+    color: "rgba(255,255,255,0.75)",
+    lineHeight: "1.6",
   },
 };
 
@@ -544,14 +605,19 @@ styleSheet.textContent = `
 }
 
 input:focus {
-  border-color: #2563eb !important;
+  border-color: ${PRIMARY} !important;
 
   box-shadow:
-    0 0 0 4px rgba(37,99,235,0.1);
+    0 0 0 4px ${PRIMARY}1A;
 }
 
 button:hover {
   opacity: 0.95;
+}
+
+.home-btn:hover {
+  background-color: rgba(255,255,255,0.22) !important;
+  transform: translateY(-1px);
 }
 
 @media (max-width: 1024px) {

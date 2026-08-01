@@ -45,6 +45,7 @@ import CreateModule from "./pages/CreateModule";
 //
  import SuperAdminDashboard from "./pages/SuperAdminDashborad";
 import PasswordResetFlow from "./pages/PasswordReset";
+import SchoolAdminCourses from "./pages/Course";
 
 
 
@@ -105,6 +106,8 @@ export default function App() {
       <Route path="/schedule" element={<Schedule />} />
       <Route path="/createmodule" element={<CreateModule/>} />
       <Route path="/SubjectAndClassRoom" element={<SubjectsAndClassrooms />} />
+      <Route path="/course" element={<SchoolAdminCourses />} />
+
       <Route path="/settings" element={<Settings />} />
       <Route path="/requests" element={<Requests />} />
     </Route>

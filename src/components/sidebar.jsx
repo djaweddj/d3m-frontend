@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Users, GraduationCap,
   CalendarDays, Settings, LogOut, School, UserPlus, BookOpen, Home,
-  ChevronsRight, Menu, X
+  ChevronsRight, Menu, X, Book
 } from "lucide-react";
 import { useAuth } from "../context/authContext";
 import { useLanguage } from "../context/LanguageContext";
@@ -11,15 +11,16 @@ import { useLanguage } from "../context/LanguageContext";
 // `key` maps to sidebar.nav.<key> in translations.js
 // `section` maps to sidebar.sections.<section> in translations.js
 const NAV = [
-  { to: "/home",                icon: Home,            key: "home",               section: null },
-  { to: "/dashboard",           icon: LayoutDashboard, key: "dashboard",          section: null },
-  { to: "/students",            icon: Users,           key: "students",           section: "management" },
-  { to: "/requests",            icon: UserPlus,        key: "requests",           section: null },
-  { to: "/teachers",            icon: GraduationCap,   key: "teachers",           section: null },
-  { to: "/schedule",            icon: CalendarDays,    key: "schedule",           section: null },
-  { to: "/subjectandclassroom", icon: BookOpen,        key: "subjectsClassrooms", section: null },
-  { to: "/createmodule",        icon: BookOpen,        key: "sessions",           section: null },
-  { to: "/settings",            icon: Settings,        key: "settings",           section: "settingsSection" },
+  { to: "/home",                icon: Home,            key: "home",                section: null },
+  { to: "/dashboard",           icon: LayoutDashboard, key: "dashboard",           section: null },
+  { to: "/students",            icon: Users,           key: "students",            section: "management" },
+  { to: "/requests",            icon: UserPlus,        key: "requests",            section: null },
+  { to: "/teachers",            icon: GraduationCap,   key: "teachers",            section: null },
+  { to: "/schedule",            icon: CalendarDays,    key: "schedule",            section: null },
+  { to: "/subjectandclassroom", icon: BookOpen,        key: "subjectsClassrooms",  section: null },
+  { to: "/createmodule",        icon: BookOpen,        key: "sessions",            section: null },
+  { to: "/course",              icon: Book,            key: "courses",             section: null },
+  { to: "/settings",            icon: Settings,        key: "settings",            section: "settingsSection" },
 ];
 
 function hexToRgb(hex = "#185FA5") {
@@ -35,6 +36,8 @@ export default function Sidebar() {
   const { user, school, logout } = useAuth();
   const navigate = useNavigate();
   const { t, dir } = useLanguage();
+
+  const isRTL = dir === "rtl";
 
   // desktop collapse/expand
   const [collapsed, setCollapsed] = useState(() => {
@@ -81,18 +84,21 @@ export default function Sidebar() {
   const width = collapsed && !isMobile ? COLLAPSED : EXPANDED;
   const showLabels = !collapsed || isMobile;
 
-  // NOTE: this sidebar's positioning (right:0, borderLeft, translateX direction,
-  // tooltip offset from the right edge, etc.) was built RTL-first. Switching
-  // `dir` correctly flips text and native scrollbars, but a fully mirrored
-  // LTR layout (icons/tooltips on the left, drawer sliding from the left)
-  // would need those positional values swapped per-direction — happy to do
-  // that pass separately if you want true layout mirroring for en/fr.
+  // Directional helpers: this layout was originally built RTL-first
+  // (edge the sidebar docks to, which side the border sits on, which
+  // direction the mobile drawer slides from, tooltip offset, hover
+  // nudge, active-bar edge). These now flip based on `dir` so French
+  // and English get a properly mirrored layout instead of just
+  // mirrored text inside an RTL-positioned shell.
+  const dockSide = isRTL ? "right" : "left";       // side the sidebar sticks to
+  const otherSide = isRTL ? "left" : "right";       // opposite edge
+  const hoverNudge = isRTL ? "translateX(-2px)" : "translateX(2px)";
 
   return (
     <>
       <style>{`
         @keyframes sidebarFadeIn {
-          from { opacity: 0; transform: translateX(12px); }
+          from { opacity: 0; transform: translateX(${isRTL ? "12px" : "-12px"}); }
           to { opacity: 1; transform: translateX(0); }
         }
         @keyframes overlayFadeIn {
@@ -128,7 +134,7 @@ export default function Sidebar() {
         .sb-link:hover {
           background: rgba(255,255,255,0.06);
           color: #E2E8F0;
-          transform: translateX(-2px);
+          transform: ${hoverNudge};
         }
         .sb-link.active {
           color: #fff;
@@ -140,7 +146,7 @@ export default function Sidebar() {
         }
         .sb-active-bar {
           position: absolute;
-          right: 0;
+          ${dockSide}: 0;
           top: 6px;
           bottom: 6px;
           width: 3px;
@@ -170,7 +176,7 @@ export default function Sidebar() {
           transition: color 0.2s ease, background 0.2s ease, transform 0.15s ease;
         }
         .sb-logout-btn:hover {
-          transform: translateX(-2px);
+          transform: ${hoverNudge};
         }
         .sb-fab {
           animation: pulseRing 2.4s ease-in-out infinite;
@@ -187,7 +193,7 @@ export default function Sidebar() {
           className="sb-fab"
           aria-label={t("sidebar.openMenuAria")}
           style={{
-            position: "fixed", top: 14, right: 14, zIndex: 60,
+            position: "fixed", top: 14, [otherSide]: 14, zIndex: 60,
             width: 44, height: 44, borderRadius: 12,
             background: "#0F172A", border: "1px solid rgba(255,255,255,0.1)",
             display: "flex", alignItems: "center", justifyContent: "center",
@@ -220,17 +226,20 @@ export default function Sidebar() {
           height: "100vh",
           position: isMobile ? "fixed" : "sticky",
           top: 0,
-          right: isMobile ? (mobileOpen ? 0 : -EXPANDED) : "auto",
+          [dockSide]: isMobile ? (mobileOpen ? 0 : -EXPANDED) : "auto",
+          [otherSide]: "auto",
           zIndex: 80,
           background: "#0F172A",
           flexShrink: 0,
-          borderLeft: "1px solid rgba(255,255,255,0.07)",
+          [isRTL ? "borderLeft" : "borderRight"]: "1px solid rgba(255,255,255,0.07)",
           fontFamily: "'Cairo', sans-serif",
           transition: isMobile
-            ? "right 0.28s cubic-bezier(0.4,0,0.2,1)"
+            ? `${dockSide} 0.28s cubic-bezier(0.4,0,0.2,1)`
             : "width 0.28s cubic-bezier(0.4,0,0.2,1)",
           overflow: "hidden",
-          boxShadow: isMobile && mobileOpen ? "-8px 0 30px rgba(0,0,0,0.4)" : "none",
+          boxShadow: isMobile && mobileOpen
+            ? `${isRTL ? "-" : ""}8px 0 30px rgba(0,0,0,0.4)`
+            : "none",
         }}
       >
         {/* ── Logo ── */}
@@ -266,7 +275,8 @@ export default function Sidebar() {
               onClick={closeMobile}
               aria-label={t("sidebar.closeMenuAria")}
               style={{
-                marginRight: "auto", background: "none", border: "none",
+                [isRTL ? "marginRight" : "marginLeft"]: "auto",
+                background: "none", border: "none",
                 color: "#64748B", cursor: "pointer", padding: 6,
                 borderRadius: 8, display: "flex",
               }}
@@ -340,7 +350,7 @@ export default function Sidebar() {
 
                 {!showLabels && hoveredTip === item.to && (
                   <div className="sb-tooltip" style={{
-                    position: "absolute", right: COLLAPSED + 6, top: "50%",
+                    position: "absolute", [dockSide]: COLLAPSED + 6, top: "50%",
                     transform: "translateY(-50%)", zIndex: 100,
                     background: "#1E293B", color: "#fff", fontSize: 12,
                     fontWeight: 500, padding: "6px 10px", borderRadius: 8,
@@ -374,7 +384,12 @@ export default function Sidebar() {
             >
               <ChevronsRight
                 size={16}
-                style={{ transform: collapsed ? "rotate(180deg)" : "rotate(0deg)", flexShrink: 0 }}
+                style={{
+                  transform: collapsed
+                    ? (isRTL ? "rotate(180deg)" : "rotate(0deg)")
+                    : (isRTL ? "rotate(0deg)" : "rotate(180deg)"),
+                  flexShrink: 0,
+                }}
               />
               {showLabels && <span>{t("sidebar.collapseMenu")}</span>}
             </button>

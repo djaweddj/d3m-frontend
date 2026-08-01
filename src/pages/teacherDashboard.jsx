@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { useNavigate , Link} from "react-router-dom";
 import {
-  LayoutDashboard, User, Users, CalendarDays, Wallet, LogOut, School,
+  LayoutDashboard, User, Users, CalendarDays, Wallet, LogOut, School, ClipboardCheck,
+  Home,
 } from "lucide-react";
 import { useAuth } from "../context/authContext";
-import { useLanguage } from "../context/LanguageContext";
 
-const API = "http://localhost:8081/api";
+const API = "http://localhost:8080/api";
 
 function getToken() {
   return localStorage.getItem("accessToken");
@@ -22,37 +22,55 @@ function authHeaders() {
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
-function formatPeriod(period, t) {
+const ARABIC_MONTHS = [
+  "جانفي", "فيفري", "مارس", "أفريل", "ماي", "جوان",
+  "جويلية", "أوت", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر",
+];
+
+function formatPeriod(period) {
   if (!period) return "—";
   const [y, m] = period.split("-");
   const idx = parseInt(m, 10) - 1;
-  const months = t("teacherDashboard.months");
-  const monthName = Array.isArray(months) ? months[idx] : m;
-  return `${monthName ?? m} ${y}`;
+  return `${ARABIC_MONTHS[idx] ?? m} ${y}`;
 }
 
 function formatTime(t) {
   return t ? t.slice(0, 5) : "—";
 }
 
-function formatMoney(v, t, locale) {
+function formatMoney(v) {
   if (v === null || v === undefined) return "—";
-  return `${Number(v).toLocaleString(locale || "en-US")} ${t("teacherDashboard.currency")}`;
+  return `${Number(v).toLocaleString("en-US")} دج`;
 }
 
-function formatDate(dt, locale) {
+function formatDate(dt) {
   if (!dt) return null;
   const d = new Date(dt);
-  return d.toLocaleDateString(locale || "ar-DZ", { year: "numeric", month: "long", day: "numeric" });
+  return d.toLocaleDateString("ar-DZ", { year: "numeric", month: "long", day: "numeric" });
 }
 
+const DAY_LABELS = {
+  SUNDAY: "الأحد",
+  MONDAY: "الإثنين",
+  TUESDAY: "الثلاثاء",
+  WEDNESDAY: "الأربعاء",
+  THURSDAY: "الخميس",
+  FRIDAY: "الجمعة",
+  SATURDAY: "السبت",
+};
+
 const DAY_ORDER = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
+
+const PAYOUT_STATUS = {
+  PENDING: { label: "قيد الانتظار", classes: "bg-amber-50 text-amber-600 border-amber-100" },
+  PAID: { label: "مدفوع", classes: "bg-emerald-50 text-emerald-600 border-emerald-100" },
+};
 
 // ─── API calls ────────────────────────────────────────────────────────────────
 
 async function fetchProfile() {
   const res = await fetch(`${API}/teachers/profile`, { headers: authHeaders() });
-  if (!res.ok) throw new Error("PROFILE_LOAD_FAILED");
+  if (!res.ok) throw new Error("فشل تحميل الملف الشخصي");
   return res.json();
 }
 
@@ -62,25 +80,52 @@ async function updateProfile(data) {
     headers: authHeaders(),
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error("PROFILE_SAVE_FAILED");
+  if (!res.ok) throw new Error("فشل حفظ التعديلات");
   return res.json();
 }
 
 async function fetchMyModules() {
   const res = await fetch(`${API}/modules/mine`, { headers: authHeaders() });
-  if (!res.ok) throw new Error("MODULES_LOAD_FAILED");
+  if (!res.ok) throw new Error("فشل تحميل الأقسام");
   return res.json();
 }
 
 async function fetchStudentsByModule(moduleId) {
   const res = await fetch(`${API}/students/by-module/${moduleId}`, { headers: authHeaders() });
-  if (!res.ok) throw new Error("STUDENTS_LOAD_FAILED");
+  if (!res.ok) throw new Error("فشل تحميل قائمة التلاميذ");
   return res.json();
 }
 
 async function fetchMyPayouts() {
   const res = await fetch(`${API}/payouts/mine`, { headers: authHeaders() });
-  if (!res.ok) throw new Error("PAYOUTS_LOAD_FAILED");
+  if (!res.ok) throw new Error("فشل تحميل المستحقات");
+  return res.json();
+}
+async function fetchMyCoursePayouts() {
+  const res = await fetch(`${API}/courses/payouts/mine`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("فشل تحميل مستحقات الدورات");
+  return res.json();
+}
+
+async function fetchMySessionsByDate(date) {
+  const res = await fetch(`${API}/sessions/my-sessions?date=${date}`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("فشل تحميل حصص اليوم");
+  return res.json();
+}
+
+async function fetchAttendanceSheet(sessionId) {
+  const res = await fetch(`${API}/sessions/${sessionId}/my-attendance-sheet`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("فشل تحميل ورقة الحضور");
+  return res.json();
+}
+
+async function markAttendance(sessionId, entries) {
+  const res = await fetch(`${API}/sessions/${sessionId}/teacher-attendance`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(entries),
+  });
+  if (!res.ok) throw new Error("فشل تسجيل الحضور");
   return res.json();
 }
 
@@ -92,30 +137,10 @@ async function fetchMyPayoutForMonth(period) {
     headers: authHeaders(),
   });
   if (res.status === 404) return null;
-<<<<<<< HEAD
   if (!res.ok) throw new Error("فشل تحميل مستحقات هذا الشهر");
   return res.json();
 }
 
-=======
-  if (!res.ok) throw new Error("PAYOUT_MONTH_LOAD_FAILED");
-  return res.json();
-}
-
-// Maps internal error codes to translated messages
-function errMsg(t, code) {
-  const map = {
-    PROFILE_LOAD_FAILED: t("teacherDashboard.errors.profileLoad"),
-    PROFILE_SAVE_FAILED: t("teacherDashboard.errors.profileSave"),
-    MODULES_LOAD_FAILED: t("teacherDashboard.errors.modulesLoad"),
-    STUDENTS_LOAD_FAILED: t("teacherDashboard.errors.studentsLoad"),
-    PAYOUTS_LOAD_FAILED: t("teacherDashboard.errors.payoutsLoad"),
-    PAYOUT_MONTH_LOAD_FAILED: t("teacherDashboard.errors.payoutMonthLoad"),
-  };
-  return map[code] || code;
-}
-
->>>>>>> a1933d6 (add launguages transition)
 // ─── Tiny shared components ───────────────────────────────────────────────────
 
 function Blob({ className }) {
@@ -147,13 +172,12 @@ function ErrorBanner({ message }) {
   );
 }
 
-function Spinner({ label }) {
-  const { t } = useLanguage();
+function Spinner({ label = "جاري التحميل..." }) {
   return (
     <div className="flex flex-1 items-center justify-center p-16">
       <div className="text-center">
         <div className="mb-4 h-10 w-10 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600 mx-auto" />
-        <p className="text-slate-500 font-semibold">{label || t("teacherDashboard.common.loading")}</p>
+        <p className="text-slate-500 font-semibold">{label}</p>
       </div>
     </div>
   );
@@ -174,7 +198,6 @@ function PageHeader({ badge, title, subtitle }) {
 // ─── Logout confirmation modal ─────────────────────────────────────────────────
 
 function LogoutModal({ onConfirm, onCancel }) {
-  const { t, dir } = useLanguage();
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -183,7 +206,6 @@ function LogoutModal({ onConfirm, onCancel }) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
     >
       <motion.div
-        dir={dir}
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         className="w-full max-w-sm rounded-[28px] border border-slate-200 bg-white p-8 text-center shadow-2xl"
@@ -191,20 +213,20 @@ function LogoutModal({ onConfirm, onCancel }) {
         <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-red-50 text-3xl">
           🚪
         </div>
-        <h2 className="mb-2 text-xl font-extrabold text-slate-900">{t("teacherDashboard.logoutModal.title")}</h2>
-        <p className="mb-6 text-sm text-slate-500">{t("teacherDashboard.logoutModal.question")}</p>
+        <h2 className="mb-2 text-xl font-extrabold text-slate-900">تسجيل الخروج</h2>
+        <p className="mb-6 text-sm text-slate-500">هل أنت متأكد أنك تريد تسجيل الخروج من حسابك؟</p>
         <div className="flex gap-3">
           <button
             onClick={onCancel}
             className="flex-1 rounded-2xl bg-slate-100 px-5 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-200"
           >
-            {t("teacherDashboard.logoutModal.cancel")}
+            إلغاء
           </button>
           <button
             onClick={onConfirm}
             className="flex-1 rounded-2xl bg-gradient-to-br from-red-500 to-rose-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-red-200"
           >
-            {t("teacherDashboard.logoutModal.confirm")}
+            تسجيل الخروج
           </button>
         </div>
       </motion.div>
@@ -215,7 +237,6 @@ function LogoutModal({ onConfirm, onCancel }) {
 // ─── Profile page ─────────────────────────────────────────────────────────────
 
 function ProfilePage({ profile, onSaved }) {
-  const { t, dir } = useLanguage();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(profile);
   const [saving, setSaving] = useState(false);
@@ -238,7 +259,7 @@ function ProfilePage({ profile, onSaved }) {
       onSaved(updated);
       setEditing(false);
     } catch (e) {
-      setError(errMsg(t, e.message));
+      setError(e.message);
     } finally {
       setSaving(false);
     }
@@ -247,7 +268,7 @@ function ProfilePage({ profile, onSaved }) {
   const cur = editing ? draft : profile;
 
   return (
-    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-8" dir={dir}>
+    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-8" dir="rtl">
       <Blob className="right-[-100px] top-[-100px] h-[350px] w-[350px] bg-blue-100/60" />
       <Blob className="bottom-[-100px] left-[-100px] h-[320px] w-[320px] bg-emerald-100/50" />
 
@@ -259,10 +280,10 @@ function ProfilePage({ profile, onSaved }) {
         >
           <div>
             <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-4 py-1.5 text-sm font-semibold text-emerald-600">
-              👤 {t("teacherDashboard.profile.badge")}
+              👤 الملف الشخصي
             </span>
-            <h1 className="mt-4 text-5xl font-extrabold text-slate-900">{t("teacherDashboard.profile.title")}</h1>
-            <p className="mt-3 text-lg text-slate-500">{t("teacherDashboard.profile.subtitle")}</p>
+            <h1 className="mt-4 text-5xl font-extrabold text-slate-900">بروفايلي</h1>
+            <p className="mt-3 text-lg text-slate-500">اعرض وعدّل معلوماتك الشخصية.</p>
           </div>
 
           <div className="mt-8 flex gap-3">
@@ -272,7 +293,7 @@ function ProfilePage({ profile, onSaved }) {
                 onClick={() => { setDraft(profile); setEditing(true); }}
                 className="flex items-center gap-2 rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-200"
               >
-                ✏️ {t("teacherDashboard.profile.edit")}
+                ✏️ تعديل
               </motion.button>
             ) : (
               <>
@@ -281,13 +302,13 @@ function ProfilePage({ profile, onSaved }) {
                   disabled={saving}
                   className="flex items-center gap-2 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-500 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-200 disabled:opacity-60"
                 >
-                  {saving ? t("teacherDashboard.profile.saving") : `✓ ${t("teacherDashboard.profile.save")}`}
+                  {saving ? "جاري الحفظ..." : "✓ حفظ"}
                 </button>
                 <button
                   onClick={() => { setEditing(false); setError(null); }}
                   className="rounded-2xl bg-slate-100 px-6 py-3 text-sm font-bold text-slate-600 hover:bg-red-50 hover:text-red-500"
                 >
-                  ✕ {t("teacherDashboard.profile.cancel")}
+                  ✕ إلغاء
                 </button>
               </>
             )}
@@ -314,7 +335,7 @@ function ProfilePage({ profile, onSaved }) {
                   value={draft.fullName || ""}
                   onChange={(e) => setDraft((p) => ({ ...p, fullName: e.target.value }))}
                   className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xl font-bold text-slate-900 outline-none focus:border-blue-400 focus:bg-white transition"
-                  placeholder={t("teacherDashboard.profile.fullNamePlaceholder")}
+                  placeholder="الاسم الكامل"
                 />
               ) : (
                 <h2 className="text-3xl font-extrabold text-slate-900">{cur.fullName}</h2>
@@ -322,7 +343,7 @@ function ProfilePage({ profile, onSaved }) {
               <span className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-4 py-1.5 text-sm font-semibold text-blue-600">
                 📚 {cur.specialization || "—"}
               </span>
-              <p className="text-xs text-slate-400">{t("teacherDashboard.profile.specializationNote")}</p>
+              <p className="text-xs text-slate-400">التخصص يُعدّل من طرف إدارة المدرسة فقط</p>
             </div>
           </div>
         </motion.div>
@@ -338,19 +359,19 @@ function ProfilePage({ profile, onSaved }) {
             <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-md">
               ✉️
             </span>
-            {t("teacherDashboard.profile.contactTitle")}
+            معلومات التواصل
           </h3>
           <div className="grid gap-4 md:grid-cols-3">
             <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
-              <p className="mb-1 text-xs text-slate-400">{t("teacherDashboard.profile.emailLabel")}</p>
+              <p className="mb-1 text-xs text-slate-400">البريد الإلكتروني</p>
               <p className="text-sm font-semibold text-slate-800">{cur.email}</p>
             </div>
             <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
-              <p className="mb-1 text-xs text-slate-400">{t("teacherDashboard.profile.idLabel")}</p>
+              <p className="mb-1 text-xs text-slate-400">المعرف</p>
               <p className="text-sm font-semibold text-slate-800">#{cur.id}</p>
             </div>
             <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
-              <p className="mb-1 text-xs text-emerald-500">{t("teacherDashboard.profile.revenueShareLabel")}</p>
+              <p className="mb-1 text-xs text-emerald-500">نسبتك من الإيرادات</p>
               <p className="text-sm font-extrabold text-emerald-700">
                 {cur.percentage !== undefined && cur.percentage !== null ? `${cur.percentage}%` : "—"}
               </p>
@@ -370,7 +391,7 @@ function ProfilePage({ profile, onSaved }) {
               <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-md">
                 📖
               </span>
-              {t("teacherDashboard.profile.subjectsTitle")}
+              المواد التي تُدرّسها
             </h3>
             <div className="flex flex-wrap gap-3">
               {cur.subjectNames.map((s, i) => (
@@ -396,7 +417,7 @@ function ProfilePage({ profile, onSaved }) {
             <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-purple-500 text-white shadow-md">
               📝
             </span>
-            {t("teacherDashboard.profile.bioTitle")}
+            نبذة شخصية
           </h3>
           {editing ? (
             <textarea
@@ -404,10 +425,10 @@ function ProfilePage({ profile, onSaved }) {
               onChange={(e) => setDraft((p) => ({ ...p, bio: e.target.value }))}
               rows={4}
               className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none focus:border-violet-400 focus:bg-white transition resize-none"
-              placeholder={t("teacherDashboard.profile.bioPlaceholder")}
+              placeholder="اكتب نبذة عنك..."
             />
           ) : (
-            <p className="text-base leading-8 text-slate-600">{cur.bio || t("teacherDashboard.profile.bioEmpty")}</p>
+            <p className="text-base leading-8 text-slate-600">{cur.bio || "لم تتم إضافة نبذة بعد."}</p>
           )}
         </motion.div>
       </div>
@@ -418,7 +439,6 @@ function ProfilePage({ profile, onSaved }) {
 // ─── Students page (real data via /modules/mine + /students/by-module) ───────
 
 function StudentsModal({ module: mod, onClose }) {
-  const { t, dir } = useLanguage();
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -427,7 +447,7 @@ function StudentsModal({ module: mod, onClose }) {
   useEffect(() => {
     fetchStudentsByModule(mod.id)
       .then(setStudents)
-      .catch((e) => setError(errMsg(t, e.message)))
+      .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [mod.id]);
 
@@ -443,7 +463,6 @@ function StudentsModal({ module: mod, onClose }) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
     >
       <motion.div
-        dir={dir}
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-[32px] border border-slate-200 bg-white p-8 shadow-2xl"
@@ -467,7 +486,7 @@ function StudentsModal({ module: mod, onClose }) {
           <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
           <input
             type="text"
-            placeholder={t("teacherDashboard.students.searchPlaceholder")}
+            placeholder="ابحث عن تلميذ..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pr-12 pl-4 text-sm outline-none transition focus:border-blue-400 focus:bg-white"
@@ -475,11 +494,11 @@ function StudentsModal({ module: mod, onClose }) {
         </div>
 
         {loading ? (
-          <Spinner label={t("teacherDashboard.students.loadingStudents")} />
+          <Spinner label="جاري تحميل التلاميذ..." />
         ) : error ? (
           <ErrorBanner message={error} />
         ) : filtered.length === 0 ? (
-          <p className="py-10 text-center text-slate-400">{t("teacherDashboard.students.noStudents")}</p>
+          <p className="py-10 text-center text-slate-400">لا يوجد تلاميذ مسجلين بعد.</p>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
             {filtered.map((student, i) => (
@@ -501,8 +520,8 @@ function StudentsModal({ module: mod, onClose }) {
                 </div>
                 {(student.parentName || student.parentPhone) && (
                   <div className="border-t border-slate-100 pt-3 text-xs text-slate-500">
-                    {student.parentName && <p>{t("teacherDashboard.students.parentLabel")} {student.parentName}</p>}
-                    {student.parentPhone && <p>{t("teacherDashboard.students.phoneLabel")} {student.parentPhone}</p>}
+                    {student.parentName && <p>ولي الأمر: {student.parentName}</p>}
+                    {student.parentPhone && <p>الهاتف: {student.parentPhone}</p>}
                   </div>
                 )}
               </motion.div>
@@ -515,7 +534,6 @@ function StudentsModal({ module: mod, onClose }) {
 }
 
 function StudentsPage() {
-  const { t } = useLanguage();
   const [modules, setModules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -524,7 +542,7 @@ function StudentsPage() {
   useEffect(() => {
     fetchMyModules()
       .then(setModules)
-      .catch((e) => setError(errMsg(t, e.message)))
+      .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
 
@@ -534,15 +552,15 @@ function StudentsPage() {
   }, {});
 
   return (
-    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-8" dir={useLanguage().dir}>
+    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-8" dir="rtl">
       <Blob className="right-[-100px] top-[-100px] h-[350px] w-[350px] bg-blue-100/60" />
       <Blob className="bottom-[-100px] left-[-100px] h-[320px] w-[320px] bg-violet-100/50" />
 
       <div className="relative z-10 mx-auto max-w-7xl">
         <PageHeader
-          badge={`👨‍🎓 ${t("teacherDashboard.students.badge")}`}
-          title={t("teacherDashboard.students.title")}
-          subtitle={t("teacherDashboard.students.subtitle")}
+          badge="👨‍🎓 إدارة التلاميذ"
+          title="أقسامي وتلاميذي"
+          subtitle="اختر أحد أقسامك لعرض قائمة التلاميذ المسجلين فيه."
         />
 
         <ErrorBanner message={error} />
@@ -552,8 +570,8 @@ function StudentsPage() {
         ) : modules.length === 0 ? (
           <div className="rounded-3xl border border-slate-100 bg-white/80 p-16 text-center shadow-sm">
             <p className="mb-2 text-5xl">📭</p>
-            <p className="text-lg font-bold text-slate-700">{t("teacherDashboard.students.emptyTitle")}</p>
-            <p className="mt-1 text-sm text-slate-400">{t("teacherDashboard.students.emptySubtitle")}</p>
+            <p className="text-lg font-bold text-slate-700">لا توجد أقسام مسندة إليك بعد</p>
+            <p className="mt-1 text-sm text-slate-400">سيظهر هنا كل قسم تُسند إليه إدارة المدرسة.</p>
           </div>
         ) : (
           <div className="space-y-10">
@@ -570,7 +588,7 @@ function StudentsPage() {
                   </div>
                   <div>
                     <h2 className="text-2xl font-extrabold text-slate-900">{level}</h2>
-                    <p className="text-sm text-slate-400">{t("teacherDashboard.students.moduleCount", { count: mods.length })}</p>
+                    <p className="text-sm text-slate-400">{mods.length} أقسام</p>
                   </div>
                 </div>
 
@@ -595,7 +613,7 @@ function StudentsPage() {
                       </h3>
                       <p className="mb-4 text-sm text-slate-500">{m.subjectName} · {m.classroomName}</p>
                       <p className="mb-3 text-sm text-slate-500">
-                        {t("teacherDashboard.students.enrolledCountLabel")} {m.enrolledCount} / {m.maxStudents}
+                        عدد التلاميذ: {m.enrolledCount} / {m.maxStudents}
                       </p>
                       <div className="h-2 overflow-hidden rounded-full bg-slate-100">
                         <div
@@ -624,7 +642,6 @@ function StudentsPage() {
 // ─── Schedule page (real data via /modules/mine) ───────────────────────────────
 
 function SchedulePage() {
-  const { t, dir } = useLanguage();
   const [modules, setModules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -632,7 +649,7 @@ function SchedulePage() {
   useEffect(() => {
     fetchMyModules()
       .then(setModules)
-      .catch((e) => setError(errMsg(t, e.message)))
+      .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
 
@@ -664,15 +681,15 @@ function SchedulePage() {
   const activeDays = DAY_ORDER.filter((d) => sessionsByDay[d].length > 0);
 
   return (
-    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-8" dir={dir}>
+    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-8" dir="rtl">
       <Blob className="right-[-100px] top-[-100px] h-[350px] w-[350px] bg-blue-100/60" />
       <Blob className="bottom-[-100px] left-[-100px] h-[320px] w-[320px] bg-cyan-100/50" />
 
       <div className="relative z-10 mx-auto max-w-6xl">
         <PageHeader
-          badge={`🗓️ ${t("teacherDashboard.schedule.badge")}`}
-          title={t("teacherDashboard.schedule.title")}
-          subtitle={t("teacherDashboard.schedule.subtitle")}
+          badge="🗓️ جدولي الأسبوعي"
+          title="جدول الحصص"
+          subtitle="نظرة أسبوعية على جميع حصصك، مرتبة حسب اليوم والوقت."
         />
 
         <ErrorBanner message={error} />
@@ -682,7 +699,7 @@ function SchedulePage() {
         ) : activeDays.length === 0 ? (
           <div className="rounded-3xl border border-slate-100 bg-white/80 p-16 text-center shadow-sm">
             <p className="mb-2 text-5xl">🗓️</p>
-            <p className="text-lg font-bold text-slate-700">{t("teacherDashboard.schedule.empty")}</p>
+            <p className="text-lg font-bold text-slate-700">لا توجد حصص مبرمجة بعد</p>
           </div>
         ) : (
           <div className="space-y-8">
@@ -698,8 +715,8 @@ function SchedulePage() {
                   <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-md text-lg">
                     📅
                   </div>
-                  <h2 className="text-xl font-extrabold text-slate-900">{t(`dashboard.days.${day}`)}</h2>
-                  <span className="text-sm text-slate-400">{t("teacherDashboard.schedule.sessionCount", { count: sessionsByDay[day].length })}</span>
+                  <h2 className="text-xl font-extrabold text-slate-900">{DAY_LABELS[day]}</h2>
+                  <span className="text-sm text-slate-400">{sessionsByDay[day].length} حصص</span>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
@@ -718,7 +735,7 @@ function SchedulePage() {
                           {s.subjectName} · {s.classroomName} · {s.level}
                         </p>
                         <p className="mt-1 text-xs text-slate-400">
-                          {t("teacherDashboard.schedule.enrolledCount", { enrolled: s.enrolledCount, max: s.maxStudents })}
+                          {s.enrolledCount} / {s.maxStudents} تلميذ
                         </p>
                       </div>
                     </div>
@@ -732,12 +749,208 @@ function SchedulePage() {
     </div>
   );
 }
+function AttendanceModal({ session, onClose }) {
+  const [students, setStudents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetchAttendanceSheet(session.id)
+      .then((data) => setStudents(data.students || []))
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [session.id]);
+
+  const setStatus = (studentId, status) => {
+    setStudents((prev) =>
+      prev.map((s) => (s.studentId === studentId ? { ...s, status } : s))
+    );
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const entries = students.map((s) => ({ studentId: s.studentId, status: s.status }));
+      await markAttendance(session.id, entries);
+      onClose();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-[32px] border border-slate-200 bg-white p-8 shadow-2xl"
+      >
+        <div className="mb-6 flex items-start justify-between">
+          <div>
+            <h2 className="text-2xl font-extrabold text-slate-900">{session.moduleName}</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {formatTime(session.startTime)} – {formatTime(session.endTime)}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="h-11 w-11 shrink-0 rounded-2xl bg-slate-100 text-lg font-bold transition hover:bg-red-50 hover:text-red-500"
+          >
+            ✕
+          </button>
+        </div>
+
+        <ErrorBanner message={error} />
+
+        {loading ? (
+          <Spinner label="جاري تحميل قائمة التلاميذ..." />
+        ) : (
+          <>
+            <div className="space-y-3">
+              {students.map((s) => (
+                <div
+                  key={s.studentId}
+                  className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/70 p-4"
+                >
+                  <span className="font-semibold text-slate-800">{s.fullName}</span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setStatus(s.studentId, "PRESENT")}
+                      className={`rounded-xl px-4 py-2 text-sm font-bold transition ${
+                        s.status === "PRESENT"
+                          ? "bg-emerald-500 text-white shadow-md"
+                          : "bg-white text-slate-500 border border-slate-200"
+                      }`}
+                    >
+                      حاضر
+                    </button>
+                    <button
+                      onClick={() => setStatus(s.studentId, "ABSENT")}
+                      className={`rounded-xl px-4 py-2 text-sm font-bold transition ${
+                        s.status === "ABSENT"
+                          ? "bg-red-500 text-white shadow-md"
+                          : "bg-white text-slate-500 border border-slate-200"
+                      }`}
+                    >
+                      غائب
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="mt-6 w-full rounded-2xl bg-gradient-to-br from-emerald-500 to-green-500 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-200 disabled:opacity-60"
+            >
+              {saving ? "جاري الحفظ..." : "✓ حفظ الحضور"}
+            </button>
+          </>
+        )}
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// Attendance page 
+function AttendancePage() {
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [sessions, setSessions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [activeSession, setActiveSession] = useState(null);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    fetchMySessionsByDate(date)
+      .then(setSessions)
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [date]);
+
+  return (
+    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-8" dir="rtl">
+      <Blob className="right-[-100px] top-[-100px] h-[350px] w-[350px] bg-blue-100/60" />
+      <Blob className="bottom-[-100px] left-[-100px] h-[320px] w-[320px] bg-emerald-100/50" />
+
+      <div className="relative z-10 mx-auto max-w-5xl">
+        <div className="mb-10 flex flex-wrap items-end justify-between gap-6">
+          <PageHeader
+            badge="✅ تسجيل الحضور"
+            title="حصص اليوم"
+            subtitle="اختر حصة لتسجيل حضور التلاميذ."
+          />
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 outline-none transition focus:border-blue-400"
+          />
+        </div>
+
+        <ErrorBanner message={error} />
+
+        {loading ? (
+          <Spinner />
+        ) : sessions.length === 0 ? (
+          <div className="rounded-3xl border border-slate-100 bg-white/80 p-16 text-center shadow-sm">
+            <p className="mb-2 text-5xl">📭</p>
+            <p className="text-lg font-bold text-slate-700">لا توجد حصص في هذا اليوم</p>
+          </div>
+        ) : (
+          <div className="grid gap-5 md:grid-cols-2">
+            {sessions.map((s) => (
+              <motion.button
+                key={s.id}
+                whileHover={{ y: -4, scale: 1.01 }}
+                onClick={() => setActiveSession(s)}
+                className="rounded-3xl border border-slate-100 bg-white/80 p-6 text-right shadow-sm backdrop-blur-sm transition-all hover:shadow-xl"
+              >
+                <div className="mb-4 flex items-center justify-between">
+                  <span className="text-sm font-extrabold text-blue-600">
+                    {formatTime(s.startTime)} – {formatTime(s.endTime)}
+                  </span>
+                  {s.attendanceMarked ? (
+                    <span className="rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-600">
+                      تم التسجيل ✓
+                    </span>
+                  ) : (
+                    <span className="rounded-full border border-amber-100 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-600">
+                      لم يُسجل بعد
+                    </span>
+                  )}
+                </div>
+                <h3 className="mb-1 text-lg font-bold text-slate-900">{s.moduleName}</h3>
+                <p className="text-sm text-slate-500">{s.subjectName} · {s.level}</p>
+                <p className="mt-2 text-xs text-slate-400">{s.enrolledCount} تلميذ مسجل</p>
+              </motion.button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <AnimatePresence>
+        {activeSession && (
+          <AttendanceModal session={activeSession} onClose={() => setActiveSession(null)} />
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 // ─── Payouts page (real data via /payouts/mine + /payouts/mine/month) ─────────
 
 function PayoutsPage() {
-  const { t, dir, locale } = useLanguage();
   const [payouts, setPayouts] = useState([]);
+  const [coursePayouts, setCoursePayouts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedPeriod, setSelectedPeriod] = useState(""); // "" = show full history
@@ -751,16 +964,15 @@ function PayoutsPage() {
       ? fetchMyPayoutForMonth(selectedPeriod).then((p) => (p ? [p] : []))
       : fetchMyPayouts();
 
-    load
-      .then((data) => {
-        if (!cancelled) setPayouts(data);
+    Promise.all([load, fetchMyCoursePayouts()])
+      .then(([moduleData, courseData]) => {
+        if (!cancelled) {
+          setPayouts(moduleData);
+          setCoursePayouts(courseData);
+        }
       })
       .catch((e) => {
-<<<<<<< HEAD
         if (!cancelled) setError(e.message);
-=======
-        if (!cancelled) setError(errMsg(t, e.message));
->>>>>>> a1933d6 (add launguages transition)
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -770,17 +982,9 @@ function PayoutsPage() {
       cancelled = true;
     };
   }, [selectedPeriod]);
-<<<<<<< HEAD
-=======
-
-  const PAYOUT_STATUS = {
-    PENDING: { label: t("teacherDashboard.payoutStatus.PENDING"), classes: "bg-amber-50 text-amber-600 border-amber-100" },
-    PAID: { label: t("teacherDashboard.payoutStatus.PAID"), classes: "bg-emerald-50 text-emerald-600 border-emerald-100" },
-  };
->>>>>>> a1933d6 (add launguages transition)
 
   return (
-    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-8" dir={dir}>
+    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-8" dir="rtl">
       <Blob className="right-[-100px] top-[-100px] h-[350px] w-[350px] bg-emerald-100/60" />
       <Blob className="bottom-[-100px] left-[-100px] h-[320px] w-[320px] bg-blue-100/50" />
 
@@ -792,30 +996,18 @@ function PayoutsPage() {
         >
           <div>
             <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-4 py-1.5 text-sm font-semibold text-blue-600">
-<<<<<<< HEAD
               💰 مستحقاتي
             </span>
             <h1 className="mb-4 mt-2 text-5xl font-extrabold text-slate-900">سجل المستحقات</h1>
             <p className="max-w-2xl text-lg leading-8 text-slate-500">
-              تفاصيل مستحقاتك الشهرية بناءً على نسبتك من إيرادات أقسامك.
-=======
-              💰 {t("teacherDashboard.payouts.badge")}
-            </span>
-            <h1 className="mb-4 mt-2 text-5xl font-extrabold text-slate-900">{t("teacherDashboard.payouts.title")}</h1>
-            <p className="max-w-2xl text-lg leading-8 text-slate-500">
-              {t("teacherDashboard.payouts.subtitle")}
->>>>>>> a1933d6 (add launguages transition)
+              تفاصيل مستحقاتك الشهرية بناءً على نسبتك من إيرادات أقسامك ودوراتك.
             </p>
           </div>
 
           {/* Month filter */}
           <div className="flex items-end gap-2">
             <div className="flex flex-col gap-1.5">
-<<<<<<< HEAD
               <label className="text-xs font-semibold text-slate-400">تصفية حسب الشهر</label>
-=======
-              <label className="text-xs font-semibold text-slate-400">{t("teacherDashboard.payouts.filterLabel")}</label>
->>>>>>> a1933d6 (add launguages transition)
               <input
                 type="month"
                 value={selectedPeriod}
@@ -828,11 +1020,7 @@ function PayoutsPage() {
                 onClick={() => setSelectedPeriod("")}
                 className="h-12 rounded-2xl bg-slate-100 px-5 text-sm font-bold text-slate-600 transition hover:bg-red-50 hover:text-red-500"
               >
-<<<<<<< HEAD
                 ✕ إلغاء التصفية
-=======
-                ✕ {t("teacherDashboard.payouts.clearFilter")}
->>>>>>> a1933d6 (add launguages transition)
               </button>
             )}
           </div>
@@ -842,54 +1030,102 @@ function PayoutsPage() {
 
         {loading ? (
           <Spinner />
-        ) : payouts.length === 0 ? (
-          <div className="rounded-3xl border border-slate-100 bg-white/80 p-16 text-center shadow-sm">
-            <p className="mb-2 text-5xl">💤</p>
-            <p className="text-lg font-bold text-slate-700">
-<<<<<<< HEAD
-              {selectedPeriod ? "لا توجد مستحقات لهذا الشهر" : "لا توجد مستحقات محسوبة بعد"}
-            </p>
-            <p className="mt-1 text-sm text-slate-400">تُحسب المستحقات تلقائياً في بداية كل شهر.</p>
-=======
-              {selectedPeriod ? t("teacherDashboard.payouts.emptyMonth") : t("teacherDashboard.payouts.emptyAll")}
-            </p>
-            <p className="mt-1 text-sm text-slate-400">{t("teacherDashboard.payouts.emptyNote")}</p>
->>>>>>> a1933d6 (add launguages transition)
-          </div>
         ) : (
-          <div className="space-y-4">
-            {payouts.map((p, i) => {
-              const status = PAYOUT_STATUS[p.status] || { label: p.status, classes: "bg-slate-50 text-slate-600 border-slate-100" };
-              return (
-                <motion.div
-                  key={p.id}
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                  className="rounded-3xl border border-slate-100 bg-white/80 p-6 shadow-sm backdrop-blur-sm"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-4">
-                    <div>
-                      <h3 className="text-lg font-extrabold text-slate-900">{formatPeriod(p.period, t)}</h3>
-                      <p className="mt-1 text-sm text-slate-400">
-                        {t("teacherDashboard.payouts.revenueLabel")} {formatMoney(p.totalModuleRevenue, t, locale)} · {t("teacherDashboard.payouts.percentageLabel")} {p.percentage}%
-                      </p>
-                      {p.paidAt && (
-                        <p className="mt-1 text-xs text-slate-400">{t("teacherDashboard.payouts.paidAtLabel")} {formatDate(p.paidAt, locale)}</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <span className="text-2xl font-extrabold text-emerald-600">
-                        {formatMoney(p.payoutAmount, t, locale)}
-                      </span>
-                      <span className={`rounded-full border px-4 py-1.5 text-sm font-semibold ${status.classes}`}>
-                        {status.label}
-                      </span>
-                    </div>
-                  </div>
-                </motion.div>
-              );
-            })}
+          <div className="space-y-10">
+            {/* Module payouts */}
+            <div>
+              <h2 className="mb-4 text-xl font-extrabold text-slate-900">مستحقات الأقسام</h2>
+              {payouts.length === 0 ? (
+                <div className="rounded-3xl border border-slate-100 bg-white/80 p-16 text-center shadow-sm">
+                  <p className="mb-2 text-5xl">💤</p>
+                  <p className="text-lg font-bold text-slate-700">
+                    {selectedPeriod ? "لا توجد مستحقات لهذا الشهر" : "لا توجد مستحقات محسوبة بعد"}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-400">تُحسب المستحقات تلقائياً في بداية كل شهر.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {payouts.map((p, i) => {
+                    const status = PAYOUT_STATUS[p.status] || { label: p.status, classes: "bg-slate-50 text-slate-600 border-slate-100" };
+                    return (
+                      <motion.div
+                        key={p.id}
+                        initial={{ opacity: 0, y: 15 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.05 }}
+                        className="rounded-3xl border border-slate-100 bg-white/80 p-6 shadow-sm backdrop-blur-sm"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-4">
+                          <div>
+                            <h3 className="text-lg font-extrabold text-slate-900">{formatPeriod(p.period)}</h3>
+                            <p className="mt-1 text-sm text-slate-400">
+                              إيرادات أقسامك: {formatMoney(p.totalModuleRevenue)} · نسبتك: {p.percentage}%
+                            </p>
+                            {p.paidAt && (
+                              <p className="mt-1 text-xs text-slate-400">تاريخ الدفع: {formatDate(p.paidAt)}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <span className="text-2xl font-extrabold text-emerald-600">
+                              {formatMoney(p.payoutAmount)}
+                            </span>
+                            <span className={`rounded-full border px-4 py-1.5 text-sm font-semibold ${status.classes}`}>
+                              {status.label}
+                            </span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Course payouts */}
+            <div>
+              <h2 className="mb-4 text-xl font-extrabold text-slate-900">مستحقات الدورات</h2>
+              {coursePayouts.length === 0 ? (
+                <div className="rounded-3xl border border-slate-100 bg-white/80 p-16 text-center shadow-sm">
+                  <p className="mb-2 text-5xl">💤</p>
+                  <p className="text-lg font-bold text-slate-700">لا توجد مستحقات دورات محسوبة بعد</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {coursePayouts.map((p, i) => {
+                    const status = PAYOUT_STATUS[p.status] || { label: p.status, classes: "bg-slate-50 text-slate-600 border-slate-100" };
+                    return (
+                      <motion.div
+                        key={p.id}
+                        initial={{ opacity: 0, y: 15 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.05 }}
+                        className="rounded-3xl border border-slate-100 bg-white/80 p-6 shadow-sm backdrop-blur-sm"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-4">
+                          <div>
+                            <h3 className="text-lg font-extrabold text-slate-900">{p.courseName}</h3>
+                            <p className="mt-1 text-sm text-slate-400">
+                              إيرادات الدورة: {formatMoney(p.totalCourseRevenue)} · نسبتك: {p.percentage}%
+                            </p>
+                            {p.paidAt && (
+                              <p className="mt-1 text-xs text-slate-400">تاريخ الدفع: {formatDate(p.paidAt)}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <span className="text-2xl font-extrabold text-emerald-600">
+                              {formatMoney(p.payoutAmount)}
+                            </span>
+                            <span className={`rounded-full border px-4 py-1.5 text-sm font-semibold ${status.classes}`}>
+                              {status.label}
+                            </span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -899,6 +1135,15 @@ function PayoutsPage() {
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
+const NAV = [
+  { id: "home", label: "لوحة التحكم", icon: LayoutDashboard },
+  { id: "profile", label: "بروفايلي", icon: User },
+  { id: "students", label: "تلاميذي", icon: Users },
+  { id: "schedule", label: "جدولي", icon: CalendarDays },
+    { id: "attendance", label: "الحضور", icon: ClipboardCheck },
+  { id: "payouts", label: "مستحقاتي", icon: Wallet },
+];
+
 function hexToRgb(hex = "#185FA5") {
   const h = hex.replace("#", "");
   const n = parseInt(h, 16);
@@ -907,22 +1152,12 @@ function hexToRgb(hex = "#185FA5") {
 
 function Sidebar({ active, onNav, onLogoutClick, profile }) {
   const { school } = useAuth();
-  const { t, dir } = useLanguage();
-
-  const NAV = [
-    { id: "home", label: t("teacherDashboard.nav.home"), icon: LayoutDashboard },
-    { id: "profile", label: t("teacherDashboard.nav.profile"), icon: User },
-    { id: "students", label: t("teacherDashboard.nav.students"), icon: Users },
-    { id: "schedule", label: t("teacherDashboard.nav.schedule"), icon: CalendarDays },
-    { id: "payouts", label: t("teacherDashboard.nav.payouts"), icon: Wallet },
-  ];
 
   const p = school?.primaryColor || "#185FA5";
   const rgb = hexToRgb(p);
 
-  const schoolName = school?.schoolName || t("teacherDashboard.sidebar.schoolFallback");
-  const teacherFallback = t("teacherDashboard.sidebar.teacherFallback");
-  const initials = (profile?.fullName || teacherFallback)
+  const schoolName = school?.schoolName || "المدرسة";
+  const initials = (profile?.fullName || "أستاذ")
     .split(" ")
     .filter(Boolean)
     .map((w) => w[0])
@@ -932,7 +1167,7 @@ function Sidebar({ active, onNav, onLogoutClick, profile }) {
 
   return (
     <aside
-      dir={dir}
+      dir="rtl"
       style={{
         width: 224,
         display: "flex",
@@ -952,7 +1187,7 @@ function Sidebar({ active, onNav, onLogoutClick, profile }) {
         padding: "16px", borderBottom: "1px solid rgba(255,255,255,0.07)",
       }}>
         {school?.logoUrl ? (
-          <img src={school.logoUrl} alt={t("teacherDashboard.sidebar.logoAlt")}
+          <img src={school.logoUrl} alt="شعار"
             style={{ width: 38, height: 38, borderRadius: 10, objectFit: "cover", flexShrink: 0 }} />
         ) : (
           <div style={{
@@ -966,7 +1201,7 @@ function Sidebar({ active, onNav, onLogoutClick, profile }) {
           <p style={{ fontSize: 13, fontWeight: 700, color: "#fff", lineHeight: 1.2, margin: 0 }}>
             {schoolName}
           </p>
-          <p style={{ fontSize: 10, color: "#64748B", marginTop: 2, margin: 0 }}>{t("teacherDashboard.sidebar.subtitle")}</p>
+          <p style={{ fontSize: 10, color: "#64748B", marginTop: 2, margin: 0 }}>لوحة الأستاذ</p>
         </div>
       </div>
 
@@ -986,14 +1221,41 @@ function Sidebar({ active, onNav, onLogoutClick, profile }) {
         </div>
         <div>
           <p style={{ fontSize: 12, fontWeight: 600, color: "#E2E8F0", margin: 0 }}>
-            {profile?.fullName || teacherFallback}
+            {profile?.fullName || "أستاذ"}
           </p>
-          <p style={{ fontSize: 10, color: "#1D9E75", marginTop: 2, margin: 0 }}>{t("teacherDashboard.sidebar.badge")}</p>
+          <p style={{ fontSize: 10, color: "#1D9E75", marginTop: 2, margin: 0 }}>أستاذ ✓</p>
         </div>
       </div>
 
       {/* ── Navigation ── */}
       <nav style={{ flex: 1, padding: "8px 0", overflowY: "auto" }}>
+        <Link to={"/home"}>
+            <button
+         
+              style={{
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "10px 16px", fontSize: 13, fontWeight: 500,
+                color:  "#94A3B8",
+                background:  `rgba(${rgb},0.35)` ,
+                borderRight: `3px solid`  ,
+                borderTop: "none",
+                borderBottom: "none",
+                borderLeft: "none",
+                width: "calc(100% - 8px)",
+                textAlign: "right",
+                borderRadius: "0 8px 8px 0",
+                marginLeft: 8,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                transition: "background 0.15s, color 0.15s, border-color 0.15s",
+                marginBottom:"10px"
+              }}
+            
+            >
+            <Home/>
+              الصفحة الرئيسية
+            </button>
+            </Link>
         {NAV.map((item) => {
           const Icon = item.icon;
           const isActive = active === item.id;
@@ -1060,7 +1322,7 @@ function Sidebar({ active, onNav, onLogoutClick, profile }) {
           }}
         >
           <LogOut size={15} />
-          {t("teacherDashboard.sidebar.logout")}
+          تسجيل الخروج
         </button>
       </div>
     </aside>
@@ -1070,7 +1332,6 @@ function Sidebar({ active, onNav, onLogoutClick, profile }) {
 // ─── Home page (real stats via /modules/mine + /payouts/mine) ─────────────────
 
 function HomePage({ profile }) {
-  const { t, dir, locale } = useLanguage();
   const [modules, setModules] = useState([]);
   const [latestPayout, setLatestPayout] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -1086,22 +1347,19 @@ function HomePage({ profile }) {
   }, []);
 
   const totalEnrolled = modules.reduce((sum, m) => sum + (m.enrolledCount || 0), 0);
-  const teacherFallback = t("teacherDashboard.sidebar.teacherFallback");
 
   const stats = [
-    { emoji: "📚", number: statsLoading ? "—" : modules.length, label: t("teacherDashboard.home.statActiveModules") },
-    { emoji: "👨‍🎓", number: statsLoading ? "—" : totalEnrolled, label: t("teacherDashboard.home.statEnrolledStudents") },
+    { emoji: "📚", number: statsLoading ? "—" : modules.length, label: "قسم نشط" },
+    { emoji: "👨‍🎓", number: statsLoading ? "—" : totalEnrolled, label: "تلميذ مسجل" },
     {
       emoji: "💰",
-      number: statsLoading ? "—" : latestPayout ? formatMoney(latestPayout.payoutAmount, t, locale) : "—",
-      label: latestPayout
-        ? t("teacherDashboard.home.statPayoutFor", { period: formatPeriod(latestPayout.period, t) })
-        : t("teacherDashboard.home.statNoPayout"),
+      number: statsLoading ? "—" : latestPayout ? formatMoney(latestPayout.payoutAmount) : "—",
+      label: latestPayout ? `مستحقات ${formatPeriod(latestPayout.period)}` : "لا توجد مستحقات بعد",
     },
   ];
 
   return (
-    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-8" dir={dir}>
+    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-8" dir="rtl">
       <Blob className="top-[-120px] right-[-120px] h-[420px] w-[420px] bg-blue-100/60" />
       <Blob className="bottom-[-120px] left-[-120px] h-[380px] w-[380px] bg-violet-100/50" />
 
@@ -1113,22 +1371,22 @@ function HomePage({ profile }) {
           className="rounded-[32px] border border-slate-200 bg-white/80 p-10 shadow-xl shadow-slate-100 backdrop-blur-xl"
         >
           <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-4 py-1.5 text-sm font-semibold text-blue-600">
-            ✨ {t("teacherDashboard.home.badge")}
+            ✨ لوحة تحكم حديثة
           </span>
 
           <h1 className="mb-3 text-5xl font-extrabold leading-tight text-slate-900">
-            {t("teacherDashboard.home.greeting")} <span className="text-blue-600">{profile ? profile.fullName : teacherFallback}</span> 👋
+            مرحباً، <span className="text-blue-600">{profile ? profile.fullName : "أستاذ"}</span> 👋
           </h1>
 
           <p className="mb-10 max-w-2xl text-lg leading-8 text-slate-500">
-            {t("teacherDashboard.home.intro")}
+            يمكنك متابعة أقسامك وتلاميذك، الاطلاع على جدولك الأسبوعي، ومراجعة مستحقاتك الشهرية.
           </p>
 
           {profile && (
             <div className="mb-8 rounded-2xl border border-emerald-100 bg-emerald-50 p-5">
               <p className="text-sm font-bold text-emerald-700">
-                📋 {t("teacherDashboard.home.specializationLabel")} <span className="font-extrabold">{profile.specialization || "—"}</span>
-                &nbsp;·&nbsp; {t("teacherDashboard.home.emailLabel")} <span className="font-extrabold">{profile.email}</span>
+                📋 تخصصك: <span className="font-extrabold">{profile.specialization || "—"}</span>
+                &nbsp;·&nbsp; البريد: <span className="font-extrabold">{profile.email}</span>
               </p>
             </div>
           )}
@@ -1147,7 +1405,6 @@ function HomePage({ profile }) {
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
 export default function TeacherDashboard() {
-  const { t, dir } = useLanguage();
   const [page, setPage] = useState("home");
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1159,7 +1416,7 @@ export default function TeacherDashboard() {
   useEffect(() => {
     fetchProfile()
       .then(setProfile)
-      .catch((e) => setError(errMsg(t, e.message)))
+      .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
 
@@ -1170,7 +1427,7 @@ export default function TeacherDashboard() {
   };
 
   return (
-    <div dir={dir} className="flex min-h-screen overflow-hidden bg-[#fafafa] text-slate-900">
+    <div dir="rtl" className="flex min-h-screen overflow-hidden bg-[#fafafa] text-slate-900">
       <Sidebar
         active={page}
         onNav={setPage}
@@ -1184,7 +1441,7 @@ export default function TeacherDashboard() {
         <div className="flex flex-1 items-center justify-center p-8">
           <div className="rounded-3xl border border-red-100 bg-red-50 p-10 text-center">
             <p className="text-5xl mb-4">⚠️</p>
-            <p className="text-xl font-bold text-red-600 mb-2">{t("teacherDashboard.connectionError")}</p>
+            <p className="text-xl font-bold text-red-600 mb-2">خطأ في الاتصال</p>
             <p className="text-slate-500">{error}</p>
           </div>
         </div>
@@ -1194,6 +1451,7 @@ export default function TeacherDashboard() {
           {page === "profile" && <ProfilePage profile={profile} onSaved={setProfile} />}
           {page === "students" && <StudentsPage />}
           {page === "schedule" && <SchedulePage />}
+          {page === "attendance" && <AttendancePage />}
           {page === "payouts" && <PayoutsPage />}
         </>
       )}

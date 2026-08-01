@@ -4,11 +4,21 @@ import { GraduationCap, LayoutDashboard, LogOut, Globe } from "lucide-react";
 import { useAuth } from "../context/authContext";
 import { useLanguage } from "../context/LanguageContext";
 import "../Css/Navbar.css";
+import logo from "../assets/num3.png";
+
+import {
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
+  IconButton,
+} from "@mui/material";
+import ReactCountryFlag from "react-country-flag";
 
 const LANGUAGES = [
-  { code: "ar", label: "العربية" },
-  { code: "en", label: "English" },
-  { code: "fr", label: "Français" },
+  { code: "ar", label: "العربية", country: "DZ" },
+  { code: "en", label: "English", country: "GB" },
+  { code: "fr", label: "Français", country: "FR" },
 ];
 
 export default function Navbar() {
@@ -16,7 +26,19 @@ export default function Navbar() {
   const { t, language, setLanguage, dir } = useLanguage();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
-  const [langMenuOpen, setLangMenuOpen] = useState(false);
+  const [anchorEl, setAnchorEl] = useState(null);
+
+  const open = Boolean(anchorEl);
+
+  const handleOpen = (event) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
+
+  const currentLanguage = LANGUAGES.find((l) => l.code === language);
 
   const dashboardPath = user?.role === "SCHOOL_ADMIN" ? "/Dashboard" : "/studentdashboard";
 
@@ -36,8 +58,8 @@ export default function Navbar() {
   };
 
   const changeLanguage = (lang) => {
-    setLanguage(lang); // LanguageProvider already persists to localStorage + updates <html dir/lang>
-    setLangMenuOpen(false);
+    setLanguage(lang);
+    handleClose();
   };
 
   const isLoggedIn = user?.role === "STUDENT" || user?.role === "SCHOOL_ADMIN";
@@ -46,10 +68,17 @@ export default function Navbar() {
     <header dir={dir} className="navbar">
       {/* Logo */}
       <Link to="/" className="navbar__logo" onClick={closeMenu}>
-        <div className="navbar__logo-mark">
-          <GraduationCap size={18} strokeWidth={2.4} />
+        <img
+          src={logo}
+          alt="Numeria Academy"
+          className="navbar__logo-image"
+        />
+
+        <div className="navbar__brand">
+          <span className="navbar__logo-text">
+            Numeria Academy
+          </span>
         </div>
-        <span className="navbar__logo-text">{t("navbar.platformName")}</span>
       </Link>
 
       {/* Desktop nav */}
@@ -84,28 +113,86 @@ export default function Navbar() {
 
         {/* Language switcher */}
         <div className="navbar__lang">
-          <button
-            className="nav-icon-btn"
-            onClick={() => setLangMenuOpen((v) => !v)}
-            aria-label={t("navbar.languageAria")}
-            title={t("navbar.languageAria")}
+          <IconButton
+            onClick={handleOpen}
+            sx={{
+              borderRadius: 3,
+              border: "1 solid ",
+              width: "50px",
+              height: "60px",
+              p: 0.8,
+            }}
           >
-            <Globe size={14} />
-          </button>
-          {langMenuOpen && (
-            <div className="navbar__lang-menu">
-              {LANGUAGES.map((l) => (
-                <button
-                  key={l.code}
-                  className={`navbar__lang-option${language === l.code ? " is-active" : ""}`}
-                  onClick={() => changeLanguage(l.code)}
-                >
-                  {l.label}
-                </button>
-              ))}
-            </div>
-          )}
+            <ReactCountryFlag
+              countryCode={currentLanguage.country}
+              svg
+              style={{
+                width: "1.8em",
+                height: "1.8em",
+              }}
+            />
+          </IconButton>
+
+          <Menu
+            anchorEl={anchorEl}
+            open={open}
+            onClose={handleClose}
+            PaperProps={{
+              sx: {
+                mt: 1,
+                borderRadius: 3,
+                minWidth: 190,
+              },
+            }}
+          >
+            {LANGUAGES.map((lang) => (
+              <MenuItem
+                key={lang.code}
+                selected={lang.code === language}
+                onClick={() => changeLanguage(lang.code)}
+              >
+                <ListItemIcon>
+                  <ReactCountryFlag
+                    countryCode={lang.country}
+                    svg
+                    style={{
+                      width: "1.6em",
+                      height: "1.6em",
+                    }}
+                  />
+                </ListItemIcon>
+
+                <ListItemText>{lang.label}</ListItemText>
+              </MenuItem>
+            ))}
+          </Menu>
         </div>
+      </nav>
+
+      {/* Teacher-only nav */}
+      <nav
+        className="navbar__nav navbar__nav--desktop"
+        style={{ display: user?.role !== "TEACHER" ? "none" : "flex" }}
+      >
+        {user?.role === "TEACHER" ? (
+          <>
+            <button
+              className="nav-btn nav-btn--dashboard"
+              onClick={() => navigate("/teacherDashboard")}
+            >
+              <LayoutDashboard size={14} />
+              لوحتي
+            </button>
+
+            <div
+              className="navbar__user"
+              onClick={() => navigate("/teacherDashboard")}
+            >
+              <div className="navbar__avatar">{initials}</div>
+              <span className="navbar__user-name">{user.fullName}</span>
+            </div>
+          </>
+        ) : null}
       </nav>
 
       {/* Mobile hamburger */}

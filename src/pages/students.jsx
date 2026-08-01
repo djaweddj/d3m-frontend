@@ -706,6 +706,7 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
   const [errInv, setErrInv]           = useState(null);
   const [showHistory, setShowHistory] = useState(false);
   const [removingEnrId, setRemovingEnrId] = useState(null);
+  
 
   const c = levelColorByName(student.level, allLevels);
 
@@ -728,7 +729,7 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
   useEffect(() => { loadEnrollments(); }, [loadEnrollments]);
   useEffect(() => { loadInvoices(); }, [loadInvoices]);
 
-  const enrolledModuleIds = enrollments.map((e) => e.ModuleId).filter(Boolean);
+  const enrolledModuleIds = enrollments.map((e) => e.moduleId).filter(Boolean);
 
   const currentInvoice = currentMonthInvoice(invoices);
   const pastInvoices    = invoices.filter((inv) => inv.id !== currentInvoice?.id);
@@ -755,7 +756,7 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
     if (!window.confirm(t("students.drawer.confirmUnenroll", { name: student.fullName, module: moduleLabel }))) return;
     setRemovingEnrId(enr.id);
     try {
-      await schoolApi.removeEnrollment(student.id, enr.ModuleId);
+      await schoolApi.removeEnrollment(student.id, enr.moduleId);
       loadEnrollments();
       onSuccess(t("students.drawer.unenrollSuccess", { name: student.fullName, module: moduleLabel }));
     } catch (err) {

@@ -15,6 +15,7 @@ import {
   LayoutDashboard,
 } from "lucide-react";
 
+
 export default function Sidebarteacher({ active = "dashboard", onChange }) {
   const navigate = useNavigate();
   const menuItems = [

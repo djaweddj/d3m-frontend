@@ -42,7 +42,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 
   /* ✅ BACKGROUND IMAGE ADDED HERE */
-  background-image: url('./assets/back.jpg');
+  background-image: url('./assets/numeria_login_background.png');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;

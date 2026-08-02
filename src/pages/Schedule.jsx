@@ -55,6 +55,21 @@ const P = "#185FA5";
 const MAKEUP_COLOR = "#7C3AED";
 
 // ══════════════════════════════════════════════════════════════════
+//  RESPONSIVE HELPER
+// ══════════════════════════════════════════════════════════════════
+function useIsMobile(breakpoint = 640) {
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== "undefined" ? window.innerWidth <= breakpoint : false
+  );
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= breakpoint);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [breakpoint]);
+  return isMobile;
+}
+
+// ══════════════════════════════════════════════════════════════════
 //  SHARED PRIMITIVES
 // ══════════════════════════════════════════════════════════════════
 function Spinner({ size = 18, color = P }) {
@@ -68,10 +83,11 @@ function Spinner({ size = 18, color = P }) {
 
 function ModalWrap({ onClose, children, maxWidth = 420, zIndex = 300 }) {
   const { dir } = useLanguage();
+  const isMobile = useIsMobile();
   return (
     <div onClick={(e) => e.target === e.currentTarget && onClose()}
-      style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex, padding: "1rem", backdropFilter: "blur(2px)" }}>
-      <div dir={dir} style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth, border: "1.5px solid #E2E8F0", overflow: "hidden", fontFamily: "'Cairo',sans-serif", maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,.18)" }}>
+      style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.6)", display: "flex", alignItems: isMobile ? "flex-end" : "center", justifyContent: "center", zIndex, padding: isMobile ? 0 : "1rem", backdropFilter: "blur(2px)" }}>
+      <div dir={dir} style={{ background: "#fff", borderRadius: isMobile ? "16px 16px 0 0" : 16, width: "100%", maxWidth: isMobile ? "100%" : maxWidth, border: isMobile ? "none" : "1.5px solid #E2E8F0", borderTop: isMobile ? "1.5px solid #E2E8F0" : undefined, overflow: "hidden", fontFamily: "'Cairo',sans-serif", maxHeight: isMobile ? "92vh" : "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,.18)" }}>
         {children}
       </div>
     </div>
@@ -137,7 +153,9 @@ const inp_css = {
 };
 
 // ══════════════════════════════════════════════════════════════════
-//  ADD SESSION MODAL  (unchanged)
+//  ADD SESSION MODAL
+//  Now targets: POST /api/sessions with AdditionalSessionDto
+//  { moduleId: Long, date: LocalDate, startTime: LocalTime, endTime: LocalTime, price: BigDecimal }
 // ══════════════════════════════════════════════════════════════════
 function AddModal({ modules, defaultDayIdx, onClose, onCreated }) {
   const { t, locale } = useLanguage();
@@ -149,11 +167,13 @@ function AddModal({ modules, defaultDayIdx, onClose, onCreated }) {
   const [date,    setDate]    = useState(() => new Date().toISOString().split("T")[0]);
   const [start,   setStart]   = useState("08:00");
   const [end,     setEnd]     = useState("09:30");
+  const [price,   setPrice]   = useState("");
   const [saving,  setSaving]  = useState(false);
   const [error,   setError]   = useState("");
   const [open,    setOpen]    = useState(false);
 
   const chosenMod = modules.find((m) => m.name === modName);
+  const requiresPrice = chosenMod?.pricingModel === "PER_SESSION";
 
   const handleModSelect = (m) => {
     setModName(m.name);
@@ -166,13 +186,22 @@ function AddModal({ modules, defaultDayIdx, onClose, onCreated }) {
   };
 
   const handleSave = async () => {
-    if (!modName)       return setError(t("schedule.addModal.errors.selectModule"));
-    if (!date)          return setError(t("schedule.addModal.errors.enterDate"));
-    if (!start || !end) return setError(t("schedule.addModal.errors.enterTimes"));
-    if (start >= end)   return setError(t("schedule.addModal.errors.startBeforeEnd"));
+    if (!chosenMod)      return setError(t("schedule.addModal.errors.selectModule"));
+    if (!date)           return setError(t("schedule.addModal.errors.enterDate"));
+    if (!start || !end)  return setError(t("schedule.addModal.errors.enterTimes"));
+    if (start >= end)    return setError(t("schedule.addModal.errors.startBeforeEnd"));
+    if (requiresPrice && !price) return setError(t("schedule.addModal.errors.enterPrice"));
+
     setSaving(true); setError("");
     try {
-      const res = await scheduleApi.createSession({ courseModuleName: modName, date, startTime: start, endTime: end });
+      const payload = {
+        moduleId:  chosenMod.id,
+        date,
+        startTime: start + ":00",
+        endTime:   end + ":00",
+        price:     requiresPrice ? Number(price) : null,
+      };
+      const res = await scheduleApi.createSession(payload);
       onCreated(res.data);
       onClose();
     } catch (err) {
@@ -227,6 +256,23 @@ function AddModal({ modules, defaultDayIdx, onClose, onCreated }) {
             <input style={inp_css} type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
           </div>
         </div>
+        {requiresPrice && (
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 5 }}>
+              {t("schedule.addModal.priceLabel") ?? "Price"}
+            </label>
+            <input
+              style={inp_css}
+              type="number"
+              min="0"
+              step="0.01"
+              inputMode="decimal"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              placeholder={t("schedule.addModal.pricePlaceholder") ?? "0.00"}
+            />
+          </div>
+        )}
         {modName && chosenMod && (
           <div style={{ background: colFor(chosenMod.id).bg, border: `1px solid ${colFor(chosenMod.id).border}`, borderRadius: 10, padding: "10px 14px" }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: colFor(chosenMod.id).text }}>{modName}</div>
@@ -353,15 +399,11 @@ function ArchiveModal({ slot, onClose, onConfirm }) {
 
 // ══════════════════════════════════════════════════════════════════
 //  تعويض PICKER MODAL
-//  Step 1: pick a sibling group (same subject + same teacher + same level)
-//  Step 2: pick a student from that group's roster
-//  No creditedModuleId sent — backend auto-detects and redirects the mark
-//  to the student's own session for this subject, same week.
 // ══════════════════════════════════════════════════════════════════
 function MakeupPickerModal({ moduleId, alreadyAddedIds, onClose, onPick }) {
   const { t } = useLanguage();
 
-  const [step,        setStep]        = useState(1); // 1 = pick group, 2 = pick student
+  const [step,        setStep]        = useState(1);
   const [siblings,     setSiblings]     = useState([]);
   const [loadingSibs,  setLoadingSibs]  = useState(true);
   const [siblingError, setSiblingError] = useState("");
@@ -394,7 +436,7 @@ function MakeupPickerModal({ moduleId, alreadyAddedIds, onClose, onPick }) {
       studentId:     student.id,
       fullName:       student.fullName ?? student.name,
       level:          student.level,
-      fromGroupName:  chosenGroup.name, // local display only, not sent to backend
+      fromGroupName:  chosenGroup.name,
     });
     onClose();
   };
@@ -463,16 +505,13 @@ function MakeupPickerModal({ moduleId, alreadyAddedIds, onClose, onPick }) {
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  ATTENDANCE SHEET MODAL — session-based, month badge + تعويض
-//  تعويض marks now save directly onto the student's OWN session (same week,
-//  auto-detected by backend) — not onto this session. So after saving, a
-//  تعويض student won't reappear here on reload; their mark lives in their
-//  own group's history instead.
+//  ATTENDANCE SHEET MODAL
 // ══════════════════════════════════════════════════════════════════
 function AttendanceSheetModal({ session, onClose }) {
   const { user } = useAuth();
   const { t, locale } = useLanguage();
   const c = colFor(session.moduleId);
+  const isMobile = useIsMobile();
 
   const [sheet,     setSheet]     = useState(null);
   const [loading,   setLoading]   = useState(true);
@@ -480,8 +519,7 @@ function AttendanceSheetModal({ session, onClose }) {
   const [error,     setError]     = useState("");
   const [marks,     setMarks]     = useState({});
 
-  // Newly picked تعويض students this session (local only, until saved)
-  const [makeupEntries, setMakeupEntries] = useState([]); // [{studentId, fullName, level, fromGroupName}]
+  const [makeupEntries, setMakeupEntries] = useState([]);
   const [pickerOpen,    setPickerOpen]    = useState(false);
 
   const [submitted, setSubmitted] = useState(false);
@@ -540,8 +578,6 @@ function AttendanceSheetModal({ session, onClose }) {
         .map((m) => ({
           studentId: m.studentId,
           status:    marks[m.studentId],
-          // no creditedModuleId — backend detects they're not enrolled here and
-          // auto-redirects the mark onto their own session for this subject, same week
         }));
 
       const entries = [...rosterEntries, ...makeupSubmitEntries];
@@ -564,11 +600,11 @@ function AttendanceSheetModal({ session, onClose }) {
   return (
     <>
       <ModalWrap onClose={onClose} maxWidth={560}>
-        <div style={{ padding: "1.1rem 1.25rem", background: c.bg, borderBottom: `1.5px solid ${c.border}`, flexShrink: 0 }}>
+        <div style={{ padding: isMobile ? "0.9rem 1rem" : "1.1rem 1.25rem", background: c.bg, borderBottom: `1.5px solid ${c.border}`, flexShrink: 0 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: c.text }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <div style={{ fontSize: isMobile ? 14 : 15, fontWeight: 700, color: c.text }}>
                   {sheet?.subjectName ?? session.subjectName ?? session.moduleName}
                 </div>
                 {!loading && sheet?.totalSessionsInMonth > 0 && (
@@ -584,7 +620,7 @@ function AttendanceSheetModal({ session, onClose }) {
               </div>
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
               <button
                 onClick={() => setPickerOpen(true)}
                 title={t("schedule.makeup.buttonTitle")}
@@ -646,8 +682,8 @@ function AttendanceSheetModal({ session, onClose }) {
                   status === "ABSENT"  ? "rgba(254,226,226,.45)" :
                   "#fff";
                 return (
-                  <div key={s.studentId} style={{ padding: "10px 1.25rem", borderBottom: "1px solid #F8FAFC", background: rowBg, transition: "background .2s" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div key={s.studentId} style={{ padding: isMobile ? "10px 1rem" : "10px 1.25rem", borderBottom: "1px solid #F8FAFC", background: rowBg, transition: "background .2s" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 12, flexWrap: isMobile ? "wrap" : "nowrap" }}>
                       <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#EBF4FE", border: "2px solid #B5D4F4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#0C447C", flexShrink: 0 }}>
                         {s.fullName?.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?"}
                       </div>
@@ -662,7 +698,7 @@ function AttendanceSheetModal({ session, onClose }) {
                         </div>
                         <div style={{ fontSize: 10, color: "#94A3B8", marginTop: 1 }}>{s.level ?? s.parentPhone ?? ""}</div>
                       </div>
-                      <div style={{ display: "flex", gap: 5 }}>
+                      <div style={{ display: "flex", gap: 5, marginInlineStart: isMobile ? "auto" : 0 }}>
                         {STATUS_BTNS.map(({ key, Icon, activeColor, activeBg, title }) => (
                           <button key={key} title={title} onClick={() => mark(s.studentId, key)}
                             style={{ width: 30, height: 30, borderRadius: 8, cursor: "pointer", border: `1.5px solid ${status === key ? activeColor : "#E2E8F0"}`, background: status === key ? activeBg : "#fff", color: status === key ? activeColor : "#CBD5E1", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s" }}>
@@ -675,7 +711,6 @@ function AttendanceSheetModal({ session, onClose }) {
                 );
               })}
 
-              {/* Newly picked تعويض students this session — not yet saved */}
               {makeupEntries.map((m) => {
                 const status = marks[m.studentId];
                 const rowBg =
@@ -683,8 +718,8 @@ function AttendanceSheetModal({ session, onClose }) {
                   status === "ABSENT"  ? "rgba(254,226,226,.45)" :
                   "#FAF5FF";
                 return (
-                  <div key={`makeup-${m.studentId}`} style={{ padding: "10px 1.25rem", borderBottom: "1px solid #F8FAFC", background: rowBg, borderInlineStart: `3px solid ${MAKEUP_COLOR}` }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div key={`makeup-${m.studentId}`} style={{ padding: isMobile ? "10px 1rem" : "10px 1.25rem", borderBottom: "1px solid #F8FAFC", background: rowBg, borderInlineStart: `3px solid ${MAKEUP_COLOR}` }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 12, flexWrap: isMobile ? "wrap" : "nowrap" }}>
                       <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#EDE9FE", border: `2px solid ${MAKEUP_COLOR}88`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: MAKEUP_COLOR, flexShrink: 0 }}>
                         {m.fullName?.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?"}
                       </div>
@@ -699,7 +734,7 @@ function AttendanceSheetModal({ session, onClose }) {
                           {t("schedule.makeup.fromGroup", { group: m.fromGroupName })}
                         </div>
                       </div>
-                      <div style={{ display: "flex", gap: 5 }}>
+                      <div style={{ display: "flex", gap: 5, marginInlineStart: isMobile ? "auto" : 0 }}>
                         {STATUS_BTNS.map(({ key, Icon, activeColor, activeBg, title }) => (
                           <button key={key} title={title} onClick={() => mark(m.studentId, key)}
                             style={{ width: 30, height: 30, borderRadius: 8, cursor: "pointer", border: `1.5px solid ${status === key ? activeColor : "#E2E8F0"}`, background: status === key ? activeBg : "#fff", color: status === key ? activeColor : "#CBD5E1", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s" }}>
@@ -719,12 +754,12 @@ function AttendanceSheetModal({ session, onClose }) {
           )}
         </div>
 
-        {error && sheet && <div style={{ padding: "0 1.25rem" }}><ErrorBox msg={error} /></div>}
+        {error && sheet && <div style={{ padding: isMobile ? "0 1rem" : "0 1.25rem" }}><ErrorBox msg={error} /></div>}
 
-        <div style={{ padding: ".85rem 1.25rem", borderTop: "1.5px solid #F1F5F9", background: "#FAFCFF", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+        <div style={{ padding: isMobile ? "0.75rem 1rem" : ".85rem 1.25rem", borderTop: "1.5px solid #F1F5F9", background: "#FAFCFF", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0, gap: 10 }}>
           <span style={{ fontSize: 11, color: "#94A3B8" }}>{t("schedule.attendance.markedCount", { marked: markedCount, total: totalPeople })}</span>
           <button onClick={handleSave} disabled={submitted || saving || totalPeople === 0}
-            style={{ padding: "8px 20px", borderRadius: 9, border: "none", background: submitted ? "#10B981" : P, color: "#fff", fontSize: 13, fontWeight: 600, cursor: submitted ? "default" : "pointer", fontFamily: "'Cairo',sans-serif", display: "flex", alignItems: "center", gap: 6, transition: "background .3s" }}>
+            style={{ padding: isMobile ? "10px 16px" : "8px 20px", borderRadius: 9, border: "none", background: submitted ? "#10B981" : P, color: "#fff", fontSize: 13, fontWeight: 600, cursor: submitted ? "default" : "pointer", fontFamily: "'Cairo',sans-serif", display: "flex", alignItems: "center", gap: 6, transition: "background .3s" }}>
             {saving ? <Spinner size={14} color="#fff" /> : submitted ? <><Check size={14} /> {t("schedule.attendance.saved")}</> : t("schedule.attendance.save")}
           </button>
         </div>
@@ -743,16 +778,77 @@ function AttendanceSheetModal({ session, onClose }) {
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  AGENDA VIEW  (unchanged)
+//  AGENDA VIEW
 // ══════════════════════════════════════════════════════════════════
 function AgendaSessionRow({ session, onAttendance }) {
   const { t } = useLanguage();
+  const isMobile = useIsMobile();
   const c  = colFor(session.moduleId);
   const PRICING_BADGE = {
     MONTHLY_FLAT: { label: t("schedule.pricing.monthly"), bg: "#EBF4FE", color: "#185FA5" },
     PER_SESSION:  { label: t("schedule.pricing.perSession"), bg: "#FAEEDA", color: "#854F0B" },
   };
   const pm = PRICING_BADGE[session.pricingModel];
+
+  if (isMobile) {
+    return (
+      <div style={{
+        padding: "12px 14px", borderRadius: 12,
+        background: "#fff", border: `1.5px solid ${c.border}`,
+        marginBottom: 8,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{
+            textAlign: "center", flexShrink: 0,
+            padding: "5px 8px", borderRadius: 9, background: c.bg,
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: c.text, whiteSpace: "nowrap" }}>{fmtTime(session.startTime)}</div>
+            <div style={{ fontSize: 9, color: c.text, opacity: .6, whiteSpace: "nowrap" }}>{fmtTime(session.endTime)}</div>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
+                {session.moduleName}
+              </span>
+              {pm && (
+                <span style={{ fontSize: 9, fontWeight: 600, padding: "1px 7px", borderRadius: 20, background: pm.bg, color: pm.color }}>
+                  {pm.label}
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
+              {t("schedule.attendance.teacherLabel", { name: session.teacherName })}
+            </div>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10, gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {session.level && (
+              <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: 20, background: "#F1F5F9", color: "#64748B" }}>
+                {session.level}
+              </span>
+            )}
+            <span style={{ fontSize: 11, color: "#64748B" }}>{t("schedule.agenda.enrolledCount", { count: session.enrolledCount ?? 0 })}</span>
+          </div>
+          <button
+            onClick={() => onAttendance(session)}
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "8px 14px", borderRadius: 9,
+              background: session.attendanceMarked ? "#E1F5EE" : P,
+              color: session.attendanceMarked ? "#0F6E56" : "#fff",
+              fontSize: 11, fontWeight: 600, cursor: "pointer",
+              fontFamily: "inherit", flexShrink: 0,
+              border: session.attendanceMarked ? "1.5px solid #A7F3D0" : "none",
+            }}
+          >
+            <Users size={12} />
+            {session.attendanceMarked ? t("schedule.agenda.attendanceDone") : t("schedule.agenda.markAttendance")}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{
@@ -812,6 +908,7 @@ function AgendaSessionRow({ session, onAttendance }) {
 
 function AgendaView({ schoolId, onAttendance, refreshKey }) {
   const { t, locale } = useLanguage();
+  const isMobile = useIsMobile();
   const [date,     setDate]     = useState(new Date());
   const [sessions, setSessions] = useState([]);
   const [loading,  setLoading]  = useState(true);
@@ -844,9 +941,9 @@ function AgendaView({ schoolId, onAttendance, refreshKey }) {
           <button onClick={() => shiftDay(-1)} style={{ width: 30, height: 30, borderRadius: 8, border: "1.5px solid #E2E8F0", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <ChevronRight size={14} color="#64748B" />
           </button>
-          <div style={{ textAlign: "center", minWidth: 160 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
-              {date.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" })}
+          <div style={{ textAlign: "center", minWidth: isMobile ? 120 : 160 }}>
+            <div style={{ fontSize: isMobile ? 12 : 13, fontWeight: 700, color: "#0F172A" }}>
+              {date.toLocaleDateString(locale, isMobile ? { weekday: "short", day: "numeric", month: "short" } : { weekday: "long", day: "numeric", month: "long" })}
             </div>
             {isToday && (
               <span style={{ fontSize: 9, fontWeight: 600, color: "#0F6E56", background: "#E1F5EE", padding: "1px 8px", borderRadius: 20, border: "1px solid #A7F3D0" }}>
@@ -869,7 +966,7 @@ function AgendaView({ schoolId, onAttendance, refreshKey }) {
           type="date"
           value={toLocalDate(date)}
           onChange={(e) => setDate(new Date(e.target.value + "T00:00:00"))}
-          style={{ fontSize: 12, padding: "6px 10px", borderRadius: 8, border: "1.5px solid #E2E8F0", fontFamily: "inherit", background: "#fff" }}
+          style={{ fontSize: 12, padding: "6px 10px", borderRadius: 8, border: "1.5px solid #E2E8F0", fontFamily: "inherit", background: "#fff", width: isMobile ? "100%" : "auto" }}
         />
       </div>
 
@@ -882,7 +979,7 @@ function AgendaView({ schoolId, onAttendance, refreshKey }) {
         </div>
       ) : (
         <>
-          <div style={{ display: "flex", gap: 14, marginBottom: 12, fontSize: 11, color: "#64748B" }}>
+          <div style={{ display: "flex", gap: 14, marginBottom: 12, fontSize: 11, color: "#64748B", flexWrap: "wrap" }}>
             <span>{t("schedule.agenda.sessionsCount", { count: sessions.length })}</span>
             <span style={{ color: "#0F6E56" }}>{t("schedule.agenda.markedCount", { count: sessions.filter((s) => s.attendanceMarked).length })}</span>
             <span style={{ color: "#BA7517" }}>{t("schedule.agenda.pendingCount", { count: sessions.filter((s) => !s.attendanceMarked).length })}</span>
@@ -900,9 +997,9 @@ function AgendaView({ schoolId, onAttendance, refreshKey }) {
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  WEEK GRID VIEW  (unchanged)
+//  WEEK GRID VIEW — desktop table, mobile stacked day-cards
 // ══════════════════════════════════════════════════════════════════
-function ModuleChip({ slot, onEdit, onArchive, onDragStart, onDragEnd }) {
+function ModuleChip({ slot, onEdit, onArchive, onDragStart, onDragEnd, isMobile }) {
   const { t } = useLanguage();
   const c = colFor(slot.moduleId);
   const PRICING_BADGE = {
@@ -911,6 +1008,46 @@ function ModuleChip({ slot, onEdit, onArchive, onDragStart, onDragEnd }) {
   };
   const pm = PRICING_BADGE[slot.pricingModel];
   const [hov, setHov] = useState(false);
+
+  if (isMobile) {
+    // Mobile: no drag, tap doesn't need hover — action buttons always visible
+    return (
+      <div
+        style={{ borderRadius: 10, padding: "9px 10px", background: c.bg, border: `1.5px solid ${c.border}`, position: "relative", marginBottom: 6 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: c.text }}>
+              {slot.subjectName ?? slot.moduleName}
+            </div>
+            <div style={{ fontSize: 10, color: c.text, opacity: .75, marginTop: 2 }}>
+              {fmtTime(slot.startTime)} – {fmtTime(slot.endTime)}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 3, flexWrap: "wrap" }}>
+              {slot.teacherName && (
+                <span style={{ fontSize: 9, color: c.text, opacity: .55 }}>{slot.teacherName}</span>
+              )}
+              {pm && (
+                <span style={{ fontSize: 8, fontWeight: 700, padding: "0 5px", borderRadius: 6, background: "rgba(255,255,255,.6)", color: c.text }}>
+                  {pm.label}
+                </span>
+              )}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+            {[
+              { Icon: Edit2,  color: "#475569", fn: () => onEdit(slot),    title: t("schedule.grid.edit") },
+              { Icon: Trash2, color: "#DC2626", fn: () => onArchive(slot), title: t("schedule.grid.archive") },
+            ].map(({ Icon, color, fn, title }) => (
+              <button key={title} title={title} onClick={(e) => { e.stopPropagation(); fn(); }}
+                style={{ width: 26, height: 26, borderRadius: 7, border: "none", background: "rgba(255,255,255,.85)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 4px rgba(0,0,0,.1)" }}>
+                <Icon size={12} color={color} />
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div draggable onDragStart={(e) => onDragStart(e, slot)} onDragEnd={onDragEnd}
@@ -963,8 +1100,82 @@ function DropCell({ dayIdx, timeSlot, children, onDrop }) {
   );
 }
 
+// Mobile day-card layout: one card per day, sessions stacked, day switcher on top
+function MobileWeekView({ modules, onAddModal, setEditSlot, setArchiveSlot, onModuleArchived }) {
+  const { t } = useLanguage();
+  const DAYS = t("schedule.days");
+  const [slots, setSlots] = useState([]);
+  const [activeDay, setActiveDay] = useState(0);
+
+  useEffect(() => {
+    const flat = [];
+    modules.forEach((m) => {
+      (m.schedules ?? []).forEach((sched) => {
+        flat.push({
+          slotKey:      `${m.id}_${sched.day}_${sched.startTime}`,
+          moduleId:     m.id,
+          moduleName:   m.name,
+          subjectName:  m.subjectName,
+          teacherName:  m.teacherName,
+          startTime:    sched.startTime,
+          endTime:      sched.endTime,
+          day:          sched.day,
+          pricingModel: m.pricingModel,
+        });
+      });
+    });
+    setSlots(flat);
+  }, [modules]);
+
+  const handleArchiveConfirm = (slot) => {
+    setSlots((prev) => prev.filter((s) => s.moduleId !== slot.moduleId));
+    onModuleArchived(slot.moduleId);
+  };
+
+  const daySlots = slots
+    .filter((s) => DAY_TO_IDX[s.day] === activeDay)
+    .sort((a, b) => fmtTime(a.startTime).localeCompare(fmtTime(b.startTime)));
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, marginBottom: 12, WebkitOverflowScrolling: "touch" }}>
+        {DAYS.map((d, i) => (
+          <button key={d} onClick={() => setActiveDay(i)}
+            style={{
+              flexShrink: 0, padding: "8px 14px", borderRadius: 20, border: activeDay === i ? "none" : "1.5px solid #E2E8F0",
+              background: activeDay === i ? P : "#fff", color: activeDay === i ? "#fff" : "#64748B",
+              fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+            }}>
+            {d}
+          </button>
+        ))}
+      </div>
+
+      <button onClick={() => onAddModal(activeDay)}
+        style={{ width: "100%", marginBottom: 12, fontSize: 12, padding: "9px", borderRadius: 10, border: "1.5px dashed #CBD5E1", background: "transparent", color: "#64748B", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+        <Plus size={13} /> {t("schedule.grid.addSessionShort")}
+      </button>
+
+      {daySlots.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "2.5rem 1rem", color: "#94A3B8", background: "#fff", borderRadius: 14, border: "1.5px solid #E2E8F0" }}>
+          <BookOpen size={28} color="#E2E8F0" style={{ marginBottom: 8 }} />
+          <div style={{ fontSize: 12 }}>{t("schedule.grid.emptyTitle")}</div>
+          <div style={{ fontSize: 11, marginTop: 4 }}>{t("schedule.grid.emptyHint")}</div>
+        </div>
+      ) : (
+        daySlots.map((slot) => (
+          <ModuleChip key={slot.slotKey} slot={slot} isMobile
+            onEdit={setEditSlot} onArchive={setArchiveSlot}
+            onDragStart={() => {}} onDragEnd={() => {}} />
+        ))
+      )}
+    </div>
+  );
+}
+
 function WeekGrid({ modules, onAddModal, setEditSlot, setArchiveSlot, onModuleArchived }) {
   const { t } = useLanguage();
+  const isMobile = useIsMobile();
   const DAYS = t("schedule.days");
   const [slots, setSlots] = useState([]);
   const dragging = useRef(null);
@@ -1013,6 +1224,18 @@ function WeekGrid({ modules, onAddModal, setEditSlot, setArchiveSlot, onModuleAr
       : s
     ));
   };
+
+  if (isMobile) {
+    return (
+      <MobileWeekView
+        modules={modules}
+        onAddModal={onAddModal}
+        setEditSlot={setEditSlot}
+        setArchiveSlot={setArchiveSlot}
+        onModuleArchived={onModuleArchived}
+      />
+    );
+  }
 
   const byDayTime = {};
   const timeSet   = new Set();
@@ -1090,11 +1313,12 @@ function WeekGrid({ modules, onAddModal, setEditSlot, setArchiveSlot, onModuleAr
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  MAIN SCHEDULE PAGE  (unchanged)
+//  MAIN SCHEDULE PAGE
 // ══════════════════════════════════════════════════════════════════
 export default function Schedule() {
   const { user } = useAuth();
   const { t, dir } = useLanguage();
+  const isMobile = useIsMobile();
   const schoolId = user?.schoolId;
 
   const [view, setView] = useState("agenda");
@@ -1134,32 +1358,39 @@ export default function Schedule() {
   const totalSessions = modules.reduce((sum, m) => sum + (m.schedules?.length ?? 0), 0);
 
   return (
-    <div dir={dir} style={{ padding: "1.25rem 1.5rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+    <div dir={dir} style={{ padding: isMobile ? "1rem" : "1.25rem 1.5rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh", display: "flex", flexDirection: "column", gap: isMobile ? "1rem" : "1.25rem" }}>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: isMobile ? "stretch" : "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, flexDirection: isMobile ? "column" : "row" }}>
         <div>
           <h1 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("schedule.title")}</h1>
           <p style={{ fontSize: 12, color: "#94A3B8", margin: "3px 0 0" }}>
             {loading ? t("schedule.loading") : t("schedule.subtitle", { sessions: totalSessions, modules: modules.length })}
           </p>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <div style={{ display: "flex", padding: 3, borderRadius: 10, background: "#fff", border: "1.5px solid #E2E8F0" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", width: isMobile ? "100%" : "auto" }}>
+          <div style={{ display: "flex", padding: 3, borderRadius: 10, background: "#fff", border: "1.5px solid #E2E8F0", flex: isMobile ? 1 : "none" }}>
             <button onClick={() => setView("agenda")}
-              style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, fontFamily: "inherit", background: view === "agenda" ? P : "transparent", color: view === "agenda" ? "#fff" : "#64748B" }}>
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "6px 12px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, fontFamily: "inherit", background: view === "agenda" ? P : "transparent", color: view === "agenda" ? "#fff" : "#64748B", flex: isMobile ? 1 : "none" }}>
               <Calendar size={12} /> {t("schedule.views.agenda")}
             </button>
             <button onClick={() => setView("grid")}
-              style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, fontFamily: "inherit", background: view === "grid" ? P : "transparent", color: view === "grid" ? "#fff" : "#64748B" }}>
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "6px 12px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, fontFamily: "inherit", background: view === "grid" ? P : "transparent", color: view === "grid" ? "#fff" : "#64748B", flex: isMobile ? 1 : "none" }}>
               <LayoutGrid size={12} /> {t("schedule.views.grid")}
             </button>
           </div>
-          <button onClick={loadModules} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-            <RefreshCw size={13} /> {t("schedule.actions.refresh")}
-          </button>
-          <button onClick={() => setAddModal({ defaultDayIdx: null })} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 9, border: "none", background: P, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+          {!isMobile && (
+            <button onClick={loadModules} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+              <RefreshCw size={13} /> {t("schedule.actions.refresh")}
+            </button>
+          )}
+          <button onClick={() => setAddModal({ defaultDayIdx: null })} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px 16px", borderRadius: 9, border: "none", background: P, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", flex: isMobile ? "1 1 100%" : "none" }}>
             <Plus size={14} /> {t("schedule.actions.addSession")}
           </button>
+          {isMobile && (
+            <button onClick={loadModules} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px 14px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 12, cursor: "pointer", fontFamily: "inherit", flex: 1 }}>
+              <RefreshCw size={13} /> {t("schedule.actions.refresh")}
+            </button>
+          )}
         </div>
       </div>
 
@@ -1168,13 +1399,13 @@ export default function Schedule() {
       ) : error ? (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "3rem" }}>
           <AlertCircle size={36} color="#E2A84B" />
-          <p style={{ color: "#64748B", fontSize: 13, margin: 0 }}>{error}</p>
+          <p style={{ color: "#64748B", fontSize: 13, margin: 0, textAlign: "center" }}>{error}</p>
           <button onClick={loadModules} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 9, border: `1.5px solid ${P}`, background: "#EBF4FE", color: P, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
             <RefreshCw size={13} /> {t("schedule.actions.retry")}
           </button>
         </div>
       ) : view === "agenda" ? (
-        <div style={{ background: "#fff", borderRadius: 14, border: "1.5px solid #E2E8F0", padding: "1.25rem" }}>
+        <div style={{ background: "#fff", borderRadius: 14, border: "1.5px solid #E2E8F0", padding: isMobile ? "1rem" : "1.25rem" }}>
           <AgendaView
             schoolId={schoolId}
             onAttendance={setAttendanceSession}

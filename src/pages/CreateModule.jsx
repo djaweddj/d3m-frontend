@@ -44,6 +44,19 @@ const OTHER_LEVEL_VALUE = LEVEL_CANONICAL_AR.other;
 
 const P = "#185FA5";
 
+// --- NEW: simple mobile breakpoint hook (no extra deps) ---
+function useIsMobile(breakpoint = 640) {
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== "undefined" ? window.innerWidth <= breakpoint : false
+  );
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= breakpoint);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [breakpoint]);
+  return isMobile;
+}
+
 function Label({ children, required }) {
   return (
     <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>
@@ -122,11 +135,12 @@ function Select({ value, onChange, options, placeholder }) {
   );
 }
 
-function SectionCard({ title, subtitle, children, icon: Icon }) {
+function SectionCard({ title, subtitle, children, icon: Icon, isMobile }) {
   return (
     <div style={{
       background: "#fff", borderRadius: 14, border: "1.5px solid #E2E8F0",
-      padding: "1.25rem 1.5rem", display: "flex", flexDirection: "column", gap: 16,
+      padding: isMobile ? "1rem" : "1.25rem 1.5rem",
+      display: "flex", flexDirection: "column", gap: 16,
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         {Icon && (
@@ -144,9 +158,13 @@ function SectionCard({ title, subtitle, children, icon: Icon }) {
   );
 }
 
-function Row({ children, cols = 2 }) {
+function Row({ children, cols = 2, isMobile }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 14 }}>
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: isMobile ? "1fr" : `repeat(${cols}, 1fr)`,
+      gap: 14,
+    }}>
       {children}
     </div>
   );
@@ -156,14 +174,15 @@ function Field({ children }) {
   return <div style={{ display: "flex", flexDirection: "column" }}>{children}</div>;
 }
 
-function PricingModelCard({ value, current, onClick, title, desc, icon: Icon, example }) {
+function PricingModelCard({ value, current, onClick, title, desc, icon: Icon, example, isMobile }) {
   const isSelected = current === value;
   return (
     <div onClick={onClick} style={{
-      flex: 1, padding: "16px 18px", borderRadius: 12, cursor: "pointer",
+      flex: 1, padding: isMobile ? "14px" : "16px 18px", borderRadius: 12, cursor: "pointer",
       border: isSelected ? `2px solid ${P}` : "1.5px solid #E2E8F0",
       background: isSelected ? "#EBF4FE" : "#fff",
       transition: "all .15s", position: "relative",
+      minWidth: 0,
     }}>
       {isSelected && (
         <div style={{
@@ -191,17 +210,18 @@ function PricingModelCard({ value, current, onClick, title, desc, icon: Icon, ex
   );
 }
 
-function ScheduleRow({ entry, onChange, onRemove, usedDays, days }) {
+function ScheduleRow({ entry, onChange, onRemove, usedDays, days, isMobile }) {
   const { t } = useLanguage();
   const availableDays = days.filter(d => !usedDays.includes(d.value) || d.value === entry.day);
   return (
     <div style={{
-      display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto",
+      display: "grid",
+      gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr auto",
       gap: 10, alignItems: "end",
       padding: "12px 14px", borderRadius: 10,
       background: "#F8FAFC", border: "1.5px solid #E2E8F0",
     }}>
-      <Field>
+      <Field style={isMobile ? { gridColumn: "1 / -1" } : undefined}>
         <Label>{t("createModule.schedule.day")}</Label>
         <Select value={entry.day} onChange={v => onChange({ ...entry, day: v })}
           options={availableDays.map(d => ({ value: d.value, label: d.label }))}
@@ -220,8 +240,10 @@ function ScheduleRow({ entry, onChange, onRemove, usedDays, days }) {
           width: 36, height: 36, borderRadius: 9, border: "1.5px solid #FECACA",
           background: "#FEF2F2", cursor: "pointer",
           display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+          ...(isMobile ? { gridColumn: "1 / -1", width: "100%" } : {}),
         }}>
         <Trash2 size={14} color="#EF4444" />
+        {isMobile && <span style={{ marginInlineStart: 6, fontSize: 12, fontWeight: 600, fontFamily: "'Cairo',sans-serif" }}>{t("createModule.schedule.day") ? "" : ""}</span>}
       </button>
     </div>
   );
@@ -230,6 +252,7 @@ function ScheduleRow({ entry, onChange, onRemove, usedDays, days }) {
 export default function CreateModule() {
   const navigate = useNavigate();
   const { t, dir } = useLanguage();
+  const isMobile = useIsMobile();
 
   const [subjects,    setSubjects]    = useState([]);
   const [teachers,    setTeachers]    = useState([]);
@@ -243,6 +266,7 @@ export default function CreateModule() {
   const [classroomId,    setClassroomId]    = useState("");
   const [level,          setLevel]          = useState("");
   const [maxStudents,    setMaxStudents]    = useState("");
+  const [cycleNumber,    setCycleNumber]    = useState(""); // NEW: matches CourseModuleRequestDto.cycleNumber
   const [pricingModel,   setPricingModel]   = useState("MONTHLY_FLAT");
   const [monthlyPrice,   setMonthlyPrice]   = useState("");
   const [pricePerSession,setPricePerSession]= useState("");
@@ -327,6 +351,7 @@ export default function CreateModule() {
         classroomId:    Number(classroomId),
         level: level === OTHER_LEVEL_VALUE ? customLevel : level,
         maxStudents:    Number(maxStudents),
+        cycleNumber:    cycleNumber !== "" ? Number(cycleNumber) : null, // NEW
         pricingModel,
         monthlyprice:    pricingModel === "MONTHLY_FLAT" ? Number(monthlyPrice)    : null,
         pricePerSession: pricingModel === "PER_SESSION"  ? Number(pricePerSession) : null,
@@ -365,27 +390,27 @@ export default function CreateModule() {
   );
 
   return (
-    <div dir={dir} style={{ padding: "1.5rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
+    <div dir={dir} style={{ padding: isMobile ? "1rem" : "1.5rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
 
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: "1.5rem" }}>
         <button onClick={() => navigate(-1)}
-          style={{ width: 36, height: 36, borderRadius: 10, border: "1.5px solid #E2E8F0", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          style={{ width: 36, height: 36, borderRadius: 10, border: "1.5px solid #E2E8F0", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <ArrowRight size={16} color="#64748B" />
         </button>
-        <div>
-          <h1 style={{ fontSize: 18, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("createModule.pageTitle")}</h1>
+        <div style={{ minWidth: 0 }}>
+          <h1 style={{ fontSize: isMobile ? 16 : 18, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("createModule.pageTitle")}</h1>
           <p style={{ fontSize: 12, color: "#94A3B8", margin: "3px 0 0" }}>
             {t("createModule.pageSubtitle")}
           </p>
         </div>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 780 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 780, width: "100%", boxSizing: "border-box" }}>
 
         {/* Basic Info */}
-        <SectionCard title={t("createModule.basicInfo.title")} subtitle={t("createModule.basicInfo.subtitle")}>
-          <Row cols={2}>
+        <SectionCard isMobile={isMobile} title={t("createModule.basicInfo.title")} subtitle={t("createModule.basicInfo.subtitle")}>
+          <Row cols={2} isMobile={isMobile}>
             <Field>
               <Label required>{t("createModule.basicInfo.moduleName")}</Label>
               <TextInput value={name} onChange={setName} placeholder={t("createModule.basicInfo.moduleNamePlaceholder")} />
@@ -425,17 +450,28 @@ export default function CreateModule() {
               )}
             </Field>
           </Row>
-          <Row cols={1}>
+          <Row cols={2} isMobile={isMobile}>
             <Field>
               <Label required>{t("createModule.basicInfo.maxStudents")}</Label>
               <TextInput type="number" value={maxStudents} onChange={setMaxStudents} placeholder={t("createModule.basicInfo.maxStudentsPlaceholder")} min="1" />
+            </Field>
+            {/* NEW FIELD: cycleNumber (maps to CourseModuleRequestDto.cycleNumber) */}
+            <Field>
+              <Label>{t("createModule.basicInfo.cycleNumber") || "Cycle Number"}</Label>
+              <TextInput
+                type="number"
+                value={cycleNumber}
+                onChange={setCycleNumber}
+                placeholder={t("createModule.basicInfo.cycleNumberPlaceholder") || "e.g. 1"}
+                min="1"
+              />
             </Field>
           </Row>
         </SectionCard>
 
         {/* Pricing Model */}
-        <SectionCard title={t("createModule.pricing.title")} subtitle={t("createModule.pricing.subtitle")} icon={CreditCard}>
-          <div style={{ display: "flex", gap: 12 }}>
+        <SectionCard isMobile={isMobile} title={t("createModule.pricing.title")} subtitle={t("createModule.pricing.subtitle")} icon={CreditCard}>
+          <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 12 }}>
             <PricingModelCard
               value="MONTHLY_FLAT" current={pricingModel}
               onClick={() => setPricingModel("MONTHLY_FLAT")}
@@ -443,6 +479,7 @@ export default function CreateModule() {
               title={t("createModule.pricing.monthlyFlat.title")}
               desc={t("createModule.pricing.monthlyFlat.desc")}
               example={t("createModule.pricing.monthlyFlat.example")}
+              isMobile={isMobile}
             />
             <PricingModelCard
               value="PER_SESSION" current={pricingModel}
@@ -451,6 +488,7 @@ export default function CreateModule() {
               title={t("createModule.pricing.perSession.title")}
               desc={t("createModule.pricing.perSession.desc")}
               example={t("createModule.pricing.perSession.example")}
+              isMobile={isMobile}
             />
           </div>
 
@@ -477,7 +515,7 @@ export default function CreateModule() {
         </SectionCard>
 
         {/* Assignment */}
-        <SectionCard title={t("createModule.assignment.title")} subtitle={t("createModule.assignment.subtitle")}>
+        <SectionCard isMobile={isMobile} title={t("createModule.assignment.title")} subtitle={t("createModule.assignment.subtitle")}>
           <Field>
             <Label required>{t("createModule.assignment.subject")}</Label>
             <Select value={subjectId} onChange={v => { setSubjectId(v); setTeacherId(""); }}
@@ -494,8 +532,8 @@ export default function CreateModule() {
         </SectionCard>
 
         {/* Period */}
-        <SectionCard title={t("createModule.period.title")} subtitle={t("createModule.period.subtitle")}>
-          <Row cols={2}>
+        <SectionCard isMobile={isMobile} title={t("createModule.period.title")} subtitle={t("createModule.period.subtitle")}>
+          <Row cols={2} isMobile={isMobile}>
             <Field>
               <Label required>{t("createModule.period.startDate")}</Label>
               <TextInput type="date" value={periodStart} onChange={setPeriodStart} />
@@ -515,10 +553,10 @@ export default function CreateModule() {
         </SectionCard>
 
         {/* Schedule */}
-        <SectionCard title={t("createModule.schedule.title")} subtitle={t("createModule.schedule.subtitle")}>
+        <SectionCard isMobile={isMobile} title={t("createModule.schedule.title")} subtitle={t("createModule.schedule.subtitle")}>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {schedules.map((entry, idx) => (
-              <ScheduleRow key={idx} entry={entry} days={DAYS}
+              <ScheduleRow key={idx} entry={entry} days={DAYS} isMobile={isMobile}
                 onChange={updated => setSchedules(prev => prev.map((s, i) => i === idx ? updated : s))}
                 onRemove={() => setSchedules(prev => prev.filter((_, i) => i !== idx))}
                 usedDays={usedDays} />
@@ -527,7 +565,7 @@ export default function CreateModule() {
           {schedules.length < 7 && (
             <button type="button"
               onClick={() => setSchedules(prev => [...prev, { day: "", startTime: "08:00", endTime: "09:30" }])}
-              style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, border: `1.5px dashed ${P}`, background: "#EBF4FE", color: P, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "'Cairo',sans-serif", width: "fit-content" }}>
+              style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, border: `1.5px dashed ${P}`, background: "#EBF4FE", color: P, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "'Cairo',sans-serif", width: isMobile ? "100%" : "fit-content", justifyContent: "center" }}>
               <Plus size={14} /> {t("createModule.schedule.addDay")}
             </button>
           )}
@@ -540,13 +578,13 @@ export default function CreateModule() {
           </div>
         )}
 
-        <div style={{ display: "flex", gap: 10, paddingBottom: "2rem" }}>
+        <div style={{ display: "flex", flexDirection: isMobile ? "column-reverse" : "row", gap: 10, paddingBottom: "2rem" }}>
           <button onClick={() => navigate(-1)}
-            style={{ flex: 1, padding: "12px", borderRadius: 12, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'Cairo',sans-serif" }}>
+            style={{ flex: isMobile ? "none" : 1, width: isMobile ? "100%" : "auto", padding: "12px", borderRadius: 12, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'Cairo',sans-serif" }}>
             {t("createModule.actions.cancel")}
           </button>
           <button onClick={handleSubmit} disabled={saving || success}
-            style={{ flex: 3, padding: "12px", borderRadius: 12, border: "none", background: success ? "#10B981" : saving ? "#94A3B8" : P, color: "#fff", fontSize: 14, fontWeight: 700, cursor: saving || success ? "default" : "pointer", fontFamily: "'Cairo',sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "background .3s" }}>
+            style={{ flex: isMobile ? "none" : 3, width: isMobile ? "100%" : "auto", padding: "12px", borderRadius: 12, border: "none", background: success ? "#10B981" : saving ? "#94A3B8" : P, color: "#fff", fontSize: 14, fontWeight: 700, cursor: saving || success ? "default" : "pointer", fontFamily: "'Cairo',sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "background .3s" }}>
             {success ? (
               <><Check size={16} /> {t("createModule.actions.success")}</>
             ) : saving ? (

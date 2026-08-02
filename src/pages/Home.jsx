@@ -716,14 +716,14 @@ export default function Home() {
             />
 
             {/* Central icon */}
-            <motion.div
+           <motion.div
               initial={{ opacity: 0, scale: 0.5 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.8, delay: 0.4, type: "spring", stiffness: 150 }}
               className="relative z-10"
             >
-              <div className="flex h-32 w-32 items-center justify-center rounded-[2rem] bg-gradient-to-br from-[#0F5A46] to-[#0B4436] text-white shadow-2xl shadow-[#0F5A46]/30">
-                <GraduationCap className="h-16 w-16" strokeWidth={1.5} />
+              <div className="flex h-52 w-52 items-center justify-center">
+                <img src="/src/assets/herologo.png" alt="Numeria Academy" className="h-full w-full object-contain drop-shadow-2xl" />
               </div>
               {/* Ripple rings */}
               <div className="absolute inset-0 -z-10">
@@ -951,12 +951,12 @@ export default function Home() {
       <footer className="border-t border-slate-200 bg-white">
         <div className="container mx-auto px-4 py-12 sm:px-6 lg:px-8">
           <div className="flex flex-col items-center justify-between gap-8 md:flex-row">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#0F5A46] to-[#0B4436] text-white shadow-lg shadow-[#0F5A46]/20">
-                <GraduationCap className="h-5 w-5" />
+        <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center">
+                <img src="/src/assets/herologo.png" alt="Numeria Academy" className="h-full w-full object-contain" />
               </div>
               <div>
-                <p className="font-bold text-slate-900">{t("home.footer.platformName")}</p>
+                <p className="font-bold text-slate-900">Numeria Academy</p>
                 <p className="text-xs text-slate-400">{t("home.footer.rights")}</p>
               </div>
             </div>

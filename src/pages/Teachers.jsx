@@ -14,8 +14,12 @@ const teacherApi = {
   unarchive:       (id)       => api.patch(`api/teachers/${id}/unarchive`),
   getSubjects:     ()         => api.get("api/subjects"),
 
-  getPayoutSummary:    (period)             => api.get("api/payouts", { params: { period } }),
-  recalculatePayouts:  (period)             => api.post("api/payouts/recalculate", null, { params: { period } }),
+  getPayoutSummary:    (period)     => api.get("api/payouts", { params: { period } }),
+  // CHANGED: was recalculatePayouts(period) -> POST /api/payouts/recalculate?period=...
+  // That bulk, whole-month endpoint no longer exists. Payouts are now per-teacher,
+  // date-range records, so "calculate" means "pay this teacher for whatever they're
+  // owed since their last payout" — a per-teacher action, not a month-wide one.
+  payTeacherNow:       (teacherId) => api.post(`api/payouts/teacher/${teacherId}/pay-now`),
   markPayoutPaid:      (payoutId)           => api.post(`api/payouts/${payoutId}/pay`),
   updatePercentage:    (teacherId, value)   => api.patch(`api/payouts/teacher/${teacherId}/percentage`, null, { params: { value } }),
   getLatestForTeacher: (teacherId)          => api.get(`api/payouts/teacher/${teacherId}/latest`),
@@ -38,6 +42,20 @@ function formatPeriod(period, locale) {
     return date.toLocaleDateString(locale, { month: "long", year: "numeric" });
   } catch {
     return String(period);
+  }
+}
+
+// NEW: format a payout's date range (periodStart/periodEnd) for display —
+// used anywhere we used to show a bare "period" on an individual payout,
+// since a payout is no longer tied to a single calendar month.
+function formatRange(start, end, locale) {
+  if (!start || !end) return "—";
+  try {
+    const s = new Date(start).toLocaleDateString(locale, { day: "numeric", month: "short" });
+    const e = new Date(end).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" });
+    return `${s} – ${e}`;
+  } catch {
+    return `${start} – ${end}`;
   }
 }
 
@@ -134,8 +152,10 @@ function StatusPill({ isPaid, size = "sm" }) {
   );
 }
 
-// ── Recalculate action (with inline confirm, since it affects the whole school) ──
-function RecalcAction({ confirming, recalculating, onClick, onCancel, label, compact }) {
+// ── Calculate action (was RecalcAction — kept the same inline-confirm shape,
+//    renamed to reflect that it now creates a fresh payout for the teacher
+//    rather than recalculating an existing month-wide one) ──
+function CalculateAction({ confirming, calculating, onClick, onCancel, label, compact }) {
   const { t } = useLanguage();
   if (confirming) {
     return (
@@ -143,11 +163,11 @@ function RecalcAction({ confirming, recalculating, onClick, onCancel, label, com
         <span style={{ fontSize: 9.5, color: "#94A3B8", fontWeight: 600 }}>
           {t("teachers.payoutCard.recalcWarning")}
         </span>
-        <button onClick={onClick} disabled={recalculating}
-          style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: 7, border: "1px solid #FECACA", background: "#FEF2F2", color: "#DC2626", fontSize: 10.5, fontWeight: 700, cursor: recalculating ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
-          {recalculating ? <Spinner size={10} color="#DC2626" /> : t("courses.payoutPanel.confirmPayment") /* placeholder: generic "confirm" fallback below overrides visually */}
+        <button onClick={onClick} disabled={calculating}
+          style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: 7, border: "1px solid #FECACA", background: "#FEF2F2", color: "#DC2626", fontSize: 10.5, fontWeight: 700, cursor: calculating ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+          {calculating ? <Spinner size={10} color="#DC2626" /> : t("courses.payoutPanel.confirmPayment")}
         </button>
-        <button onClick={onCancel} disabled={recalculating}
+        <button onClick={onCancel} disabled={calculating}
           style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 10.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
           {t("teachers.footer.cancel")}
         </button>
@@ -168,12 +188,12 @@ function RecalcAction({ confirming, recalculating, onClick, onCancel, label, com
 // ── Payout Info Card (edit modal) ─────────────────────────
 function PayoutInfoCard({
   lastPayout, payoutLoading, payoutError, previousPercentage, currentPercentage, primaryColor,
-  period, onPeriodChange, onMarkPaid, markingPaid, onRecalculate, recalculating,
+  period, onPeriodChange, onMarkPaid, markingPaid, onCalculate, calculating,
 }) {
   const { t, dir } = useLanguage();
   const locale = LOCALE_MAP[dir === "rtl" ? "ar" : "fr"];
   const currency = t("teacherDashboard.currency");
-  const [confirmingRecalc, setConfirmingRecalc] = useState(false);
+  const [confirmingCalc, setConfirmingCalc] = useState(false);
 
   const prevPct  = previousPercentage != null ? Number(previousPercentage) : null;
   const currPct  = parseFloat(currentPercentage);
@@ -181,10 +201,10 @@ function PayoutInfoCard({
   const increased = changed && currPct > prevPct;
   const isPaid   = lastPayout?.status === "PAID";
 
-  const handleRecalcClick = () => {
-    if (!confirmingRecalc) { setConfirmingRecalc(true); return; }
-    setConfirmingRecalc(false);
-    onRecalculate();
+  const handleCalcClick = () => {
+    if (!confirmingCalc) { setConfirmingCalc(true); return; }
+    setConfirmingCalc(false);
+    onCalculate();
   };
 
   return (
@@ -204,7 +224,11 @@ function PayoutInfoCard({
         ) : !lastPayout ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "2px 0" }}>
             <p style={{ fontSize: 12, color: "#94A3B8", margin: 0, textAlign: "center" }}>{t("teachers.payoutCard.none")}</p>
-            <RecalcAction confirming={confirmingRecalc} recalculating={recalculating} onClick={handleRecalcClick} onCancel={() => setConfirmingRecalc(false)} label={t("teachers.payoutCard.calculateThisMonth")} />
+            {/* Calculate now — creates a payout covering everything owed since
+                this teacher's last payout, up to today. This is what handles
+                the "teacher wants their money mid-month" case: hit calculate,
+                review the amount below, then Mark Paid. */}
+            <CalculateAction confirming={confirmingCalc} calculating={calculating} onClick={handleCalcClick} onCancel={() => setConfirmingCalc(false)} label={t("teachers.payoutCard.calculateThisMonth")} />
           </div>
         ) : (
           <>
@@ -215,6 +239,14 @@ function PayoutInfoCard({
                   {t("teachers.payoutCard.paidOn", { date: new Date(lastPayout.paidAt).toLocaleDateString(locale) })}
                 </span>
               )}
+            </div>
+
+            {/* NEW: show the exact date range this payout covers — a payout is
+                no longer just "November", it might be "Nov 1 – Nov 15" */}
+            <div style={{ textAlign: "center" }}>
+              <span style={{ fontSize: 10, fontWeight: 600, color: "#94A3B8" }}>
+                {formatRange(lastPayout.periodStart, lastPayout.periodEnd, locale)}
+              </span>
             </div>
 
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
@@ -259,7 +291,12 @@ function PayoutInfoCard({
                   {markingPaid ? t("teachers.payoutCard.markingPaid") : t("teachers.payoutCard.markPaid")}
                 </button>
               )}
-              <RecalcAction confirming={confirmingRecalc} recalculating={recalculating} onClick={handleRecalcClick} onCancel={() => setConfirmingRecalc(false)} label={t("courses.payoutPanel.recalculate")} compact={!isPaid} />
+              {/* Once a payout already exists for this teacher (paid or not),
+                  offer "calculate" again — it'll create the NEXT payout
+                  (the gap since this one), not modify this one. Most useful
+                  once the current payout is already PAID and more revenue
+                  has come in since. */}
+              <CalculateAction confirming={confirmingCalc} calculating={calculating} onClick={handleCalcClick} onCancel={() => setConfirmingCalc(false)} label={t("courses.payoutPanel.recalculate")} compact={!isPaid} />
             </div>
           </>
         )}
@@ -325,7 +362,7 @@ function EditTeacherModal({ teacher, subjects, onClose, onSaved, primaryColor })
   const [payoutLoading, setPayoutLoading] = useState(true);
   const [payoutError, setPayoutError] = useState("");
   const [markingPaid, setMarkingPaid] = useState(false);
-  const [recalculating, setRecalculating] = useState(false);
+  const [calculating, setCalculating] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -360,17 +397,21 @@ function EditTeacherModal({ teacher, subjects, onClose, onSaved, primaryColor })
     }
   };
 
-  const handleRecalculate = async () => {
-    setRecalculating(true);
+  // CHANGED: was handleRecalculate() -> teacherApi.recalculatePayouts(period).
+  // Now calls the per-teacher pay-now endpoint, which creates a payout for
+  // whatever's owed since the teacher's last payout (handles the "teacher
+  // wants their money mid-month" case directly). No period is sent — the
+  // backend figures out the start date itself from payout history.
+  const handleCalculate = async () => {
+    setCalculating(true);
     setPayoutError("");
     try {
-      const res = await teacherApi.recalculatePayouts(period);
-      const mine = res.data?.payouts?.find((pay) => pay.teacherId === teacher.id) ?? null;
-      setLastPayout(mine);
+      const res = await teacherApi.payTeacherNow(teacher.id);
+      setLastPayout(res.data);
     } catch (err) {
       setPayoutError(err?.response?.data?.message || t("courses.payoutPanel.calculateFailed"));
     } finally {
-      setRecalculating(false);
+      setCalculating(false);
     }
   };
 
@@ -406,7 +447,7 @@ function EditTeacherModal({ teacher, subjects, onClose, onSaved, primaryColor })
         primaryColor={primaryColor} isEdit={true}
         lastPayout={lastPayout} payoutLoading={payoutLoading} payoutError={payoutError}
         previousPercentage={teacher.percentage} period={period} onPeriodChange={setPeriod}
-        onMarkPaid={handleMarkPaid} markingPaid={markingPaid} onRecalculate={handleRecalculate} recalculating={recalculating}
+        onMarkPaid={handleMarkPaid} markingPaid={markingPaid} onCalculate={handleCalculate} calculating={calculating}
       />
       {error && <ErrorMsg msg={error} />}
       <ModalFooter onClose={onClose} onSave={handleSave} saving={saving} primaryColor={primaryColor} label={t("teachers.editModal.submit")} />
@@ -444,7 +485,7 @@ function ModalShell({ onClose, title, subtitle, emoji, children }) {
 function FormBody({
   form, setForm, subjects, showPassword, setShowPassword, primaryColor, isEdit,
   lastPayout, payoutLoading, payoutError, previousPercentage,
-  period, onPeriodChange, onMarkPaid, markingPaid, onRecalculate, recalculating,
+  period, onPeriodChange, onMarkPaid, markingPaid, onCalculate, calculating,
 }) {
   const { t } = useLanguage();
   return (
@@ -479,7 +520,7 @@ function FormBody({
           lastPayout={lastPayout} payoutLoading={payoutLoading} payoutError={payoutError}
           previousPercentage={previousPercentage} currentPercentage={form.percentage} primaryColor={primaryColor}
           period={period} onPeriodChange={onPeriodChange} onMarkPaid={onMarkPaid} markingPaid={markingPaid}
-          onRecalculate={onRecalculate} recalculating={recalculating}
+          onCalculate={onCalculate} calculating={calculating}
         />
       )}
 
@@ -637,9 +678,17 @@ function PayoutRow({ payout, teacher, primaryColor, onMarkPaid, markingId }) {
         <div style={{ width: 30, height: 30, borderRadius: "50%", background: primaryColor, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
           {initials(teacher?.fullName || payout?.teacherName)}
         </div>
-        <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {payout?.teacherName || teacher?.fullName || "—"}
-        </span>
+        <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {payout?.teacherName || teacher?.fullName || "—"}
+          </span>
+          {/* NEW: show the payout's own date range under the name, since a
+              teacher can now have more than one payout inside the same
+              month-summary view (e.g. a mid-month one + the remainder). */}
+          <span style={{ fontSize: 9.5, color: "#94A3B8" }}>
+            {formatRange(payout?.periodStart, payout?.periodEnd, locale)}
+          </span>
+        </div>
       </div>
 
       <span style={{ fontSize: 12, color: "#334155", textAlign: "center" }}>{formatDA(payout?.totalModuleRevenue, currency)}</span>
@@ -665,6 +714,12 @@ function PayoutRow({ payout, teacher, primaryColor, onMarkPaid, markingId }) {
 }
 
 // ── Payouts Tab ─────────────────────────────────────────────
+// CHANGED: the school-wide "Recalculate month" bulk action is removed — there
+// is no backend endpoint for it anymore (payouts are per-teacher date-range
+// records, not month-wide ones). This tab is now read-only for calculation:
+// it shows whatever payouts exist for the selected month (from the automatic
+// monthly job and/or per-teacher "calculate" actions in each edit modal) and
+// lets the admin mark any of them as paid.
 function PayoutsTab({ teachers, primaryColor }) {
   const { t, dir } = useLanguage();
   const locale = LOCALE_MAP[dir === "rtl" ? "ar" : "fr"];
@@ -673,8 +728,6 @@ function PayoutsTab({ teachers, primaryColor }) {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [recalculating, setRecalculating] = useState(false);
-  const [confirmingRecalc, setConfirmingRecalc] = useState(false);
   const [markingId, setMarkingId] = useState(null);
 
   const teacherMap = Object.fromEntries(teachers.map((t3) => [t3.id, t3]));
@@ -689,20 +742,6 @@ function PayoutsTab({ teachers, primaryColor }) {
   }, []);
 
   useEffect(() => { load(period); }, [period, load]);
-
-  const handleRecalcClick = async () => {
-    if (!confirmingRecalc) { setConfirmingRecalc(true); return; }
-    setConfirmingRecalc(false);
-    setRecalculating(true); setError("");
-    try {
-      const res = await teacherApi.recalculatePayouts(period);
-      setSummary(res.data);
-    } catch (err) {
-      setError(err?.response?.data?.message || t("courses.payoutPanel.calculateFailed"));
-    } finally {
-      setRecalculating(false);
-    }
-  };
 
   const handleMarkPaid = async (payout) => {
     setMarkingId(payout.id);
@@ -725,35 +764,16 @@ function PayoutsTab({ teachers, primaryColor }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* Toolbar: month + recalc */}
+      {/* Toolbar: month stepper only — bulk recalc button removed */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#fff", border: "1.5px solid #E8EEF6", borderRadius: 12, padding: "6px 12px" }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: "#64748B" }}>{t("courses.payoutPanel.title")}</span>
           <MonthStepper period={period} onChange={setPeriod} size="lg" />
         </div>
-
-        {confirmingRecalc ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 11, color: "#94A3B8", fontWeight: 600 }}>
-              {t("teachers.payoutCard.recalcWarningFor", { period: formatPeriod(period, locale) })}
-            </span>
-            <button onClick={handleRecalcClick} disabled={recalculating}
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 9, border: "1px solid #FECACA", background: "#FEF2F2", color: "#DC2626", fontSize: 12, fontWeight: 700, cursor: recalculating ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
-              {recalculating ? <Spinner size={12} color="#DC2626" /> : <Calculator size={13} />}
-              {t("teachers.payoutCard.confirmRecalculate")}
-            </button>
-            <button onClick={() => setConfirmingRecalc(false)} disabled={recalculating}
-              style={{ padding: "7px 14px", borderRadius: 9, border: "1px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-              {t("teachers.footer.cancel")}
-            </button>
-          </div>
-        ) : (
-          <button onClick={handleRecalcClick}
-            style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 16px", borderRadius: 10, border: "none", background: primaryColor, color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
-            onMouseEnter={(e) => (e.currentTarget.style.opacity = ".88")} onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}>
-            <Calculator size={14} /> {t("teachers.payoutCard.recalculateMonth")}
-          </button>
-        )}
+        <button onClick={() => load(period)}
+          style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+          <RefreshCw size={13} />
+        </button>
       </div>
 
       {/* Summary stats */}
@@ -776,10 +796,11 @@ function PayoutsTab({ teachers, primaryColor }) {
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "3rem", textAlign: "center" }}>
             <Wallet size={30} color="#CBD5E1" />
             <p style={{ fontSize: 13, color: "#94A3B8", margin: 0 }}>{t("teachers.payoutCard.noneForMonth", { period: formatPeriod(period, locale) })}</p>
-            <button onClick={handleRecalcClick}
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 9, border: `1.5px solid ${primaryColor}`, background: "#EBF4FE", color: primaryColor, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-              <Calculator size={13} /> {t("teachers.payoutCard.calculateThisMonth")}
-            </button>
+            {/* NEW: no bulk calculate here anymore — point the admin at the
+                per-teacher flow instead, where "calculate" actually lives now. */}
+            <p style={{ fontSize: 11, color: "#94A3B8", margin: 0, maxWidth: 260 }}>
+              {t("teachers.payoutCard.calculatePerTeacherHint")}
+            </p>
           </div>
         ) : (
           <>

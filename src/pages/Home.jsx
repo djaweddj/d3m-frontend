@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { motion, useScroll, useTransform, useSpring, useInView } from "framer-motion";
 import { Button } from "../components/ui/button";
+import heroLogo from "../assets/herologo.png";
 import {
   GraduationCap, School, Users, BookOpen, Star,
   MapPin, ArrowLeft, ArrowRight, Sparkles, Shield,

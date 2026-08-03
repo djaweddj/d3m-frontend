@@ -44,7 +44,7 @@ const OTHER_LEVEL_VALUE = LEVEL_CANONICAL_AR.other;
 
 const P = "#185FA5";
 
-// --- NEW: simple mobile breakpoint hook (no extra deps) ---
+// --- simple mobile breakpoint hook (no extra deps) ---
 function useIsMobile(breakpoint = 640) {
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" ? window.innerWidth <= breakpoint : false
@@ -65,6 +65,8 @@ function Label({ children, required }) {
   );
 }
 
+// NOTE: fontSize bumped to 16 to prevent iOS Safari auto-zoom-on-focus
+// (any input/select under 16px triggers zoom on iPhone).
 function TextInput({ value, onChange, placeholder, type = "text", min, disabled }) {
   return (
     <input
@@ -73,7 +75,7 @@ function TextInput({ value, onChange, placeholder, type = "text", min, disabled 
       placeholder={placeholder} min={min} disabled={disabled}
       style={{
         width: "100%", padding: "10px 12px", borderRadius: 10,
-        border: "1.5px solid #E2E8F0", fontSize: 13, color: "#0F172A",
+        border: "1.5px solid #E2E8F0", fontSize: 16, color: "#0F172A",
         fontFamily: "'Cairo',sans-serif",
         background: disabled ? "#F1F5F9" : "#FAFCFF",
         outline: "none", boxSizing: "border-box",
@@ -170,8 +172,12 @@ function Row({ children, cols = 2, isMobile }) {
   );
 }
 
-function Field({ children }) {
-  return <div style={{ display: "flex", flexDirection: "column" }}>{children}</div>;
+// FIX: Field now accepts and merges a `style` prop. Previously it silently
+// dropped any style passed to it, which meant the "span full width on
+// mobile" trick used by ScheduleRow's Day field never actually applied,
+// breaking the mobile grid layout for schedule rows.
+function Field({ children, style }) {
+  return <div style={{ display: "flex", flexDirection: "column", ...style }}>{children}</div>;
 }
 
 function PricingModelCard({ value, current, onClick, title, desc, icon: Icon, example, isMobile }) {
@@ -237,13 +243,17 @@ function ScheduleRow({ entry, onChange, onRemove, usedDays, days, isMobile }) {
       </Field>
       <button type="button" onClick={onRemove}
         style={{
-          width: 36, height: 36, borderRadius: 9, border: "1.5px solid #FECACA",
+          height: 40, borderRadius: 9, border: "1.5px solid #FECACA",
           background: "#FEF2F2", cursor: "pointer",
           display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-          ...(isMobile ? { gridColumn: "1 / -1", width: "100%" } : {}),
+          ...(isMobile ? { gridColumn: "1 / -1", width: "100%", gap: 6 } : { width: 36 }),
         }}>
         <Trash2 size={14} color="#EF4444" />
-        {isMobile && <span style={{ marginInlineStart: 6, fontSize: 12, fontWeight: 600, fontFamily: "'Cairo',sans-serif" }}>{t("createModule.schedule.day") ? "" : ""}</span>}
+        {isMobile && (
+          <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "'Cairo',sans-serif", color: "#EF4444" }}>
+            {t("createModule.schedule.removeDay") || t("createModule.actions.cancel")}
+          </span>
+        )}
       </button>
     </div>
   );
@@ -428,7 +438,12 @@ export default function CreateModule() {
                     setCustomLevel("");
                   }
                 }}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                style={{
+                  width: "100%", padding: "10px 12px", borderRadius: 10,
+                  border: "1.5px solid #E2E8F0", fontSize: 16, color: "#0F172A",
+                  fontFamily: "'Cairo',sans-serif", background: "#FAFCFF",
+                  outline: "none", boxSizing: "border-box",
+                }}
               >
                 <option value="">{t("createModule.basicInfo.levelPlaceholder")}</option>
 
@@ -440,7 +455,7 @@ export default function CreateModule() {
               </select>
 
               {level === OTHER_LEVEL_VALUE && (
-                <div className="mt-3">
+                <div style={{ marginTop: 12 }}>
                   <TextInput
                     value={customLevel}
                     onChange={setCustomLevel}

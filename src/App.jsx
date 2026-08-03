@@ -37,7 +37,7 @@ import SubjectsAndClassrooms from "./pages/SubjectAndClassRoom";
 // teacherdashboard
 import TeacherDashboard from "./pages/teacherDashboard";
 import MyStudents from "./pages/MyStudent";
-import TeacherProfile from "./pages/teacherprofile";
+
 
 import ProtectedRoute from "./auth/ProtectedRoutes";
 import CreateModule from "./pages/CreateModule";

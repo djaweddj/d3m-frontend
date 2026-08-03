@@ -113,7 +113,7 @@ export default function Settings() {
   const schoolName = school?.schoolName ?? user?.fullName ?? t("settings.logo.schoolFallback");
 
   return (
-    <div dir={dir} style={{ padding: "1.25rem", fontFamily: "'Cairo', sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
+    <div dir={dir} className="settings-root" style={{ padding: "1.25rem", fontFamily: "'Cairo', sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
 
       {/* Page title */}
       <div style={{ marginBottom: "1.25rem" }}>
@@ -123,7 +123,7 @@ export default function Settings() {
         </p>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 16, alignItems: "start" }}>
+      <div className="settings-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 16, alignItems: "start" }}>
 
         <LogoCard
           schoolName={schoolName}
@@ -138,7 +138,7 @@ export default function Settings() {
           onRemove={removeLogo}
         />
 
-        <PasswordCard changePassword={changePassword} />
+        <PasswordCard changePassword={changePassword} dir={dir} />
 
       </div>
 
@@ -150,6 +150,11 @@ export default function Settings() {
         @keyframes fadeSlideIn {
           from { opacity: 0; transform: translateY(-4px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+        @media (max-width: 480px) {
+          .settings-root { padding: 0.85rem !important; }
+          .settings-grid { grid-template-columns: 1fr !important; }
+          .settings-card { padding: 1.1rem !important; }
         }
       `}</style>
     </div>
@@ -165,7 +170,7 @@ function LogoCard({
   const { t } = useLanguage();
 
   return (
-    <div style={{
+    <div className="settings-card" style={{
       background: "#fff", borderRadius: 16, border: "1px solid #E8EEF6",
       padding: "1.4rem", boxShadow: "0 1px 2px rgba(15,23,42,0.03)",
     }}>
@@ -282,7 +287,8 @@ function LogoCard({
 
 /* ───────────────────────── Password card ───────────────────────── */
 
-function PasswordField({ label, value, onChange, show, toggleShow, placeholder, error }) {
+function PasswordField({ label, value, onChange, show, toggleShow, placeholder, error, dir }) {
+  const isRtl = dir === "rtl";
   return (
     <div>
       <label style={{ fontSize: 11.5, color: "#64748B", fontWeight: 600, display: "block", marginBottom: 5 }}>
@@ -297,7 +303,8 @@ function PasswordField({ label, value, onChange, show, toggleShow, placeholder, 
           autoComplete="new-password"
           style={{
             width: "100%", boxSizing: "border-box", fontFamily: "inherit",
-            padding: "10px 40px 10px 12px", borderRadius: 10, fontSize: 12.5,
+            padding: isRtl ? "10px 12px 10px 40px" : "10px 40px 10px 12px",
+            borderRadius: 10, fontSize: 12.5,
             border: `1.5px solid ${error ? "#FCA5A5" : "#E2E8F0"}`,
             outline: "none", color: "#0F172A", background: "#F8FAFC",
             transition: "border-color .15s, background .15s",
@@ -310,7 +317,9 @@ function PasswordField({ label, value, onChange, show, toggleShow, placeholder, 
           onClick={toggleShow}
           tabIndex={-1}
           style={{
-            position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
+            position: "absolute",
+            [isRtl ? "right" : "left"]: 10,
+            top: "50%", transform: "translateY(-50%)",
             background: "none", border: "none", cursor: "pointer", color: "#94A3B8",
             display: "flex", padding: 2,
           }}
@@ -323,7 +332,7 @@ function PasswordField({ label, value, onChange, show, toggleShow, placeholder, 
   );
 }
 
-function PasswordCard({ changePassword }) {
+function PasswordCard({ changePassword, dir }) {
   const { t } = useLanguage();
 
   const [oldPassword, setOldPassword] = useState("");
@@ -411,7 +420,7 @@ function PasswordCard({ changePassword }) {
   };
 
   return (
-    <div style={{
+    <div className="settings-card" style={{
       background: "#fff", borderRadius: 16, border: "1px solid #E8EEF6",
       padding: "1.4rem", boxShadow: "0 1px 2px rgba(15,23,42,0.03)",
     }}>
@@ -437,6 +446,7 @@ function PasswordCard({ changePassword }) {
           toggleShow={() => setShowOld((s) => !s)}
           placeholder={t("settings.password.currentPlaceholder")}
           error={errors.oldPassword}
+          dir={dir}
         />
 
         <div>
@@ -448,6 +458,7 @@ function PasswordCard({ changePassword }) {
             toggleShow={() => setShowNew((s) => !s)}
             placeholder={t("settings.password.newPlaceholder")}
             error={errors.newPassword}
+            dir={dir}
           />
           {newPassword && (
             <div style={{ marginTop: 7, display: "flex", alignItems: "center", gap: 8, animation: "fadeSlideIn .15s ease" }}>
@@ -475,6 +486,7 @@ function PasswordCard({ changePassword }) {
           toggleShow={() => setShowConfirm((s) => !s)}
           placeholder={t("settings.password.confirmPlaceholder")}
           error={errors.confirmPassword}
+          dir={dir}
         />
         {confirmPassword && confirmPassword === newPassword && !errors.confirmPassword && (
           <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: -8, animation: "fadeSlideIn .15s ease" }}>

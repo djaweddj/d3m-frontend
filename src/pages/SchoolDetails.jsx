@@ -225,11 +225,17 @@ function GlobalStyles() {
 
       * { box-sizing: border-box; }
 
+      html, body {
+        overflow-x: hidden;
+      }
+
       .sd-root {
         font-family: 'Tajawal', 'Inter', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
         text-rendering: optimizeLegibility;
+        overflow-x: hidden;
+        width: 100%;
       }
       .sd-serif {
         font-family: 'Playfair Display', 'Georgia', 'Times New Roman', serif;
@@ -275,6 +281,8 @@ function GlobalStyles() {
         scroll-behavior: smooth;
         scrollbar-width: thin;
         scrollbar-color: ${T.line} transparent;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
       }
       .sd-event-scroll::-webkit-scrollbar { height: 8px; }
       .sd-event-scroll::-webkit-scrollbar-track { background: transparent; }
@@ -286,6 +294,8 @@ function GlobalStyles() {
 
       .sd-daytabs-scroll {
         scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
       }
       .sd-daytabs-scroll::-webkit-scrollbar { display: none; }
 
@@ -333,6 +343,15 @@ function GlobalStyles() {
       .sd-hero-pad { padding: 3.5rem 2rem 3.75rem; }
       .sd-main-pad { padding: 2.25rem 2rem 4rem; }
 
+      /* Modal shell — capped to the viewport height so long content
+         (school info + confirm buttons) never gets clipped on short
+         mobile screens; scrolls internally instead. */
+      .sd-modal-card {
+        max-height: calc(100vh - 2rem);
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+
       @media (max-width: 960px) {
         .sd-layout { grid-template-columns: 1fr; gap: 24px; }
         .sd-sidebar-sticky { position: static; }
@@ -356,6 +375,17 @@ function GlobalStyles() {
         .sd-hero-logo { display: none; }
         .sd-hero-title { font-size: 28px !important; }
         .sd-event-card-wrap { width: 280px; }
+        .sd-modal-card { padding: 1.5rem !important; }
+      }
+      @media (max-width: 480px) {
+        .sd-hero-pad { padding: 2rem 1rem 2.25rem; }
+        .sd-main-pad { padding: 1.25rem 1rem 2.5rem; }
+        .sd-hero-title { font-size: 23px !important; }
+        .sd-stats-row { grid-template-columns: 1fr 1fr; gap: 10px; }
+        .sd-event-card-wrap { width: 240px; }
+        .sd-module-time-rail { min-width: 58px !important; padding: 0.5rem 0.6rem !important; }
+        .sd-modal-card { padding: 1.25rem !important; border-radius: 18px !important; }
+        .sd-toast { left: 12px !important; right: 12px !important; transform: none !important; max-width: none !important; }
       }
       @media (max-width: 420px) {
         .sd-stats-row { grid-template-columns: 1fr; }
@@ -616,7 +646,7 @@ function ModuleRow({ mod, onEnroll, isEnrolled, isPending }) {
       }}
     >
       {/* Time rail */}
-      <div style={{
+      <div className="sd-module-time-rail" style={{
         background: T.gradInk,
         borderRadius: 12,
         padding: "0.7rem 0.85rem", textAlign: "center",
@@ -988,6 +1018,7 @@ function EnrollModal({ mod, schoolName, onConfirm, onCancel, loading }) {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
         transition={springSoft}
+        className="sd-modal-card"
         style={{
           background: T.white, borderRadius: 22, padding: "2rem",
           maxWidth: 440, width: "100%",
@@ -1154,6 +1185,7 @@ function CourseEnrollModal({ course, schoolName, onConfirm, onCancel, loading })
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
         transition={springSoft}
+        className="sd-modal-card"
         style={{
           background: T.white, borderRadius: 22, padding: "2rem",
           maxWidth: 440, width: "100%",
@@ -1293,6 +1325,7 @@ function Toast({ message, type = "success" }) {
       exit={{ opacity: 0, y: 20, x: "-50%" }}
       transition={springSoft}
       role="status" aria-live="polite"
+      className="sd-toast"
       style={{
         position: "fixed", bottom: 32, left: "50%",
         background: isSuccess ? T.inkDeep : "#7f1d1d",
@@ -1357,9 +1390,9 @@ function SchoolDetailsSkeleton() {
         </div>
       </div>
       <div style={{ maxWidth: 1180, margin: "0 auto", padding: "2.25rem 2rem" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 32 }}>
+        <div className="sd-layout">
           <div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24 }}>
+            <div className="sd-stats-row" style={{ marginBottom: 24 }}>
               <Skeleton h={110} r={18} /><Skeleton h={110} r={18} /><Skeleton h={110} r={18} />
             </div>
             <Skeleton h={200} r={18} mb={24} />
@@ -1566,7 +1599,7 @@ export default function SchoolDetails() {
           transition={springSoft}
           style={{
             background: T.white, borderRadius: 22, border: `1px solid ${T.line}`,
-            padding: "2.75rem", maxWidth: 400, textAlign: "center",
+            padding: "2.75rem", maxWidth: 400, width: "100%", textAlign: "center",
             boxShadow: T.shadowLg,
           }}
         >
@@ -1668,11 +1701,13 @@ export default function SchoolDetails() {
           <div style={{
             maxWidth: 1180, margin: "0 auto", position: "relative", zIndex: 1,
             display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 24,
+            flexWrap: "wrap",
           }}>
             <motion.div
               initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+              style={{ minWidth: 0 }}
             >
               <div style={{ marginBottom: 14, display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <StatusBadge status={school.subscriptionStatus} onDark />
@@ -1692,6 +1727,7 @@ export default function SchoolDetails() {
                 margin: "0 0 12px", lineHeight: 1.15,
                 letterSpacing: "-0.02em",
                 textShadow: "0 4px 24px rgba(0,0,0,.25)",
+                wordBreak: "break-word",
               }}>
                 {school.schoolName}
               </h1>

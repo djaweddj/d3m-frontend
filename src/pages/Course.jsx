@@ -79,6 +79,34 @@ const interp = (str, vars = {}) =>
   Object.keys(vars).reduce((acc, k) => acc.replaceAll(`{${k}}`, vars[k]), str);
 
 // ══════════════════════════════════════════════════════════════════
+//  MOBILE RESPONSIVE STYLES
+//  Uses !important on the mobile breakpoint only, since this file
+//  relies on inline styles everywhere (which normally beat external
+//  CSS). Keeping this scoped to one shared block avoids duplicating
+//  <style> tags across every component instance.
+// ══════════════════════════════════════════════════════════════════
+function ResponsiveStyles() {
+  return (
+    <style>{`
+      @media (max-width: 640px) {
+        .sac-root { padding: 0.85rem !important; }
+        .sac-search-box { max-width: none !important; width: 100% !important; }
+        .sac-filter-select { width: 100% !important; }
+        .sac-action-buttons { width: 100% !important; }
+        .sac-action-buttons button { flex: 1 1 auto !important; justify-content: center !important; }
+        .sac-courses-grid { grid-template-columns: 1fr !important; }
+        .sac-payout-course-cards { grid-template-columns: 1fr !important; }
+        .sac-form-grid-2 { grid-template-columns: 1fr !important; }
+        .sac-tab-bar button { padding: 8px 12px !important; font-size: 11.5px !important; }
+      }
+      @media (max-width: 420px) {
+        .sac-request-row, .sac-invoice-row { gap: 10px !important; padding: 10px !important; }
+      }
+    `}</style>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════
 //  SHARED PRIMITIVES (matching Schedule.jsx conventions)
 // ══════════════════════════════════════════════════════════════════
 function Spinner({ size = 18, color = P }) {
@@ -104,11 +132,11 @@ function ModalWrap({ onClose, children, maxWidth = 440, dir }) {
 function ModalHeader({ title, subtitle, onClose }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.25rem", borderBottom: "1.5px solid #F1F5F9", background: "#FAFCFF", flexShrink: 0 }}>
-      <div>
+      <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>{title}</div>
-        {subtitle && <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 2 }}>{subtitle}</div>}
+        {subtitle && <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{subtitle}</div>}
       </div>
-      <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+      <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginInlineStart: 10 }}>
         <X size={14} color="#64748B" />
       </button>
     </div>
@@ -195,14 +223,14 @@ function EmptyState({ icon: Icon = Inbox, title, subtitle }) {
 
 function TabBar({ active, onChange, tabs }) {
   return (
-    <div style={{ display: "flex", gap: 6, padding: 4, borderRadius: 12, background: "#fff", border: "1.5px solid #E2E8F0", overflowX: "auto" }}>
+    <div className="sac-tab-bar" style={{ display: "flex", gap: 6, padding: 4, borderRadius: 12, background: "#fff", border: "1.5px solid #E2E8F0", overflowX: "auto" }}>
       {tabs.map((t) => (
         <button key={t.key} onClick={() => onChange(t.key)}
           style={{
             display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", borderRadius: 9, border: "none",
             cursor: "pointer", fontSize: 12.5, fontWeight: 700, fontFamily: "inherit", whiteSpace: "nowrap",
             background: active === t.key ? P : "transparent", color: active === t.key ? "#fff" : "#64748B",
-            transition: "background .15s, color .15s", position: "relative",
+            transition: "background .15s, color .15s", position: "relative", flexShrink: 0,
           }}>
           <t.icon size={14} />
           {t.label}
@@ -282,7 +310,7 @@ function CourseCard({ course, onArchive, onOpenPayout, t, fmtMoney }) {
         </div>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 13, paddingTop: 12, borderTop: "1px solid #F1F5F9" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 13, paddingTop: 12, borderTop: "1px solid #F1F5F9", flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", gap: 14 }}>
           <div>
             <div style={{ fontSize: 9.5, color: "#94A3B8" }}>{t("courses.coursesTab.totalPriceLabel")}</div>
@@ -304,14 +332,14 @@ function CourseCard({ course, onArchive, onOpenPayout, t, fmtMoney }) {
 
 function SessionRow({ session, onChange, onRemove }) {
   return (
-    <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-      <div style={{ flex: 1.3 }}>
-      <input type="date" style={inp} value={session.date} onChange={(e)=>{onChange({...session,date:e.target.value})}} />
+    <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+      <div style={{ flex: "2 1 150px" }}>
+        <input type="date" style={inp} value={session.date} onChange={(e)=>{onChange({...session,date:e.target.value})}} />
       </div>
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: "1 1 100px" }}>
         <input style={inp} type="time" value={session.startTime} onChange={(e) => onChange({ ...session, startTime: e.target.value })} />
       </div>
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: "1 1 100px" }}>
         <input style={inp} type="time" value={session.endTime} onChange={(e) => onChange({ ...session, endTime: e.target.value })} />
       </div>
       <button onClick={onRemove} style={{ width: 34, height: 34, borderRadius: 9, border: "1.5px solid #FECACA", background: "#FEF2F2", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -373,7 +401,7 @@ function CreateCourseModal({ teachers, onClose, onCreated, t, dir }) {
       <ModalHeader title={t("courses.createCourse.title")} subtitle={t("courses.createCourse.subtitle")} onClose={onClose} />
       <div style={{ padding: "1.1rem 1.25rem", display: "flex", flexDirection: "column", gap: 14, overflowY: "auto" }}>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <div className="sac-form-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <Field label={t("courses.createCourse.nameLabel")} required>
             <Input value={form.name} onChange={(v) => setForm((f) => ({ ...f, name: v }))} placeholder={t("courses.createCourse.namePlaceholder")} />
           </Field>
@@ -401,14 +429,14 @@ function CreateCourseModal({ teachers, onClose, onCreated, t, dir }) {
           {teacherMode === "internal" ? (
             <Select value={form.teacherId} onChange={(v) => setForm((f) => ({ ...f, teacherId: v }))} options={teacherOptions} placeholder={t("courses.createCourse.teacherSelectPlaceholder")} />
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div className="sac-form-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <Input value={form.externalTeacherName} onChange={(v) => setForm((f) => ({ ...f, externalTeacherName: v }))} placeholder={t("courses.createCourse.externalNamePlaceholder")} />
               <Input value={form.externalTeacherPhone} onChange={(v) => setForm((f) => ({ ...f, externalTeacherPhone: v }))} placeholder={t("courses.createCourse.externalPhonePlaceholder")} />
             </div>
           )}
         </Field>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <div className="sac-form-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <Field label={t("courses.createCourse.levelLabel")}>
             <Select value={form.level} onChange={(v) => setForm((f) => ({ ...f, level: v }))} options={levelOptions} placeholder={t("courses.levels.allLevels")} />
           </Field>
@@ -417,7 +445,7 @@ function CreateCourseModal({ teachers, onClose, onCreated, t, dir }) {
           </Field>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <div className="sac-form-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <Field label={t("courses.createCourse.totalPriceLabel")} required>
             <Input type="number" value={form.totalPrice} onChange={(v) => setForm((f) => ({ ...f, totalPrice: v }))} placeholder={t("courses.createCourse.totalPricePlaceholder")} />
           </Field>
@@ -502,21 +530,21 @@ function CoursesTab({ courses, teachers, loading, error, onReload, onOpenPayout,
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
-        <div style={{ display: "flex", gap: 8, flex: 1, minWidth: 240 }}>
-          <div style={{ position: "relative", flex: 1, maxWidth: 280 }}>
+        <div style={{ display: "flex", gap: 8, flex: 1, minWidth: 240, flexWrap: "wrap" }}>
+          <div className="sac-search-box" style={{ position: "relative", flex: 1, maxWidth: 280, minWidth: 160 }}>
             <Search size={14} color="#94A3B8" style={{ position: "absolute", insetInlineEnd: 11, top: "50%", transform: "translateY(-50%)" }} />
             <input style={{ ...inp, paddingInlineEnd: 32 }} value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("courses.coursesTab.searchPlaceholder")} />
           </div>
-          <div style={{ width: 160 }}>
+          <div className="sac-filter-select" style={{ width: 160 }}>
             <Select value={levelFilter} onChange={setLevelFilter} options={levelOptions} placeholder={t("courses.levels.allLevels")} />
           </div>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={onReload} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+        <div className="sac-action-buttons" style={{ display: "flex", gap: 8 }}>
+          <button onClick={onReload} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 14px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
             <RefreshCw size={13} /> {t("courses.coursesTab.refresh")}
           </button>
           <button onClick={() => setCreateOpen(true)}
-            style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 16px", borderRadius: 9, border: "none", background: P, color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "9px 16px", borderRadius: 9, border: "none", background: P, color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
             <Plus size={14} /> {t("courses.coursesTab.addCourse")}
           </button>
         </div>
@@ -534,7 +562,7 @@ function CoursesTab({ courses, teachers, loading, error, onReload, onOpenPayout,
           title={courses.length === 0 ? t("courses.coursesTab.emptyNoCourses") : t("courses.coursesTab.emptyNoResults")}
           subtitle={courses.length === 0 ? t("courses.coursesTab.emptyNoCoursesSub") : t("courses.coursesTab.emptyNoResultsSub")} />
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 14 }}>
+        <div className="sac-courses-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14 }}>
           {filtered.map((c) => (
             <CourseCard key={c.id} course={c} onArchive={setArchiveTarget} onOpenPayout={onOpenPayout} t={t} fmtMoney={fmtMoney} />
           ))}
@@ -597,7 +625,7 @@ function RequestRow({ request, onApprove, onReject, approving, t, fmtMoney, loca
   const stLabel = t(`courses.enrollmentStatus.${request.status}`) || t("courses.enrollmentStatus.PENDING");
 
   return (
-    <div style={{ background: "#fff", borderRadius: 12, border: "1.5px solid #E2E8F0", padding: "12px 14px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+    <div className="sac-request-row" style={{ background: "#fff", borderRadius: 12, border: "1.5px solid #E2E8F0", padding: "12px 14px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
       <div style={{ width: 38, height: 38, borderRadius: "50%", background: "#EBF4FE", border: "2px solid #B5D4F4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#0C447C", flexShrink: 0 }}>
         {request.studentName?.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?"}
       </div>
@@ -712,7 +740,7 @@ function RequestsTab({ courses, onPendingCountChange, t, dir, fmtMoney, locale }
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <div style={{ width: 170 }}>
+          <div className="sac-filter-select" style={{ width: 170 }}>
             <Select value={statusFilter} onChange={setStatusFilter}
               options={[
                 { value: "PENDING", label: t("courses.enrollmentStatus.PENDING") },
@@ -721,7 +749,7 @@ function RequestsTab({ courses, onPendingCountChange, t, dir, fmtMoney, locale }
               ]}
               placeholder={t("courses.requestsTab.statusAll")} />
           </div>
-          <div style={{ width: 200 }}>
+          <div className="sac-filter-select" style={{ width: 200 }}>
             <Select value={courseFilter} onChange={setCourseFilter} options={courseOptions} placeholder={t("courses.requestsTab.allCourses")} />
           </div>
         </div>
@@ -851,8 +879,8 @@ function AttendanceModal({ course, session, onClose, t, dir, locale }) {
   return (
     <ModalWrap onClose={onClose} maxWidth={560} dir={dir}>
       <div style={{ padding: "1.1rem 1.25rem", background: "#EBF4FE", borderBottom: "1.5px solid #B5D4F4", flexShrink: 0 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+          <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: P }}>{sheet?.moduleName || course.name}</div>
             <div style={{ fontSize: 11, color: P, opacity: .8, marginTop: 3, display: "flex", gap: 12, flexWrap: "wrap" }}>
               <span>👨‍🏫 {sheet?.teacherName || course.teacherName}</span>
@@ -900,10 +928,10 @@ function AttendanceModal({ course, session, onClose, t, dir, locale }) {
                   {s.fullName?.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?"}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>{s.fullName}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.fullName}</div>
                   <div style={{ fontSize: 10, color: "#94A3B8", marginTop: 1 }}>{s.level ?? s.parentPhone ?? ""}</div>
                 </div>
-                <div style={{ display: "flex", gap: 5 }}>
+                <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
                   {STATUS_BTNS.map(({ key, Icon, activeColor, activeBg, title }) => (
                     <button key={key} title={title} onClick={() => mark(id, key)}
                       style={{ width: 30, height: 30, borderRadius: 8, cursor: "pointer", border: `1.5px solid ${status === key ? activeColor : "#E2E8F0"}`, background: status === key ? activeBg : "#fff", color: status === key ? activeColor : "#CBD5E1", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s" }}>
@@ -919,10 +947,10 @@ function AttendanceModal({ course, session, onClose, t, dir, locale }) {
 
       {error && <div style={{ padding: "0 1.25rem", paddingTop: 10 }}><ErrorBox msg={error} /></div>}
 
-      <div style={{ padding: ".85rem 1.25rem", borderTop: "1.5px solid #F1F5F9", background: "#FAFCFF", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+      <div style={{ padding: ".85rem 1.25rem", borderTop: "1.5px solid #F1F5F9", background: "#FAFCFF", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0, gap: 10 }}>
         <span style={{ fontSize: 11, color: "#94A3B8" }}>{markedCount} / {list.length} {t("courses.attendanceModal.markedCountSuffix")}</span>
         <button onClick={handleSave} disabled={submitted || saving || list.length === 0}
-          style={{ padding: "8px 20px", borderRadius: 9, border: "none", background: submitted ? GREEN : P, color: "#fff", fontSize: 13, fontWeight: 600, cursor: submitted ? "default" : "pointer", fontFamily: "'Cairo',sans-serif", display: "flex", alignItems: "center", gap: 6, transition: "background .3s" }}>
+          style={{ padding: "8px 20px", borderRadius: 9, border: "none", background: submitted ? GREEN : P, color: "#fff", fontSize: 13, fontWeight: 600, cursor: submitted ? "default" : "pointer", fontFamily: "'Cairo',sans-serif", display: "flex", alignItems: "center", gap: 6, transition: "background .3s", flexShrink: 0 }}>
           {saving ? <Spinner size={14} color="#fff" /> : submitted ? <><Check size={14} /> {t("courses.attendanceModal.saved")}</> : t("courses.attendanceModal.save")}
         </button>
       </div>
@@ -945,7 +973,7 @@ function AttendanceTab({ courses, t, dir, locale }) {
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
-        <div style={{ width: 220 }}>
+        <div className="sac-filter-select" style={{ width: 220 }}>
           <Select value={courseFilter} onChange={setCourseFilter} options={courseOptions} placeholder={t("courses.attendanceTab.allCourses")} />
         </div>
         <div style={{ fontSize: 11.5, color: "#94A3B8" }}>{t("courses.attendanceTab.hint")}</div>
@@ -1010,12 +1038,12 @@ function PayoutPanel({ course, onClose, t, dir, fmtMoney, locale }) {
       <ModalHeader title={t("courses.payoutPanel.title")} subtitle={course.name} onClose={onClose} />
       <div style={{ padding: "1.1rem 1.25rem", display: "flex", flexDirection: "column", gap: 14 }}>
 
-        <div style={{ display: "flex", gap: 10 }}>
-          <div style={{ flex: 1, background: "#F8FAFC", borderRadius: 10, padding: "10px 14px" }}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 120px", background: "#F8FAFC", borderRadius: 10, padding: "10px 14px" }}>
             <div style={{ fontSize: 10, color: "#94A3B8" }}>{t("courses.payoutPanel.teacherLabel")}</div>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", marginTop: 2 }}>{course.teacherName || "—"}</div>
           </div>
-          <div style={{ flex: 1, background: "#F8FAFC", borderRadius: 10, padding: "10px 14px" }}>
+          <div style={{ flex: "1 1 120px", background: "#F8FAFC", borderRadius: 10, padding: "10px 14px" }}>
             <div style={{ fontSize: 10, color: "#94A3B8" }}>{t("courses.payoutPanel.teacherPercentageLabel")}</div>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", marginTop: 2 }}>
               <Percent size={11} style={{ display: "inline", verticalAlign: -1 }} /> {course.teacherPercentage ?? "—"}
@@ -1031,7 +1059,7 @@ function PayoutPanel({ course, onClose, t, dir, fmtMoney, locale }) {
           </div>
         ) : (
           <div style={{ border: `1.5px solid ${st.border}`, borderRadius: 12, overflow: "hidden" }}>
-            <div style={{ background: st.bg, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ background: st.bg, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
               <span style={{ fontSize: 12, fontWeight: 700, color: st.color }}>{t("courses.payoutPanel.paymentStatusLabel")}</span>
               <Badge label={stLabel} bg="rgba(255,255,255,.6)" color={st.color} border={st.border} />
             </div>
@@ -1108,7 +1136,7 @@ function InvoiceRow({ invoice, onPaid, t, fmtMoney, locale }) {
   };
 
   return (
-    <div style={{ background: "#fff", borderRadius: 12, border: "1.5px solid #E2E8F0", padding: "12px 14px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+    <div className="sac-invoice-row" style={{ background: "#fff", borderRadius: 12, border: "1.5px solid #E2E8F0", padding: "12px 14px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
       <div style={{ width: 36, height: 36, borderRadius: 10, background: "#FAEEDA", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
         <ReceiptText size={16} color="#854F0B" />
       </div>
@@ -1193,7 +1221,7 @@ function ManualInvoiceModal({ courses, onClose, onCreated, t, dir, fmtMoney }) {
               placeholder={courseId ? (requests.length === 0 ? t("courses.manualInvoiceModal.studentPlaceholderNoStudents") : t("courses.manualInvoiceModal.studentPlaceholder")) : t("courses.manualInvoiceModal.studentPlaceholderNoCourse")} />
           )}
         </Field>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <div className="sac-form-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <Field label={t("courses.manualInvoiceModal.amountLabel")}>
             <Input type="number" value={amount} onChange={setAmount} placeholder={selectedRequest ? String(selectedRequest.totalPrice) : t("courses.manualInvoiceModal.amountDefaultHint")} />
           </Field>
@@ -1333,11 +1361,11 @@ function PayoutsTab({ courses, initialCourse, onConsumeInitial, t, dir, fmtMoney
               const relatedCourse = courses.find((c) => c.id === p.courseId) || { id: p.courseId, name: p.courseName, teacherName: p.teacherName, teacherPercentage: p.percentage };
               return (
                 <button key={p.id} onClick={() => setPayoutCourse(relatedCourse)}
-                  style={{ textAlign: dir === "rtl" ? "right" : "left", display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", borderRadius: 12, border: "1.5px solid #E2E8F0", background: "#fff", cursor: "pointer", fontFamily: "inherit", width: "100%" }}>
+                  style={{ textAlign: dir === "rtl" ? "right" : "left", display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", borderRadius: 12, border: "1.5px solid #E2E8F0", background: "#fff", cursor: "pointer", fontFamily: "inherit", width: "100%", flexWrap: "wrap" }}>
                   <div style={{ width: 36, height: 36, borderRadius: 10, background: "#E1F5EE", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                     <Wallet size={16} color={GREEN} />
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ flex: 1, minWidth: 120 }}>
                     <div style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.courseName}</div>
                     <div style={{ fontSize: 10.5, color: "#94A3B8", marginTop: 1 }}>{p.teacherName || "—"} · {p.percentage ?? "—"}%</div>
                   </div>
@@ -1351,7 +1379,7 @@ function PayoutsTab({ courses, initialCourse, onConsumeInitial, t, dir, fmtMoney
         ) : courses.length === 0 ? (
           <EmptyState icon={Wallet} title={t("courses.payoutsTab.emptyNoCourses")} subtitle={t("courses.payoutsTab.emptyNoCoursesSub")} />
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 10 }}>
+          <div className="sac-payout-course-cards" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 10 }}>
             {courses.map((c) => (
               <button key={c.id} onClick={() => setPayoutCourse(c)}
                 style={{ textAlign: dir === "rtl" ? "right" : "left", display: "flex", alignItems: "center", gap: 10, padding: "11px 13px", borderRadius: 12, border: "1.5px solid #E2E8F0", background: "#fff", cursor: "pointer", fontFamily: "inherit" }}>
@@ -1381,7 +1409,7 @@ function PayoutsTab({ courses, initialCourse, onConsumeInitial, t, dir, fmtMoney
             <Plus size={13} /> {t("courses.payoutsTab.manualInvoice")}
           </button>
         </div>
-        <div style={{ width: 220, marginBottom: 12 }}>
+        <div className="sac-filter-select" style={{ width: 220, marginBottom: 12 }}>
           <Select value={invoiceCourse} onChange={setInvoiceCourse} options={courseOptions} placeholder={t("courses.payoutsTab.chooseCoursePlaceholder")} />
         </div>
 
@@ -1470,7 +1498,8 @@ export default function SchoolAdminCourses() {
   ];
 
   return (
-    <div dir={dir} style={{ padding: "1.25rem 1.5rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh", display: "flex", flexDirection: "column", gap: "1.1rem" }}>
+    <div dir={dir} className="sac-root" style={{ padding: "1.25rem 1.5rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh", display: "flex", flexDirection: "column", gap: "1.1rem" }}>
+      <ResponsiveStyles />
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
         <div>

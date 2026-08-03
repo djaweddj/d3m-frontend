@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { GraduationCap, LayoutDashboard, LogOut, Globe } from "lucide-react";
 import { useAuth } from "../context/authContext";
@@ -29,6 +29,10 @@ export default function Navbar() {
   const [anchorEl, setAnchorEl] = useState(null);
 
   const open = Boolean(anchorEl);
+
+  // Refs for click-outside detection
+  const panelRef = useRef(null);
+  const burgerRef = useRef(null);
 
   const handleOpen = (event) => {
     setAnchorEl(event.currentTarget);
@@ -63,6 +67,47 @@ export default function Navbar() {
   };
 
   const isLoggedIn = user?.role === "STUDENT" || user?.role === "SCHOOL_ADMIN";
+
+  // Close mobile panel when clicking/tapping outside of it
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleClickOutside = (event) => {
+      if (
+        panelRef.current &&
+        !panelRef.current.contains(event.target) &&
+        burgerRef.current &&
+        !burgerRef.current.contains(event.target)
+      ) {
+        closeMenu();
+      }
+    };
+
+    const handleEscape = (event) => {
+      if (event.key === "Escape") closeMenu();
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [isOpen]);
+
+  // Close mobile panel automatically if viewport grows back to desktop size
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth > 768 && isOpen) {
+        closeMenu();
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [isOpen]);
 
   return (
     <header dir={dir} className="navbar">
@@ -197,6 +242,7 @@ export default function Navbar() {
 
       {/* Mobile hamburger */}
       <button
+        ref={burgerRef}
         className={`navbar__burger${isOpen ? " is-open" : ""}`}
         onClick={() => setIsOpen((v) => !v)}
         aria-label={t("navbar.menuOpenAria")}
@@ -209,7 +255,7 @@ export default function Navbar() {
 
       {/* Mobile dropdown panel */}
       {isOpen && (
-        <div className="navbar__mobile-panel">
+        <div ref={panelRef} className="navbar__mobile-panel">
           {isLoggedIn ? (
             <>
               <div className="navbar__mobile-user" onClick={() => goTo(dashboardPath)}>
@@ -248,6 +294,15 @@ export default function Navbar() {
                 className={`nav-btn nav-btn--ghost${language === l.code ? " is-active" : ""}`}
                 onClick={() => changeLanguage(l.code)}
               >
+                <ReactCountryFlag
+                  countryCode={l.country}
+                  svg
+                  style={{
+                    width: "1.4em",
+                    height: "1.4em",
+                    marginInlineEnd: "8px",
+                  }}
+                />
                 {l.label}
               </button>
             ))}

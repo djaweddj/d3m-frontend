@@ -81,13 +81,49 @@ const inp = {
   background: "#FAFCFF", outline: "none", width: "100%", boxSizing: "border-box",
 };
 
+// ── Global responsive styles for this page ────────────────
+function ResponsiveStyles() {
+  return (
+    <style>{`
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      @media (max-width: 768px) {
+        .tdb-page { padding: 0.75rem !important; }
+
+        .tdb-header { flex-direction: column !important; align-items: stretch !important; }
+        .tdb-header-right { flex-direction: column !important; align-items: stretch !important; width: 100%; }
+        .tdb-tabswitcher { width: 100%; }
+        .tdb-tabswitcher > div { width: 100%; justify-content: space-between; }
+        .tdb-header-btns { width: 100%; }
+        .tdb-header-btns button { flex: 1; justify-content: center; }
+
+        .tdb-cards-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important; gap: 8px !important; }
+        .tdb-card { padding: 1rem 0.75rem !important; }
+
+        .tdb-modal-overlay { padding: 0 !important; align-items: flex-end !important; }
+        .tdb-modal-shell { max-width: 100% !important; border-radius: 16px 16px 0 0 !important; max-height: 92vh !important; }
+
+        .payout-toolbar { flex-direction: column !important; align-items: stretch !important; }
+        .payout-header-row { display: none !important; }
+        .payout-row-desktop { display: none !important; }
+        .payout-row-mobile { display: flex !important; }
+
+        .tdb-stat-card { min-width: 46% !important; flex: 1 1 46% !important; }
+
+        .tdb-toast { inset-inline-end: 12px !important; bottom: 12px !important; left: 12px !important; right: 12px !important; max-width: none !important; }
+      }
+
+      @media (min-width: 769px) {
+        .payout-row-mobile { display: none !important; }
+      }
+    `}</style>
+  );
+}
+
 // ── Spinner ───────────────────────────────────────────────
 function Spinner({ size = 20, color = "#185FA5" }) {
   return (
-    <>
-      <div style={{ width: size, height: size, borderRadius: "50%", border: `2px solid ${color}`, borderTopColor: "transparent", animation: "spin 1s linear infinite" }} />
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-    </>
+    <div style={{ width: size, height: size, borderRadius: "50%", border: `2px solid ${color}`, borderTopColor: "transparent", animation: "spin 1s linear infinite" }} />
   );
 }
 
@@ -97,7 +133,7 @@ function ErrorBlock({ message, onRetry }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "2rem" }}>
       <AlertCircle size={32} color="#E2A84B" />
-      <p style={{ color: "#64748B", fontSize: 13 }}>{message}</p>
+      <p style={{ color: "#64748B", fontSize: 13, textAlign: "center" }}>{message}</p>
       {onRetry && (
         <button onClick={onRetry} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 8, border: "1.5px solid #185FA5", background: "#EBF4FE", color: "#185FA5", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
           <RefreshCw size={13} /> {t("teachers.retry")}
@@ -209,7 +245,7 @@ function PayoutInfoCard({
 
   return (
     <div style={{ borderRadius: 10, border: "1.5px solid #E2E8F0", background: "#F8FAFC", overflow: "hidden" }}>
-      <div style={{ padding: "7px 10px", background: "#EBF4FE", borderBottom: "1.5px solid #DBEAFE", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+      <div style={{ padding: "7px 10px", background: "#EBF4FE", borderBottom: "1.5px solid #DBEAFE", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, flexWrap: "wrap" }}>
         <span style={{ fontSize: 10, fontWeight: 700, color: "#185FA5", textTransform: "uppercase", letterSpacing: "0.05em" }}>
           {t("teachers.payoutCard.title")}
         </span>
@@ -232,7 +268,7 @@ function PayoutInfoCard({
           </div>
         ) : (
           <>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
               <StatusPill isPaid={isPaid} />
               {isPaid && lastPayout.paidAt && (
                 <span style={{ fontSize: 9, color: "#94A3B8", fontWeight: 600 }}>
@@ -249,18 +285,18 @@ function PayoutInfoCard({
               </span>
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 1, alignItems: "center", flex: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 1, alignItems: "center", flex: 1, minWidth: 60 }}>
                 <span style={{ fontSize: 9, fontWeight: 600, color: "#94A3B8" }}>{t("teachers.payoutCard.revenue")}</span>
                 <span style={{ fontSize: 12, fontWeight: 700, color: "#0F172A" }}>{formatDA(lastPayout.totalModuleRevenue, currency)}</span>
               </div>
               <span style={{ fontSize: 13, color: "#CBD5E1", fontWeight: 700 }}>×</span>
-              <div style={{ display: "flex", flexDirection: "column", gap: 1, alignItems: "center", flex: 1 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 1, alignItems: "center", flex: 1, minWidth: 60 }}>
                 <span style={{ fontSize: 9, fontWeight: 600, color: "#94A3B8" }}>{t("teachers.payoutCard.appliedPercentage")}</span>
                 <span style={{ fontSize: 12, fontWeight: 700, color: "#0F172A" }}>{lastPayout.percentage != null ? `${lastPayout.percentage}%` : "—"}</span>
               </div>
               <span style={{ fontSize: 13, color: "#CBD5E1", fontWeight: 700 }}>=</span>
-              <div style={{ display: "flex", flexDirection: "column", gap: 1, alignItems: "center", flex: 1 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 1, alignItems: "center", flex: 1, minWidth: 60 }}>
                 <span style={{ fontSize: 9, fontWeight: 600, color: "#94A3B8" }}>{t("teachers.payoutCard.payout")}</span>
                 <span style={{ fontSize: 12, fontWeight: 700, color: primaryColor }}>{formatDA(lastPayout.payoutAmount, currency)}</span>
               </div>
@@ -268,7 +304,7 @@ function PayoutInfoCard({
 
             <div style={{ height: 1, background: "#F1F5F9" }} />
 
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
                 <span style={{ fontSize: 9, fontWeight: 600, color: "#94A3B8" }}>{t("teachers.payoutCard.previousPercentage")}</span>
                 <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>{prevPct != null ? `${prevPct}%` : "—"}</span>
@@ -459,17 +495,17 @@ function EditTeacherModal({ teacher, subjects, onClose, onSaved, primaryColor })
 function ModalShell({ onClose, title, subtitle, emoji, children }) {
   const { dir } = useLanguage();
   return (
-    <div onClick={(e) => e.target === e.currentTarget && onClose()} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: "1rem" }}>
-      <div dir={dir} style={{ background: "#fff", borderRadius: 14, width: "100%", maxWidth: 440, border: "1.5px solid #E2E8F0", overflow: "hidden", fontFamily: "'Cairo',sans-serif", maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
+    <div className="tdb-modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: "1rem" }}>
+      <div dir={dir} className="tdb-modal-shell" style={{ background: "#fff", borderRadius: 14, width: "100%", maxWidth: 440, border: "1.5px solid #E2E8F0", overflow: "hidden", fontFamily: "'Cairo',sans-serif", maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.25rem", borderBottom: "1.5px solid #F1F5F9", background: "#FAFCFF", flexShrink: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 9, background: "#EBF4FE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>{emoji}</div>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>{title}</div>
-              <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 1 }}>{subtitle}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 9, background: "#EBF4FE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>{emoji}</div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
+              <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{subtitle}</div>
             </div>
           </div>
-          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: "1px solid #E2E8F0", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: "1px solid #E2E8F0", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <X size={13} color="#64748B" />
           </button>
         </div>
@@ -583,7 +619,7 @@ function Toast({ toast, onDismiss }) {
   const isSuccess = toast.type === "success";
 
   return (
-    <div style={{
+    <div className="tdb-toast" style={{
       position: "fixed", bottom: 20, insetInlineEnd: 20, zIndex: 300,
       display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderRadius: 12,
       background: isSuccess ? "#ECFDF5" : "#FEF2F2",
@@ -621,6 +657,7 @@ function TeacherCard({ t2, subjectMap, primaryColor, isArchived, onArchive, onUn
 
   return (
     <div
+      className="tdb-card"
       style={{
         background: isArchived ? "#FAFAFA" : "#fff", borderRadius: 14, border: `1.5px solid ${isArchived ? "#E2E8F0" : "#E8EEF6"}`,
         padding: "1.25rem 1rem", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 8,
@@ -653,7 +690,7 @@ function TeacherCard({ t2, subjectMap, primaryColor, isArchived, onArchive, onUn
         <span style={{ position: "absolute", top: 10, right: 10, fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 20, background: "#FEF2F2", color: "#DC2626", border: "1px solid #FECACA" }}>{t("teachers.archivedBadge")}</span>
       )}
 
-      <div style={{ width: 52, height: 52, borderRadius: "50%", background: isArchived ? "#94A3B8" : primaryColor, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 700, border: "3px solid #EBF4FE", marginTop: isArchived ? 8 : 0 }}>
+      <div style={{ width: 52, height: 52, borderRadius: "50%", background: isArchived ? "#94A3B8" : primaryColor, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 700, border: "3px solid #EBF4FE", marginTop: isArchived ? 8 : 0, flexShrink: 0 }}>
         {initials(t2.fullName)}
       </div>
 
@@ -714,7 +751,7 @@ function TeacherCard({ t2, subjectMap, primaryColor, isArchived, onArchive, onUn
 // ── Payouts Tab: summary stat card ─────────────────────────
 function StatCard({ icon, label, value, accent, sub }) {
   return (
-    <div style={{ flex: 1, minWidth: 150, background: "#fff", borderRadius: 14, border: "1.5px solid #E8EEF6", padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+    <div className="tdb-stat-card" style={{ flex: 1, minWidth: 150, background: "#fff", borderRadius: 14, border: "1.5px solid #E8EEF6", padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
       <div style={{ width: 40, height: 40, borderRadius: 10, background: accent.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
         {icon}
       </div>
@@ -727,7 +764,7 @@ function StatCard({ icon, label, value, accent, sub }) {
   );
 }
 
-// ── Payouts Tab: table row ─────────────────────────────────
+// ── Payouts Tab: table row (desktop grid + mobile card) ────
 function PayoutRow({ payout, teacher, primaryColor, onMarkPaid, markingId }) {
   const { t, dir } = useLanguage();
   const locale = LOCALE_MAP[dir === "rtl" ? "ar" : "fr"];
@@ -735,44 +772,82 @@ function PayoutRow({ payout, teacher, primaryColor, onMarkPaid, markingId }) {
   const isPaid = payout?.status === "PAID";
   const isMarking = markingId === payout?.id;
 
+  const MarkPaidButton = (
+    isPaid ? (
+      <span style={{ fontSize: 10, color: "#94A3B8" }}>
+        {payout.paidAt ? new Date(payout.paidAt).toLocaleDateString(locale) : "—"}
+      </span>
+    ) : (
+      <button onClick={() => onMarkPaid(payout)} disabled={isMarking}
+        style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: 7, border: "1px solid #A7F3D0", background: isMarking ? "#F0FDF4" : "#ECFDF5", color: "#059669", fontSize: 10.5, fontWeight: 700, cursor: isMarking ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+        {isMarking ? <Spinner size={10} color="#059669" /> : <CheckCircle2 size={11} />}
+        {t("teachers.payoutCard.markPaid")}
+      </button>
+    )
+  );
+
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "minmax(160px,1.6fr) 1fr 0.8fr 1fr 1fr 1fr", alignItems: "center", gap: 10, padding: "12px 14px", borderBottom: "1px solid #F1F5F9" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-        <div style={{ width: 30, height: 30, borderRadius: "50%", background: primaryColor, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
-          {initials(teacher?.fullName || payout?.teacherName)}
+    <>
+      {/* Desktop: grid row, hidden below 768px via CSS */}
+      <div className="payout-row-desktop" style={{ display: "grid", gridTemplateColumns: "minmax(160px,1.6fr) 1fr 0.8fr 1fr 1fr 1fr", alignItems: "center", gap: 10, padding: "12px 14px", borderBottom: "1px solid #F1F5F9" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+          <div style={{ width: 30, height: 30, borderRadius: "50%", background: primaryColor, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+            {initials(teacher?.fullName || payout?.teacherName)}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {payout?.teacherName || teacher?.fullName || "—"}
+            </span>
+            <span style={{ fontSize: 9.5, color: "#94A3B8" }}>
+              {formatRange(payout?.periodStart, payout?.periodEnd, locale)}
+            </span>
+          </div>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-          <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {payout?.teacherName || teacher?.fullName || "—"}
-          </span>
-          {/* NEW: show the payout's own date range under the name, since a
-              teacher can now have more than one payout inside the same
-              month-summary view (e.g. a mid-month one + the remainder). */}
-          <span style={{ fontSize: 9.5, color: "#94A3B8" }}>
-            {formatRange(payout?.periodStart, payout?.periodEnd, locale)}
-          </span>
-        </div>
+
+        <span style={{ fontSize: 12, color: "#334155", textAlign: "center" }}>{formatDA(payout?.totalModuleRevenue, currency)}</span>
+        <span style={{ fontSize: 12, color: "#334155", textAlign: "center", fontWeight: 600 }}>{payout?.percentage != null ? `${payout.percentage}%` : "—"}</span>
+        <span style={{ fontSize: 12.5, color: primaryColor, textAlign: "center", fontWeight: 700 }}>{formatDA(payout?.payoutAmount, currency)}</span>
+        <div style={{ display: "flex", justifyContent: "center" }}><StatusPill isPaid={isPaid} /></div>
+        <div style={{ display: "flex", justifyContent: "center" }}>{MarkPaidButton}</div>
       </div>
 
-      <span style={{ fontSize: 12, color: "#334155", textAlign: "center" }}>{formatDA(payout?.totalModuleRevenue, currency)}</span>
-      <span style={{ fontSize: 12, color: "#334155", textAlign: "center", fontWeight: 600 }}>{payout?.percentage != null ? `${payout.percentage}%` : "—"}</span>
-      <span style={{ fontSize: 12.5, color: primaryColor, textAlign: "center", fontWeight: 700 }}>{formatDA(payout?.payoutAmount, currency)}</span>
-      <div style={{ display: "flex", justifyContent: "center" }}><StatusPill isPaid={isPaid} /></div>
+      {/* Mobile: stacked card, hidden at desktop widths via CSS */}
+      <div className="payout-row-mobile" style={{ display: "none", flexDirection: "column", gap: 8, padding: "12px 14px", borderBottom: "1px solid #F1F5F9" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+            <div style={{ width: 30, height: 30, borderRadius: "50%", background: primaryColor, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+              {initials(teacher?.fullName || payout?.teacherName)}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {payout?.teacherName || teacher?.fullName || "—"}
+              </span>
+              <span style={{ fontSize: 9.5, color: "#94A3B8" }}>
+                {formatRange(payout?.periodStart, payout?.periodEnd, locale)}
+              </span>
+            </div>
+          </div>
+          <StatusPill isPaid={isPaid} />
+        </div>
 
-      <div style={{ display: "flex", justifyContent: "center" }}>
-        {isPaid ? (
-          <span style={{ fontSize: 10, color: "#94A3B8" }}>
-            {payout.paidAt ? new Date(payout.paidAt).toLocaleDateString(locale) : "—"}
-          </span>
-        ) : (
-          <button onClick={() => onMarkPaid(payout)} disabled={isMarking}
-            style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: 7, border: "1px solid #A7F3D0", background: isMarking ? "#F0FDF4" : "#ECFDF5", color: "#059669", fontSize: 10.5, fontWeight: 700, cursor: isMarking ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
-            {isMarking ? <Spinner size={10} color="#059669" /> : <CheckCircle2 size={11} />}
-            {t("teachers.payoutCard.markPaid")}
-          </button>
-        )}
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, background: "#F8FAFC", borderRadius: 9, padding: "8px 10px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            <span style={{ fontSize: 9, fontWeight: 600, color: "#94A3B8" }}>{t("teachers.payoutCard.revenue")}</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#334155" }}>{formatDA(payout?.totalModuleRevenue, currency)}</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            <span style={{ fontSize: 9, fontWeight: 600, color: "#94A3B8" }}>{t("teachers.payoutCard.appliedPercentage")}</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#334155" }}>{payout?.percentage != null ? `${payout.percentage}%` : "—"}</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            <span style={{ fontSize: 9, fontWeight: 600, color: "#94A3B8" }}>{t("teachers.payoutCard.payout")}</span>
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: primaryColor }}>{formatDA(payout?.payoutAmount, currency)}</span>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>{MarkPaidButton}</div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -828,7 +903,7 @@ function PayoutsTab({ teachers, primaryColor }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* Toolbar: month stepper only — bulk recalc button removed */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+      <div className="payout-toolbar" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#fff", border: "1.5px solid #E8EEF6", borderRadius: 12, padding: "6px 12px" }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: "#64748B" }}>{t("courses.payoutPanel.title")}</span>
           <MonthStepper period={period} onChange={setPeriod} size="lg" />
@@ -859,12 +934,10 @@ function PayoutsTab({ teachers, primaryColor }) {
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "3rem", textAlign: "center" }}>
             <Wallet size={30} color="#CBD5E1" />
             <p style={{ fontSize: 13, color: "#94A3B8", margin: 0 }}>{t("teachers.payoutCard.noneForMonth", { period: formatPeriod(period, locale) })}</p>
-          
-           
           </div>
         ) : (
           <>
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(160px,1.6fr) 1fr 0.8fr 1fr 1fr 1fr", gap: 10, padding: "10px 14px", background: "#F8FAFC", borderBottom: "1.5px solid #F1F5F9" }}>
+            <div className="payout-header-row" style={{ display: "grid", gridTemplateColumns: "minmax(160px,1.6fr) 1fr 0.8fr 1fr 1fr 1fr", gap: 10, padding: "10px 14px", background: "#F8FAFC", borderBottom: "1.5px solid #F1F5F9" }}>
               {[
                 t("teachers.payoutCard.teacherColumn"),
                 t("teachers.payoutCard.revenue"),
@@ -897,13 +970,13 @@ function TabSwitcher({ active, onChange, primaryColor }) {
   // teachers namespace yet, so we build it from the page context instead.
   tabs[0].label = t("sidebar.nav.teachers");
   return (
-    <div style={{ display: "inline-flex", background: "#F1F5F9", borderRadius: 11, padding: 4, gap: 2 }}>
+    <div className="tdb-tabswitcher" style={{ display: "inline-flex", background: "#F1F5F9", borderRadius: 11, padding: 4, gap: 2 }}>
       {tabs.map((tab) => {
         const isActive = active === tab.id;
         return (
           <button key={tab.id} onClick={() => onChange(tab.id)}
             style={{
-              display: "flex", alignItems: "center", gap: 6, padding: "7px 16px", borderRadius: 8, border: "none",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "7px 16px", borderRadius: 8, border: "none",
               background: isActive ? "#fff" : "transparent", color: isActive ? primaryColor : "#64748B",
               fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
               boxShadow: isActive ? "0 1px 4px rgba(0,0,0,.08)" : "none", transition: "all .15s",
@@ -1027,10 +1100,11 @@ export default function Teachers() {
   const displayList = showArchived ? archivedTeachers : teachers;
 
   return (
-    <div dir={dir} style={{ padding: "1.25rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
+    <div dir={dir} className="tdb-page" style={{ padding: "1.25rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh", boxSizing: "border-box" }}>
+      <ResponsiveStyles />
 
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem", flexWrap: "wrap", gap: 12 }}>
+      <div className="tdb-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem", flexWrap: "wrap", gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("sidebar.nav.teachers")}</h1>
           <p style={{ fontSize: 12, color: "#94A3B8", marginTop: 2, margin: 0 }}>
@@ -1038,11 +1112,11 @@ export default function Teachers() {
           </p>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div className="tdb-header-right" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <TabSwitcher active={activeTab} onChange={setActiveTab} primaryColor={p} />
 
           {activeTab === "teachers" && (
-            <div style={{ display: "flex", gap: 8 }}>
+            <div className="tdb-header-btns" style={{ display: "flex", gap: 8 }}>
               <button onClick={showArchived ? loadArchived : load}
                 style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
                 <RefreshCw size={13} />
@@ -1082,7 +1156,7 @@ export default function Teachers() {
               {showArchived ? t("teachers.emptyArchived") : t("teachers.emptyActive")}
             </div>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 12 }}>
+            <div className="tdb-cards-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 12 }}>
               {displayList.map((t3) => (
                 <TeacherCard
                   key={t3.id} t2={t3} subjectMap={subjectMap} primaryColor={p} isArchived={showArchived}

@@ -172,6 +172,7 @@ function ComparisonChart({ data, highlightIndex, t, months, locale, dir }) {
     const collected = data.map((d) => d.totalCollected ?? 0);
     const schoolPart = data.map((d) => d.schoolPart ?? 0);
     const isRTL = dir === "rtl";
+    const isMobile = window.innerWidth < 640;
 
     chartRef.current = new window.Chart(ref.current, {
       type: "bar",
@@ -184,7 +185,7 @@ function ComparisonChart({ data, highlightIndex, t, months, locale, dir }) {
             backgroundColor: collected.map((_, i) => (i === highlightIndex ? "#185FA5" : "#BBD8F3")),
             borderRadius: 6,
             borderSkipped: false,
-            maxBarThickness: 26,
+            maxBarThickness: isMobile ? 18 : 26,
           },
           {
             label: t("dashboard.schoolInfo.monthIncome"),
@@ -192,7 +193,7 @@ function ComparisonChart({ data, highlightIndex, t, months, locale, dir }) {
             backgroundColor: schoolPart.map((_, i) => (i === highlightIndex ? "#0F6E56" : "#A9DDC9")),
             borderRadius: 6,
             borderSkipped: false,
-            maxBarThickness: 26,
+            maxBarThickness: isMobile ? 18 : 26,
           },
         ],
       },
@@ -203,7 +204,7 @@ function ComparisonChart({ data, highlightIndex, t, months, locale, dir }) {
         plugins: {
           legend: {
             position: "bottom",
-            labels: { font: { family: "Cairo", size: 11 }, boxWidth: 10, boxHeight: 10, padding: 14, usePointStyle: true, pointStyle: "circle" },
+            labels: { font: { family: "Cairo", size: isMobile ? 10 : 11 }, boxWidth: 10, boxHeight: 10, padding: isMobile ? 10 : 14, usePointStyle: true, pointStyle: "circle" },
           },
           tooltip: {
             rtl: isRTL,
@@ -215,7 +216,7 @@ function ComparisonChart({ data, highlightIndex, t, months, locale, dir }) {
           },
         },
         scales: {
-          x: { ticks: { font: { family: "Cairo", size: 11 } }, grid: { display: false }, border: { display: false } },
+          x: { ticks: { font: { family: "Cairo", size: isMobile ? 9 : 11 } }, grid: { display: false }, border: { display: false } },
           y: {
             ticks: { font: { family: "Cairo", size: 10 }, callback: (v) => fmtMoneyShort(v, locale) },
             grid: { color: "#F1F5F9" },
@@ -432,10 +433,12 @@ export default function Dashboard() {
                     <div className="invoice-row__name">{inv.studentName ?? t("dashboard.invoices.fallbackName")}</div>
                     <div className="invoice-row__module">{inv.moduleName ?? t("dashboard.invoices.fallbackModule")}</div>
                   </div>
-                  <div className="invoice-row__amount">{fmtMoney(inv.amount, locale, currencySuffix)}</div>
-                  <span className="invoice-row__badge" style={{ background: st.bg, color: st.color }}>
-                    {st.label}
-                  </span>
+                  <div className="invoice-row__meta">
+                    <div className="invoice-row__amount">{fmtMoney(inv.amount, locale, currencySuffix)}</div>
+                    <span className="invoice-row__badge" style={{ background: st.bg, color: st.color }}>
+                      {st.label}
+                    </span>
+                  </div>
                 </div>
               );
             })}
@@ -460,8 +463,10 @@ function DashStyles() {
         font-family: 'Cairo', sans-serif;
         background: #F7FAFD;
         min-height: 100vh;
+        overflow-x: hidden;
       }
       @media (min-width: 768px) { .dash { padding: 1.75rem; } }
+      @media (max-width: 420px) { .dash { padding: 0.9rem; gap: 0.9rem; } }
 
       @keyframes spin { to { transform: rotate(360deg); } }
       .spinner {
@@ -476,6 +481,7 @@ function DashStyles() {
       .dash-error {
         padding: 2rem; font-family: 'Cairo', sans-serif;
         display: flex; flex-direction: column; align-items: center; gap: 12px;
+        text-align: center;
       }
       .dash-error p { color: #64748B; font-size: 13px; margin: 0; }
 
@@ -484,15 +490,25 @@ function DashStyles() {
         display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
         flex-wrap: wrap;
       }
-      .dash-header__title { font-size: 19px; font-weight: 700; color: #0F172A; }
+      .dash-header__title { font-size: 19px; font-weight: 700; color: #0F172A; line-height: 1.3; }
       .dash-header__sub { font-size: 12px; color: #94A3B8; margin-top: 3px; }
       .dash-header__actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
+      @media (max-width: 480px) {
+        .dash-header { flex-direction: column; align-items: stretch; }
+        .dash-header__title { font-size: 16.5px; }
+        .dash-header__actions { width: 100%; }
+        .dash-header__actions .range-picker { flex: 1; min-width: 0; }
+        .dash-header__actions .range-picker__trigger { width: 100%; }
+        .dash-header__actions .btn--ghost { flex-shrink: 0; }
+      }
+
       .btn {
-        display: flex; align-items: center; gap: 6px;
+        display: flex; align-items: center; justify-content: center; gap: 6px;
         padding: 8px 14px; border-radius: 9px;
         font-size: 12.5px; cursor: pointer; font-family: inherit;
         white-space: nowrap; border: 1.5px solid transparent;
+        min-height: 40px;
       }
       .btn--ghost { border-color: #E2E8F0; background: #fff; color: #64748B; }
       .btn--ghost:hover { border-color: #CBD5E1; }
@@ -501,31 +517,36 @@ function DashStyles() {
       /* ── Month range picker ── */
       .range-picker { position: relative; }
       .range-picker__trigger {
-        display: flex; align-items: center; gap: 8px;
+        display: flex; align-items: center; justify-content: space-between; gap: 8px;
         padding: 8px 14px; border-radius: 9px;
         border: 1.5px solid #E2E8F0; background: #fff;
         color: #0F172A; font-size: 12.5px; font-weight: 600;
         cursor: pointer; font-family: inherit; white-space: nowrap;
+        min-height: 40px;
       }
+      .range-picker__trigger span { overflow: hidden; text-overflow: ellipsis; }
       .range-picker__trigger:hover { border-color: #CBD5E1; }
       .range-picker__panel {
         position: absolute; top: calc(100% + 8px); inset-inline-start: 0; z-index: 20;
         background: #fff; border: 1.5px solid #E8EEF6; border-radius: 12px;
         padding: 12px; box-shadow: 0 10px 30px rgba(15,23,42,.12);
-        min-width: 240px;
+        width: 260px;
+        max-width: calc(100vw - 2.5rem);
       }
       .range-picker__presets { display: flex; gap: 6px; margin-bottom: 10px; }
       .range-picker__preset {
-        flex: 1; padding: 6px 8px; border-radius: 7px;
+        flex: 1; padding: 8px 6px; border-radius: 7px;
         border: 1.5px solid #E2E8F0; background: #F8FAFC;
         font-size: 11.5px; font-family: inherit; cursor: pointer; color: #334155;
+        min-height: 36px;
       }
       .range-picker__preset:hover { background: #EBF4FE; border-color: #B5D4F4; color: #185FA5; }
       .range-picker__custom { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #F1F5F9; padding-top: 10px; }
       .range-picker__custom label { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #64748B; gap: 8px; }
       .range-picker__custom input {
         font-family: inherit; font-size: 12px; border: 1.5px solid #E2E8F0;
-        border-radius: 7px; padding: 4px 8px; color: #0F172A; flex: 1;
+        border-radius: 7px; padding: 6px 8px; color: #0F172A; flex: 1;
+        min-height: 34px;
       }
 
       /* ── Stat grid ── */
@@ -534,11 +555,13 @@ function DashStyles() {
       }
       @media (min-width: 640px) { .stat-grid { grid-template-columns: repeat(3, 1fr); } }
       @media (min-width: 1100px) { .stat-grid { grid-template-columns: repeat(3, 1fr); } }
+      @media (max-width: 420px) { .stat-grid { gap: 8px; } }
 
       .stat-card {
         background: #fff; border-radius: 14px; padding: 1rem 1.05rem;
         border: 1.5px solid #E8EEF6; position: relative; overflow: hidden;
         transition: border-color .2s, box-shadow .2s, transform .2s;
+        min-width: 0;
       }
       .stat-card:hover { border-color: #CBD5E1; box-shadow: 0 6px 20px rgba(15,23,42,.06); transform: translateY(-1px); }
       .stat-card__bar {
@@ -553,30 +576,45 @@ function DashStyles() {
         font-size: 10.5px; color: #64748B; font-weight: 600; margin-bottom: 4px;
         min-height: 26px; line-height: 1.35;
       }
-      .stat-card__value { font-size: 19px; font-weight: 700; color: #0F172A; line-height: 1; margin-bottom: 6px; }
+      .stat-card__value {
+        font-size: 19px; font-weight: 700; color: #0F172A; line-height: 1.1; margin-bottom: 6px;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
       .stat-card__sub { font-size: 10.5px; color: #0F6E56; display: flex; align-items: center; gap: 4px; }
       .stat-card__trend { font-size: 10.5px; display: flex; align-items: center; gap: 4px; font-weight: 600; }
       .stat-card__trend.up { color: #0F6E56; }
       .stat-card__trend.down { color: #C0362C; }
 
+      @media (max-width: 420px) {
+        .stat-card { padding: 0.8rem 0.75rem; border-radius: 12px; }
+        .stat-card__icon { width: 28px; height: 28px; font-size: 13px; margin-bottom: 7px; }
+        .stat-card__label { font-size: 9.5px; min-height: 22px; }
+        .stat-card__value { font-size: 15.5px; margin-bottom: 4px; }
+        .stat-card__sub, .stat-card__trend { font-size: 9.5px; }
+      }
+
       /* ── Panel / card ── */
       .panel {
         background: #fff; border-radius: 14px; padding: 1.15rem;
         border: 1.5px solid #E8EEF6; transition: border-color .2s;
+        min-width: 0;
       }
       .panel:hover { border-color: #D8E2EC; }
       .panel__head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; gap: 8px; }
       .panel__title { font-size: 13.5px; font-weight: 700; color: #0F172A; }
       .panel__sub { font-size: 10.5px; color: #94A3B8; margin-top: 2px; }
 
+      @media (max-width: 420px) { .panel { padding: 0.9rem; } }
+
       .two-col { display: grid; grid-template-columns: 1fr; gap: 12px; }
       @media (min-width: 900px) { .two-col { grid-template-columns: 1.7fr 1fr; } }
 
       .chart-wrap { position: relative; height: 220px; width: 100%; }
       @media (min-width: 640px) { .chart-wrap { height: 250px; } }
+      @media (max-width: 420px) { .chart-wrap { height: 190px; } }
       .empty-state {
         height: 220px; display: flex; align-items: center; justify-content: center;
-        color: #94A3B8; font-size: 13px;
+        color: #94A3B8; font-size: 13px; text-align: center; padding: 0 1rem;
       }
 
       /* ── Info list ── */
@@ -595,12 +633,20 @@ function DashStyles() {
         display: flex; align-items: center; gap: 10px;
         padding: 9px 12px; border-radius: 10px;
         border: 1px solid #F1F5F9; background: #FAFCFF;
+        flex-wrap: wrap;
       }
       .invoice-row__main { flex: 1; min-width: 0; }
       .invoice-row__name { font-size: 12.5px; font-weight: 600; color: #0F172A; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .invoice-row__module { font-size: 10.5px; color: #64748B; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .invoice-row__amount { font-size: 12.5px; font-weight: 700; color: #0F172A; flex-shrink: 0; }
+      .invoice-row__meta { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+      .invoice-row__amount { font-size: 12.5px; font-weight: 700; color: #0F172A; flex-shrink: 0; white-space: nowrap; }
       .invoice-row__badge { font-size: 9.5px; font-weight: 600; padding: 2px 9px; border-radius: 20px; flex-shrink: 0; white-space: nowrap; }
+
+      @media (max-width: 380px) {
+        .invoice-row { align-items: flex-start; }
+        .invoice-row__main { flex-basis: 100%; }
+        .invoice-row__meta { flex-basis: 100%; justify-content: space-between; margin-top: 2px; }
+      }
     `}</style>
   );
 }

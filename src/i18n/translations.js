@@ -692,11 +692,16 @@ export const translations = {
     appliedPercentage: "Applied %",
     payout: "Payout",
     previousPercentage: "Previous %",
-    recalculateMonth :"Calculate current payment",
-     confirmRecalculate :"Confirme",
+    payNow :"Calculate current payment",
+     confirm :"Confirme",
      actionColumn :"date",
      statusColumn :"status",
-      teacherColumn: "teacher"
+      teacherColumn: "teacher",
+     totalPayouts: "Total Payouts",
+    paidThisMonth: "Paid This Month",
+     teacherCount: "Number of Payouts",
+     noneForMonth: "None for this month"
+
   },
 
   form: {
@@ -1093,17 +1098,23 @@ export const translations = {
     submitting: "Creating...",
     submit: "Create Invoice",
   },
+  suspendModal: {
+  "heading": "Are you sure you want to suspend this student from the module?",
+  "body": " Please make sure the student has paid all their invoices before proceeding.",
+  "cancel": "Cancel",
+  "confirm": "Suspend"
+},
 
   drawer: {
     title: "Student Details",
     parent: "Parent",
     phone: "Phone",
-    currentMonthInvoice: "Current Month Invoice",
+    currentMonthInvoice: "Not Paid Invoices",
     manualInvoice: "Manual Invoice",
     loadInvoicesError: "Could not load invoices",
-    noInvoiceThisMonth: "No invoice for this month",
+    noInvoiceThisMonth: "No Pending Invoices",
     registerPayment: "Register Payment",
-    invoiceHistory: "Invoice History ({count})",
+    invoiceHistory: "Paid Invoices ({count})",
     enrolledModules: "Enrolled Modules",
     addModule: "Add Module",
     loadModulesError: "Could not load modules",
@@ -2256,11 +2267,15 @@ studentDashboard: {
     appliedPercentage: "النسبة المطبقة",
     payout: "الدفعة",
     previousPercentage: "النسبة السابقة",
-   recalculateMonth:" حساب المبلغ الحالي ",
-    confirmRecalculate :"تأكيد",
+   payNow:" حساب المبلغ الحالي ",
+    confirm :"تأكيد",
     actionColumn :"التاريخ",
     statusColumn: "حالة الدفع",
-     teacherColumn: "الأستاد"
+     teacherColumn: "الأستاد",
+     totalPayouts: "إجمالي المدفوعات",
+    paidThisMonth: "المدفوع هذا الشهر",
+    teacherCount: "عدد المدفوعات",
+    noneForMonth: "لا يوجد لهذا الشهر"
   },
 
   form: {
@@ -2657,17 +2672,23 @@ studentDashboard: {
     submitting: "جاري الإنشاء...",
     submit: "إنشاء الفاتورة",
   },
+suspendModal: {
+  "heading": "هل أنت تأكد من أنك تريد تجميد الطالب من هذه المادة؟",
+  "body": " يرجى التأكد من دفع الطالب لجميع فواتيره قبل المتابعة",
+  "cancel": "إلغاء",
+  "confirm": "تجميد"
+},
 
   drawer: {
     title: "تفاصيل التلميذ",
     parent: "ولي الأمر",
     phone: "الهاتف",
-    currentMonthInvoice: "فاتورة الشهر الحالي",
+    currentMonthInvoice: "الفواتير الغير مدفوعة",
     manualInvoice: "فاتورة يدوية",
     loadInvoicesError: "تعذر تحميل الفواتير",
-    noInvoiceThisMonth: "لا توجد فاتورة لهذا الشهر",
+    noInvoiceThisMonth: "لا توجد فواتير غير مدفوعة",
     registerPayment: "تسجيل الدفع",
-    invoiceHistory: "سجل الفواتير ({count})",
+    invoiceHistory: "الفواتير المدفوعة({count})",
     enrolledModules: "الوحدات المسجلة",
     addModule: "إضافة وحدة",
     loadModulesError: "تعذر تحميل الوحدات",
@@ -3820,11 +3841,15 @@ trend: { vsLastMonth: "عن الشهر الماضي" },
     appliedPercentage: "% appliqué",
     payout: "Versement",
     previousPercentage: "% précédent",
-    recalculateMonth: "Calculer le paiement courant",
-    confirmRecalculate :"Confirmer",
+    payNow: "Calculer le paiement courant",
+    confirm :"Confirmer",
     actionColumn :"date",
     statusColumn: "statut",
-    teacherColumn:"enseignant(e)"
+    teacherColumn:"enseignant(e)",
+    totalPayouts: "Total des paiements",
+  paidThisMonth: "Payé ce mois-ci",
+ teacherCount: "Nombre de paiements",
+ noneForMonth: "Aucun ce mois-ci"
   },
 
   form: {
@@ -4221,17 +4246,23 @@ trend: { vsLastMonth: "عن الشهر الماضي" },
     submitting: "Création...",
     submit: "Créer la facture",
   },
+suspendModal: {
+  "heading": "Êtes-vous sûr de vouloir suspendre cet étudiant de ce module ?",
+  "body": "Veuillez vous assurer que l'étudiant a réglé toutes ses factures avant de continuer.",
+  "cancel": "Annuler",
+  "confirm": "Suspendre"
+},
 
   drawer: {
     title: "Détails de l'élève",
     parent: "Parent",
     phone: "Téléphone",
-    currentMonthInvoice: "Facture du mois en cours",
+    currentMonthInvoice: "Factures non payées",
     manualInvoice: "Facture manuelle",
     loadInvoicesError: "Impossible de charger les factures",
-    noInvoiceThisMonth: "Aucune facture pour ce mois",
+    noInvoiceThisMonth: "Aucune facture en attente",
     registerPayment: "Enregistrer le paiement",
-    invoiceHistory: "Historique des factures ({count})",
+    invoiceHistory: "Factures payées ({count})",
     enrolledModules: "Modules inscrits",
     addModule: "Ajouter un module",
     loadModulesError: "Impossible de charger les modules",

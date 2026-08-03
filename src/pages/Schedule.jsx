@@ -173,7 +173,6 @@ function AddModal({ modules, defaultDayIdx, onClose, onCreated }) {
   const [open,    setOpen]    = useState(false);
 
   const chosenMod = modules.find((m) => m.name === modName);
-  const requiresPrice = chosenMod?.pricingModel === "PER_SESSION";
 
   const handleModSelect = (m) => {
     setModName(m.name);
@@ -190,7 +189,6 @@ function AddModal({ modules, defaultDayIdx, onClose, onCreated }) {
     if (!date)           return setError(t("schedule.addModal.errors.enterDate"));
     if (!start || !end)  return setError(t("schedule.addModal.errors.enterTimes"));
     if (start >= end)    return setError(t("schedule.addModal.errors.startBeforeEnd"));
-    if (requiresPrice && !price) return setError(t("schedule.addModal.errors.enterPrice"));
 
     setSaving(true); setError("");
     try {
@@ -199,7 +197,7 @@ function AddModal({ modules, defaultDayIdx, onClose, onCreated }) {
         date,
         startTime: start + ":00",
         endTime:   end + ":00",
-        price:     requiresPrice ? Number(price) : null,
+        price:     price !== "" ? Number(price) : null,
       };
       const res = await scheduleApi.createSession(payload);
       onCreated(res.data);
@@ -256,23 +254,21 @@ function AddModal({ modules, defaultDayIdx, onClose, onCreated }) {
             <input style={inp_css} type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
           </div>
         </div>
-        {requiresPrice && (
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 5 }}>
-              {t("schedule.addModal.priceLabel") ?? "Price"}
-            </label>
-            <input
-              style={inp_css}
-              type="number"
-              min="0"
-              step="0.01"
-              inputMode="decimal"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              placeholder={t("schedule.addModal.pricePlaceholder") ?? "0.00"}
-            />
-          </div>
-        )}
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 5 }}>
+            {t("schedule.addModal.priceLabel") ?? "Price"}
+          </label>
+          <input
+            style={inp_css}
+            type="number"
+            min="0"
+            step="0.01"
+            inputMode="decimal"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            placeholder={t("schedule.addModal.pricePlaceholder") ?? "0.00"}
+          />
+        </div>
         {modName && chosenMod && (
           <div style={{ background: colFor(chosenMod.id).bg, border: `1px solid ${colFor(chosenMod.id).border}`, borderRadius: 10, padding: "10px 14px" }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: colFor(chosenMod.id).text }}>{modName}</div>

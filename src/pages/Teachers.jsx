@@ -569,6 +569,37 @@ function Field({ label, children }) {
 function ErrorMsg({ msg }) {
   return <div style={{ fontSize: 12, color: "#DC2626", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "7px 12px" }}>⚠️ {msg}</div>;
 }
+
+// NEW: lightweight toast notification — replaces alert() for pay-now feedback.
+// Auto-dismisses after 4s, or the user can dismiss it manually.
+function Toast({ toast, onDismiss }) {
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(onDismiss, 4000);
+    return () => clearTimeout(timer);
+  }, [toast, onDismiss]);
+
+  if (!toast) return null;
+  const isSuccess = toast.type === "success";
+
+  return (
+    <div style={{
+      position: "fixed", bottom: 20, insetInlineEnd: 20, zIndex: 300,
+      display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderRadius: 12,
+      background: isSuccess ? "#ECFDF5" : "#FEF2F2",
+      border: `1.5px solid ${isSuccess ? "#A7F3D0" : "#FECACA"}`,
+      boxShadow: "0 8px 24px rgba(0,0,0,.12)", maxWidth: 340, fontFamily: "'Cairo',sans-serif",
+      animation: "toastIn .2s ease-out",
+    }}>
+      {isSuccess ? <CheckCircle2 size={18} color="#059669" style={{ flexShrink: 0 }} /> : <AlertCircle size={18} color="#DC2626" style={{ flexShrink: 0 }} />}
+      <span style={{ fontSize: 12.5, fontWeight: 600, color: isSuccess ? "#065F46" : "#991B1B", lineHeight: 1.4 }}>{toast.message}</span>
+      <button onClick={onDismiss} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, flexShrink: 0, color: isSuccess ? "#059669" : "#DC2626", display: "flex" }}>
+        <X size={13} />
+      </button>
+      <style>{`@keyframes toastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}`}</style>
+    </div>
+  );
+}
 function ModalFooter({ onClose, onSave, saving, primaryColor, label }) {
   const { t } = useLanguage();
   return (
@@ -583,8 +614,11 @@ function ModalFooter({ onClose, onSave, saving, primaryColor, label }) {
 }
 
 // ── Teacher Card ──────────────────────────────────────────
-function TeacherCard({ t2, subjectMap, primaryColor, isArchived, onArchive, onUnarchive, onEdit, actionId }) {
+function TeacherCard({ t2, subjectMap, primaryColor, isArchived, onArchive, onUnarchive, onEdit, actionId, onPayNow, payingId, confirmingPayId, onConfirmPay, onCancelPay }) {
   const { t } = useLanguage();
+  const isPaying = payingId === t2.id;
+  const isConfirming = confirmingPayId === t2.id;
+
   return (
     <div
       style={{
@@ -644,6 +678,35 @@ function TeacherCard({ t2, subjectMap, primaryColor, isArchived, onArchive, onUn
           <span dir="ltr" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t2.email || "—"}</span>
         </div>
       </div>
+
+      {/* NEW: Pay Now — direct pay-out trigger from the card itself, no need
+          to open the edit modal. Two-step inline confirm since it moves
+          money; same pattern as CalculateAction elsewhere in this file. */}
+      {!isArchived && (
+        isConfirming ? (
+          <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 5, paddingTop: 8, borderTop: "1.5px solid #F1F5F9" }}>
+            <span style={{ fontSize: 9.5, color: "#94A3B8", fontWeight: 600 }}>{t("teachers.payoutCard.payNowConfirm")}</span>
+            <div style={{ display: "flex", gap: 5 }}>
+              <button onClick={() => onConfirmPay(t2.id)} disabled={isPaying}
+                style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 4, padding: "6px 8px", borderRadius: 8, border: "1px solid #A7F3D0", background: isPaying ? "#F0FDF4" : "#ECFDF5", color: "#059669", fontSize: 10.5, fontWeight: 700, cursor: isPaying ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+                {isPaying ? <Spinner size={10} color="#059669" /> : <Check size={11} />}
+                {t("teachers.payoutCard.confirm")}
+              </button>
+              <button onClick={onCancelPay} disabled={isPaying}
+                style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 10.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                {t("teachers.footer.cancel")}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => onPayNow(t2.id)}
+            style={{ width: "100%", marginTop: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "7px 10px", borderRadius: 8, border: "1.5px solid #DBEAFE", background: "#EBF4FE", color: primaryColor, fontSize: 11.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", transition: "opacity .15s" }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = ".85")} onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}>
+            <Wallet size={12} />
+            {t("teachers.payoutCard.payNow")}
+          </button>
+        )
+      )}
     </div>
   );
 }
@@ -796,11 +859,8 @@ function PayoutsTab({ teachers, primaryColor }) {
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "3rem", textAlign: "center" }}>
             <Wallet size={30} color="#CBD5E1" />
             <p style={{ fontSize: 13, color: "#94A3B8", margin: 0 }}>{t("teachers.payoutCard.noneForMonth", { period: formatPeriod(period, locale) })}</p>
-            {/* NEW: no bulk calculate here anymore — point the admin at the
-                per-teacher flow instead, where "calculate" actually lives now. */}
-            <p style={{ fontSize: 11, color: "#94A3B8", margin: 0, maxWidth: 260 }}>
-              {t("teachers.payoutCard.calculatePerTeacherHint")}
-            </p>
+          
+           
           </div>
         ) : (
           <>
@@ -873,6 +933,9 @@ export default function Teachers() {
   const [editingTeacher, setEditingTeacher] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
   const [actionId, setActionId] = useState(null);
+  const [payingId, setPayingId] = useState(null);
+  const [confirmingPayId, setConfirmingPayId] = useState(null);
+  const [toast, setToast] = useState(null); // { type: 'success'|'error', message } — replaces alert()
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -911,7 +974,7 @@ export default function Teachers() {
       setTeachers((prev) => prev.filter((t3) => t3.id !== id));
       if (showArchived && archived) setArchivedTeachers((prev) => [{ ...archived, archived: true }, ...prev]);
     } catch (err) {
-      alert(err?.response?.data?.message || t("teachers.archiveFailed"));
+      setToast({ type: "error", message: err?.response?.data?.message || t("teachers.archiveFailed") });
     } finally {
       setActionId(null);
     }
@@ -925,9 +988,34 @@ export default function Teachers() {
       setArchivedTeachers((prev) => prev.filter((t3) => t3.id !== id));
       if (restored) setTeachers((prev) => [{ ...restored, archived: false }, ...prev]);
     } catch (err) {
-      alert(err?.response?.data?.message || t("teachers.restoreFailed"));
+      setToast({ type: "error", message: err?.response?.data?.message || t("teachers.restoreFailed") });
     } finally {
       setActionId(null);
+    }
+  };
+
+  // NEW: pay a teacher right now, for whatever's owed since their last
+  // payout (handles the "teacher wants their money mid-month" case directly
+  // from the card, no need to open the edit modal). Calls the same
+  // pay-now endpoint used in the edit modal's PayoutInfoCard.
+  const handlePayNow = async (teacherId) => {
+    setPayingId(teacherId);
+    try {
+      const res = await teacherApi.payTeacherNow(teacherId);
+      setToast({
+        type: "success",
+        message: t("teachers.payoutCard.payNowSuccess", {
+          amount: formatDA(res.data?.payoutAmount, t("teacherDashboard.currency")),
+        }),
+      });
+    } catch (err) {
+      setToast({
+        type: "error",
+        message: err?.response?.data?.message || t("courses.payoutPanel.calculateFailed"),
+      });
+    } finally {
+      setPayingId(null);
+      setConfirmingPayId(null);
     }
   };
 
@@ -996,7 +1084,15 @@ export default function Teachers() {
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 12 }}>
               {displayList.map((t3) => (
-                <TeacherCard key={t3.id} t2={t3} subjectMap={subjectMap} primaryColor={p} isArchived={showArchived} onArchive={handleArchive} onUnarchive={handleUnarchive} onEdit={setEditingTeacher} actionId={actionId} />
+                <TeacherCard
+                  key={t3.id} t2={t3} subjectMap={subjectMap} primaryColor={p} isArchived={showArchived}
+                  onArchive={handleArchive} onUnarchive={handleUnarchive} onEdit={setEditingTeacher} actionId={actionId}
+                  onPayNow={(id) => setConfirmingPayId(id)}
+                  payingId={payingId}
+                  confirmingPayId={confirmingPayId}
+                  onConfirmPay={handlePayNow}
+                  onCancelPay={() => setConfirmingPayId(null)}
+                />
               ))}
             </div>
           )}
@@ -1012,6 +1108,8 @@ export default function Teachers() {
       {editingTeacher && (
         <EditTeacherModal teacher={editingTeacher} subjects={subjects} primaryColor={p} onClose={() => setEditingTeacher(null)} onSaved={(updated) => { handleTeacherUpdated(updated); setEditingTeacher(null); }} />
       )}
+
+      <Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>
   );
 }

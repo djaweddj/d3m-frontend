@@ -4,6 +4,7 @@ import {
   ChevronDown, ChevronUp, Plus, X, Eye, EyeOff, UserPlus,
   BookOpen, CreditCard, ChevronRight, ArrowLeft, GraduationCap,
   Clock, Wallet, Printer, History, ClipboardList, UserMinus,
+  Ban,
 } from "lucide-react";
 import { useSchool } from "../context/SchoolContext";
 import { useLanguage } from "../context/LanguageContext";
@@ -17,8 +18,8 @@ const schoolApi = {
   registerStudent:     (data)                   => api.post("api/students/register", data),
   adminEnroll:         (studentId, moduleId)    =>
     api.post(`api/enrollments/admin-enroll?studentId=${studentId}&moduleId=${moduleId}`),
-  removeEnrollment:    (studentId, moduleId)    =>
-    api.delete(`api/enrollments?studentId=${studentId}&moduleId=${moduleId}`),
+  adminSuspend:        (studentId, moduleId)    =>
+    api.post(`api/enrollments/admin-suspend?studentId=${studentId}&moduleId=${moduleId}`),
   getStudentEnrollments: (studentId)            => api.get(`api/enrollments/student/${studentId}`),
   getStudentInvoices: (studentId)               => api.get(`api/invoices/student/${studentId}`),
   getSchoolRevenue:    (period)                 => api.get(`api/invoices/school/revenue?period=${period}`),
@@ -26,23 +27,26 @@ const schoolApi = {
   createInvoiceManually: (payload)              => api.post("api/invoices/create", payload),
 };
 
-function todayYearMonth() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function periodToKey(period) {
-  if (!period) return null;
-  return String(period).slice(0, 7);
-}
-
 function isCurrentPeriod(invoice) {
-  return periodToKey(invoice?.period) === todayYearMonth();
+  if (!invoice?.periodStart || !invoice?.periodEnd) return false;
+  const today = new Date();
+  const start = new Date(invoice.periodStart);
+  const end = new Date(invoice.periodEnd);
+  return today >= start && today <= end;
 }
 
 function currentMonthInvoice(invoices) {
   if (!Array.isArray(invoices)) return null;
   return invoices.find(isCurrentPeriod) ?? null;
+}
+
+// Overall payment status across a set of invoices:
+// - "PAID" only if there's at least one invoice and every single one is PAID
+// - "PENDING" if there's at least one invoice and at least one isn't PAID
+// - null if there are no invoices at all
+function overallInvoiceStatus(invoices) {
+  if (!Array.isArray(invoices) || invoices.length === 0) return null;
+  return invoices.every((inv) => inv.status === "PAID") ? "PAID" : "PENDING";
 }
 
 // ── Palette ───────────────────────────────────────────────
@@ -74,14 +78,12 @@ function formatDate(d) {
   catch { return String(d); }
 }
 
-function formatPeriod(period) {
-  const key = periodToKey(period);
-  if (!key) return "—";
-  const [y, m] = key.split("-");
-  if (!y || !m) return key;
+function formatPeriod(periodStart, periodEnd) {
+  if (!periodStart || !periodEnd) return "—";
   try {
-    return new Intl.DateTimeFormat("fr-DZ", { year: "numeric", month: "long" }).format(new Date(Number(y), Number(m) - 1, 1));
-  } catch { return key; }
+    const fmt = new Intl.DateTimeFormat("fr-DZ", { day: "2-digit", month: "short", year: "numeric" });
+    return `${fmt.format(new Date(periodStart))} – ${fmt.format(new Date(periodEnd))}`;
+  } catch { return "—"; }
 }
 
 // ── Invoice printing ───────────────────────────────────────
@@ -97,7 +99,7 @@ function printInvoice({ invoice, student, schoolName, t }) {
     [t("students.print.rowStudent"), invoice.studentName || student?.fullName || "—"],
     [t("students.print.rowParent"), student?.parentName || "—"],
     [t("students.print.rowModule"), invoice.moduleName ?? "—"],
-    [t("students.print.rowPeriod"), formatPeriod(invoice.period)],
+   [t("students.print.rowPeriod"), formatPeriod(invoice.periodStart, invoice.periodEnd)],
     [t("students.print.rowDueDate"), formatDate(invoice.dueDate)],
     [t("students.print.rowPaidDate"), formatDate(invoice.paidAt)],
   ];
@@ -315,7 +317,10 @@ function AttendanceSheetButton({ onClick, color, light }) {
   );
 }
 
-function RemoveEnrollButton({ onClick, compact = false, busy = false, label }) {
+// Renamed conceptually to "suspend" — same compact/full look as before, just a different
+// icon/color (amber, since suspend is less destructive-looking than a hard delete) and it
+// now triggers the suspend confirmation dialog instead of window.confirm + DELETE call.
+function SuspendEnrollButton({ onClick, compact = false, busy = false, label }) {
   const { t } = useLanguage();
   const resolvedLabel = label ?? t("students.buttons.removeLabel");
   if (compact) {
@@ -325,17 +330,49 @@ function RemoveEnrollButton({ onClick, compact = false, busy = false, label }) {
         disabled={busy}
         title={t("students.buttons.removeFromModuleTitle")}
         style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: busy ? "not-allowed" : "pointer", flexShrink: 0, opacity: busy ? .55 : 1 }}
-        onMouseEnter={(e) => { if (!busy) { e.currentTarget.style.background = "#FEF2F2"; e.currentTarget.style.borderColor = "#DC2626"; } }}
+        onMouseEnter={(e) => { if (!busy) { e.currentTarget.style.background = "#FFFBEB"; e.currentTarget.style.borderColor = "#D97706"; } }}
         onMouseLeave={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.borderColor = "#E2E8F0"; }}
       >
-        <UserMinus size={12} color="#DC2626" />
+        <Ban size={12} color="#D97706" />
       </button>
     );
   }
   return (
-    <button onClick={onClick} disabled={busy} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 7, border: "1.5px solid #DC2626", background: "#FEF2F2", color: "#DC2626", fontSize: 11, fontWeight: 700, cursor: busy ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: busy ? .6 : 1 }}>
-      <UserMinus size={12} />{busy ? t("students.buttons.removing") : resolvedLabel}
+    <button onClick={onClick} disabled={busy} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 7, border: "1.5px solid #D97706", background: "#FFFBEB", color: "#D97706", fontSize: 11, fontWeight: 700, cursor: busy ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: busy ? .6 : 1 }}>
+      <Ban size={12} />{busy ? t("students.buttons.removing") : resolvedLabel}
     </button>
+  );
+}
+
+// Real confirmation dialog (replaces window.confirm) used before suspending a student
+// from a module.
+function ConfirmSuspendModal({ studentName, moduleLabel, busy, onConfirm, onCancel }) {
+  const { t } = useLanguage();
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.45)", backdropFilter: "blur(4px)", zIndex: 1300, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onCancel}>
+      <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 380, boxShadow: "0 24px 60px rgba(15,23,42,.18)" }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ padding: "20px 20px 14px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 10 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 12, background: "#FFFBEB", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Ban size={20} color="#D97706" />
+          </div>
+          <p style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("students.suspendModal.heading")}</p>
+          <p style={{ fontSize: 12, color: "#64748B", margin: 0, lineHeight: 1.6 }}>
+            {t("students.suspendModal.body", { name: studentName, module: moduleLabel })}
+          </p>
+        </div>
+        <div style={{ padding: "14px 20px 20px", display: "flex", gap: 10 }}>
+          <button onClick={onCancel} disabled={busy} style={{ flex: 1, padding: "9px 18px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 13, fontWeight: 600, cursor: busy ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+            {t("students.suspendModal.cancel")}
+          </button>
+          <button onClick={onConfirm} disabled={busy} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "9px 18px", borderRadius: 9, border: "none", background: busy ? "#E2E8F0" : "#D97706", color: busy ? "#94A3B8" : "#fff", fontSize: 13, fontWeight: 700, cursor: busy ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+            {busy
+              ? <><div style={{ width: 13, height: 13, borderRadius: "50%", border: "2px solid currentColor", borderTopColor: "transparent", animation: "spin .8s linear infinite" }} />{t("students.suspendModal.confirming")}</>
+              : <><Ban size={14} />{t("students.suspendModal.confirm")}</>
+            }
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -599,21 +636,23 @@ function EnrollExistingModal({ student, modules, allLevels, enrolledModuleIds, o
 function CreateInvoiceModal({ student, enrollments, schoolId, onClose, onSuccess }) {
   const { t } = useLanguage();
   const [enrollmentId, setEnrollmentId] = useState(enrollments[0]?.id ?? "");
-  const [period, setPeriod]             = useState(todayYearMonth());
+const [periodStart, setPeriodStart]   = useState(new Date().toISOString().slice(0, 10));
+ const [periodEnd, setPeriodEnd]       = useState(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate]           = useState(new Date().toISOString().slice(0, 10));
   const [amount, setAmount]             = useState("");
   const [submitting, setSubmitting]     = useState(false);
   const [error, setError]               = useState(null);
 
   const handleSubmit = async () => {
-    if (!enrollmentId || !amount) return;
+   if (!enrollmentId || !amount || !periodStart || !periodEnd) return;
     setSubmitting(true); setError(null);
     try {
       await schoolApi.createInvoiceManually({
         enrollmentId: Number(enrollmentId),
         studentId: student.id,
         dueDate,
-        period,
+        periodStart,
+       periodEnd,
         totalAmount: Number(amount),
       });
       onSuccess(t("students.invoiceModal.successMessage"));
@@ -644,9 +683,10 @@ function CreateInvoiceModal({ student, enrollments, schoolId, onClose, onSuccess
             </select>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div style={fw}><label style={lbl}>{t("students.invoiceModal.period")}</label><input style={{ ...inp, direction: "ltr" }} type="month" value={period} onChange={(e) => setPeriod(e.target.value)} /></div>
-            <div style={fw}><label style={lbl}>{t("students.invoiceModal.dueDate")}</label><input style={{ ...inp, direction: "ltr" }} type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} /></div>
+            <div style={fw}><label style={lbl}>{t("students.invoiceModal.periodStart")}</label><input style={{ ...inp, direction: "ltr" }} type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} /></div>
+            <div style={fw}><label style={lbl}>{t("students.invoiceModal.periodEnd")}</label><input style={{ ...inp, direction: "ltr" }} type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} /></div>
           </div>
+          <div style={fw}><label style={lbl}>{t("students.invoiceModal.dueDate")}</label><input style={{ ...inp, direction: "ltr" }} type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} /></div>
           <div style={fw}>
             <label style={lbl}>{t("students.invoiceModal.amount")}</label>
             <input style={{ ...inp, direction: "ltr" }} type="number" min="0" placeholder="3000" value={amount} onChange={(e) => setAmount(e.target.value)} />
@@ -659,7 +699,7 @@ function CreateInvoiceModal({ student, enrollments, schoolId, onClose, onSuccess
         </div>
         <div style={{ padding: "12px 20px", borderTop: "1px solid #F1F5F9", display: "flex", gap: 10, justifyContent: "space-between" }}>
           <button onClick={onClose} style={{ padding: "9px 18px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{t("students.invoiceModal.cancel")}</button>
-          <button onClick={handleSubmit} disabled={submitting || !enrollmentId || !amount} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 22px", borderRadius: 9, border: "none", background: (!submitting && enrollmentId && amount) ? "#D97706" : "#E2E8F0", color: (!submitting && enrollmentId && amount) ? "#fff" : "#94A3B8", fontSize: 13, fontWeight: 700, cursor: (!submitting && enrollmentId && amount) ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
+          <button onClick={handleSubmit} disabled={submitting || !enrollmentId || !amount || !periodStart || !periodEnd} style={{display: "flex", alignItems: "center", gap: 7, padding: "9px 22px", borderRadius: 9, border: "none", background: (!submitting && enrollmentId && amount && periodStart && periodEnd) ? "#D97706" : "#E2E8F0", color: (!submitting && enrollmentId && amount && periodStart && periodEnd) ? "#fff" : "#94A3B8", cursor: (!submitting && enrollmentId && amount && periodStart && periodEnd) ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
             {submitting ? <><div style={{ width: 13, height: 13, borderRadius: "50%", border: "2px solid #fff", borderTopColor: "transparent", animation: "spin .8s linear infinite" }} />{t("students.invoiceModal.submitting")}</> : <><CreditCard size={14} />{t("students.invoiceModal.submit")}</>}
           </button>
         </div>
@@ -668,13 +708,13 @@ function CreateInvoiceModal({ student, enrollments, schoolId, onClose, onSuccess
   );
 }
 
-// ── Invoice history row (used inside the drawer's collapsible list) ──
+// ── Invoice row (used inside the drawer's unpaid list + collapsible paid list) ──
 function InvoiceHistoryRow({ invoice, student, schoolName, onPay, payingId, t }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 12px", borderRadius: 9, background: "#fff", border: "1px solid #F1F5F9" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
         <span style={{ fontSize: 12, color: "#0F172A", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{invoice.moduleName ?? t("students.print.rowModule")}</span>
-        <span style={{ fontSize: 11, color: "#94A3B8" }}>{formatPeriod(invoice.period)}{invoice.amount != null ? ` · ${money(invoice.amount)} ${t("students.print.currency")}` : ""}</span>
+          <span style={{ fontSize: 11, color: "#94A3B8" }}>{formatPeriod(invoice.periodStart, invoice.periodEnd)}{invoice.amount != null ? ` · ${money(invoice.amount)} ${t("students.print.currency")}` : ""}</span>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
         <StatusBadge status={invoice.status} size={9} />
@@ -704,9 +744,9 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
   const [invoices, setInvoices]       = useState([]);
   const [loadingInv, setLoadingInv]   = useState(true);
   const [errInv, setErrInv]           = useState(null);
-  const [showHistory, setShowHistory] = useState(false);
-  const [removingEnrId, setRemovingEnrId] = useState(null);
-  
+  const [showPaidInvoices, setShowPaidInvoices] = useState(false);
+  const [suspendTarget, setSuspendTarget] = useState(null); // enrollment pending suspend confirmation
+  const [suspendingEnrId, setSuspendingEnrId] = useState(null);
 
   const c = levelColorByName(student.level, allLevels);
 
@@ -721,7 +761,11 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
   const loadInvoices = useCallback(() => {
     setLoadingInv(true); setErrInv(null);
     schoolApi.getStudentInvoices(student.id)
-      .then((r) => setInvoices(r.data?.content ?? r.data ?? []))
+        .then((r) => {
+    const data = r.data?.content ?? r.data ?? [];
+    console.log("RAW INVOICE:", data[0]); // TEMP DEBUG
+    setInvoices(data);
+  })
       .catch(() => setErrInv(t("students.drawer.loadInvoicesError")))
       .finally(() => setLoadingInv(false));
   }, [student.id, t]);
@@ -731,8 +775,9 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
 
   const enrolledModuleIds = enrollments.map((e) => e.moduleId).filter(Boolean);
 
-  const currentInvoice = currentMonthInvoice(invoices);
-  const pastInvoices    = invoices.filter((inv) => inv.id !== currentInvoice?.id);
+  // Unpaid invoices are shown directly; paid ones are tucked behind "see other invoices".
+  const unpaidInvoices = invoices.filter((inv) => inv.status !== "PAID");
+  const paidInvoices    = invoices.filter((inv) => inv.status === "PAID");
 
   const handlePay = async (invoice) => {
     setPayingId(invoice.id);
@@ -751,17 +796,20 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
     } finally { setPayingId(null); }
   };
 
-  const handleUnenroll = async (enr) => {
-    const moduleLabel = enr.subjectName ?? enr.moduleName ?? t("students.drawer.defaultModuleLabel");
-    if (!window.confirm(t("students.drawer.confirmUnenroll", { name: student.fullName, module: moduleLabel }))) return;
-    setRemovingEnrId(enr.id);
+  const requestSuspend = (enr) => setSuspendTarget(enr);
+
+  const confirmSuspend = async () => {
+    const enr = suspendTarget;
+    if (!enr) return;
+    setSuspendingEnrId(enr.id);
     try {
-      await schoolApi.removeEnrollment(student.id, enr.moduleId);
+      await schoolApi.adminSuspend(student.id, enr.moduleId);
       loadEnrollments();
-      onSuccess(t("students.drawer.unenrollSuccess", { name: student.fullName, module: moduleLabel }));
+      onSuccess(t("students.drawer.unenrollSuccess", { name: student.fullName, module: enr.subjectName ?? enr.moduleName ?? t("students.drawer.defaultModuleLabel") }));
+      setSuspendTarget(null);
     } catch (err) {
       onError(err?.response?.data?.message || t("students.drawer.unenrollError"));
-    } finally { setRemovingEnrId(null); }
+    } finally { setSuspendingEnrId(null); }
   };
 
   return (
@@ -783,6 +831,15 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
           schoolId={schoolId}
           onClose={() => setShowInvoice(false)}
           onSuccess={(msg) => { setShowInvoice(false); loadInvoices(); onSuccess(msg); }}
+        />
+      )}
+      {suspendTarget && (
+        <ConfirmSuspendModal
+          studentName={student.fullName}
+          moduleLabel={suspendTarget.subjectName ?? suspendTarget.moduleName ?? t("students.drawer.defaultModuleLabel")}
+          busy={suspendingEnrId === suspendTarget.id}
+          onConfirm={confirmSuspend}
+          onCancel={() => setSuspendTarget(null)}
         />
       )}
 
@@ -826,40 +883,28 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
 
             {loadingInv ? <LoadingBlock /> : errInv
               ? <p style={{ fontSize: 12, color: "#94A3B8", textAlign: "center" }}>{errInv}</p>
-              : !currentInvoice
+              : unpaidInvoices.length === 0
                 ? <p style={{ fontSize: 12, color: "#94A3B8", margin: 0 }}>{t("students.drawer.noInvoiceThisMonth")}</p>
                 : (
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderRadius: 9, background: "#F8FAFC", border: "1px solid #E2E8F0" }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                      <span style={{ fontSize: 12, color: "#0F172A", fontWeight: 600 }}>{currentInvoice.moduleName ?? t("students.print.rowModule")}</span>
-                      <span style={{ fontSize: 11, color: "#94A3B8" }}>{formatPeriod(currentInvoice.period)}{currentInvoice.amount != null ? ` · ${money(currentInvoice.amount)} ${t("students.print.currency")}` : ""}</span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <StatusBadge status={currentInvoice.status} />
-                      {currentInvoice.status !== "PAID" && currentInvoice.id && (
-                        <button onClick={() => handlePay(currentInvoice)} disabled={payingId === currentInvoice.id} style={{ padding: "5px 12px", borderRadius: 7, border: "none", background: "#059669", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", opacity: payingId === currentInvoice.id ? .6 : 1 }}>
-                          {payingId === currentInvoice.id ? "..." : t("students.drawer.registerPayment")}
-                        </button>
-                      )}
-                      {currentInvoice.status === "PAID" && (
-                        <PrintButton onClick={() => printInvoice({ invoice: currentInvoice, student, schoolName, t })} />
-                      )}
-                    </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {unpaidInvoices.map((inv) => (
+                      <InvoiceHistoryRow key={inv.id} invoice={inv} student={student} schoolName={schoolName} onPay={handlePay} payingId={payingId} t={t} />
+                    ))}
                   </div>
                 )
             }
 
-            {/* Collapsible full history */}
-            {!loadingInv && !errInv && pastInvoices.length > 0 && (
+            {/* Collapsible paid invoices */}
+            {!loadingInv && !errInv && paidInvoices.length > 0 && (
               <div style={{ marginTop: 10 }}>
-                <button onClick={() => setShowHistory((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0, color: "#64748B", fontSize: 11, fontWeight: 700 }}>
+                <button onClick={() => setShowPaidInvoices((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0, color: "#64748B", fontSize: 11, fontWeight: 700 }}>
                   <History size={12} />
-                  {t("students.drawer.invoiceHistory", { count: pastInvoices.length })}
-                  {showHistory ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                  {t("students.drawer.invoiceHistory", { count: paidInvoices.length })}
+                  {showPaidInvoices ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                 </button>
-                {showHistory && (
+                {showPaidInvoices && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
-                    {pastInvoices.map((inv) => (
+                    {paidInvoices.map((inv) => (
                       <InvoiceHistoryRow key={inv.id} invoice={inv} student={student} schoolName={schoolName} onPay={handlePay} payingId={payingId} t={t} />
                     ))}
                   </div>
@@ -892,7 +937,7 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
                         <p style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", margin: 0 }}>{enr.subjectName ?? enr.moduleName ?? "—"}</p>
                         <p style={{ fontSize: 11, color: "#94A3B8", margin: "2px 0 0" }}>👨‍🏫 {enr.teacherName ?? "—"} · {money(enr.monthlyPrice)} {t("students.drawer.perMonth")}</p>
                       </div>
-                      <RemoveEnrollButton compact busy={removingEnrId === enr.id} onClick={() => handleUnenroll(enr)} />
+                      <SuspendEnrollButton compact busy={suspendingEnrId === enr.id} onClick={() => requestSuspend(enr)} />
                     </div>
                   );
                 })
@@ -915,26 +960,40 @@ function LevelTab({ levelKey, count, color, light, active, onClick }) {
 }
 
 // ── Module accordion ──────────────────────────────────────
-function ModuleSection({ module, students, invoiceByStudentId, color, light, schoolName, onStudentClick, onRemoveStudent }) {
+function ModuleSection({ module, students, invoiceByStudentId, color, light, schoolName, onStudentClick, onSuspendStudent }) {
   const { t } = useLanguage();
   const [open, setOpen] = useState(true);
-  const [removingId, setRemovingId] = useState(null);
-  const paid   = students.filter((s) => currentMonthInvoice(invoiceByStudentId[s.id])?.status === "PAID").length;
+  const [suspendTarget, setSuspendTarget] = useState(null); // { student } pending confirmation
+  const [suspendingId, setSuspendingId] = useState(null);
+  const paid   = students.filter((s) => overallInvoiceStatus(invoiceByStudentId[s.id]) === "PAID").length;
   const unpaid = students.length - paid;
 
-  const handleRemove = async (s) => {
+  const requestSuspend = (s) => setSuspendTarget(s);
+
+  const confirmSuspend = async () => {
+    const s = suspendTarget;
+    if (!s) return;
     const moduleLabel = module.subjectName ?? module.name ?? t("students.drawer.defaultModuleLabel");
-    if (!window.confirm(t("students.drawer.confirmUnenroll", { name: s.fullName, module: moduleLabel }))) return;
-    setRemovingId(s.id);
+    setSuspendingId(s.id);
     try {
-      await onRemoveStudent(s.id, module.id, s.fullName, moduleLabel);
+      await onSuspendStudent(s.id, module.id, s.fullName, moduleLabel);
+      setSuspendTarget(null);
     } finally {
-      setRemovingId(null);
+      setSuspendingId(null);
     }
   };
 
   return (
     <div style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${color}28`, borderRight: `3px solid ${color}`, marginBottom: 10 }}>
+      {suspendTarget && (
+        <ConfirmSuspendModal
+          studentName={suspendTarget.fullName}
+          moduleLabel={module.subjectName ?? module.name ?? t("students.drawer.defaultModuleLabel")}
+          busy={suspendingId === suspendTarget.id}
+          onConfirm={confirmSuspend}
+          onCancel={() => setSuspendTarget(null)}
+        />
+      )}
       <button onClick={() => setOpen((o) => !o)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "#fff", border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "right" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 36, height: 36, borderRadius: 10, background: light, color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700 }}>{module.level?.slice(0, 3) ?? "—"}</div>
@@ -964,7 +1023,8 @@ function ModuleSection({ module, students, invoiceByStudentId, color, light, sch
                   {["", "", t("students.moduleSection.headerName"), t("students.moduleSection.headerEmail"), t("students.moduleSection.headerParent"), t("students.moduleSection.headerPayment"), "", ""].map((h, i) => <span key={i} style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8" }}>{h}</span>)}
                 </div>
                 {students.map((s, i) => {
-                  const inv = currentMonthInvoice(invoiceByStudentId[s.id]);
+                  const overallStatus = overallInvoiceStatus(invoiceByStudentId[s.id]);
+                  const latestPaidInvoice = (invoiceByStudentId[s.id] ?? []).find((inv) => inv.status === "PAID");
                   return (
                     <div key={s.id} onClick={() => onStudentClick(s)}
                       onMouseEnter={(e) => e.currentTarget.style.background = "#FAFBFF"}
@@ -975,11 +1035,11 @@ function ModuleSection({ module, students, invoiceByStudentId, color, light, sch
                       <div><p style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", margin: 0 }}>{s.fullName}</p>{s.level && <p style={{ fontSize: 10, color: "#94A3B8", margin: 0, marginTop: 1 }}>{s.level}</p>}</div>
                       <span style={{ fontSize: 11, color: "#64748B", direction: "ltr", textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.email || "—"}</span>
                       <span style={{ fontSize: 11, color: "#64748B" }}>{s.parentPhone || "—"}</span>
-                      {inv ? <StatusBadge status={inv.status} /> : <span style={{ fontSize: 10, color: "#CBD5E1" }}>—</span>}
-                      {inv?.status === "PAID"
-                        ? <PrintButton compact onClick={() => printInvoice({ invoice: inv, student: s, schoolName, t })} />
+                      {overallStatus ? <StatusBadge status={overallStatus} /> : <span style={{ fontSize: 10, color: "#CBD5E1" }}>—</span>}
+                      {overallStatus === "PAID" && latestPaidInvoice
+                        ? <PrintButton compact onClick={() => printInvoice({ invoice: latestPaidInvoice, student: s, schoolName, t })} />
                         : <span />}
-                      <RemoveEnrollButton compact busy={removingId === s.id} onClick={() => handleRemove(s)} />
+                      <SuspendEnrollButton compact busy={suspendingId === s.id} onClick={() => requestSuspend(s)} />
                     </div>
                   );
                 })}
@@ -1008,7 +1068,8 @@ function AllStudentsList({ students, invoiceByStudentId, allLevels, schoolName, 
         ? <div style={{ textAlign: "center", color: "#94A3B8", padding: "2rem", fontSize: 13 }}>{t("students.allStudentsList.noResults")}</div>
         : students.map((s, i) => {
           const c   = levelColorByName(s.level, allLevels);
-          const inv = currentMonthInvoice(invoiceByStudentId[s.id]);
+          const overallStatus = overallInvoiceStatus(invoiceByStudentId[s.id]);
+          const latestPaidInvoice = (invoiceByStudentId[s.id] ?? []).find((inv) => inv.status === "PAID");
           return (
             <div key={s.id} onClick={() => onStudentClick(s)}
               onMouseEnter={(e) => e.currentTarget.style.background = "#FAFBFF"}
@@ -1019,9 +1080,9 @@ function AllStudentsList({ students, invoiceByStudentId, allLevels, schoolName, 
               <div><p style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", margin: 0 }}>{s.fullName}</p><p style={{ fontSize: 10, color: "#94A3B8", margin: 0 }}>{s.parentPhone || "—"}</p></div>
               <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 10px", borderRadius: 20, background: c.light, color: c.color }}>{s.level || "—"}</span>
               <span style={{ fontSize: 11, color: "#64748B", direction: "ltr", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.email || "—"}</span>
-              {inv ? <StatusBadge status={inv.status} /> : <span style={{ fontSize: 10, color: "#CBD5E1" }}>—</span>}
-              {inv?.status === "PAID"
-                ? <PrintButton compact onClick={() => printInvoice({ invoice: inv, student: s, schoolName, t })} />
+              {overallStatus ? <StatusBadge status={overallStatus} /> : <span style={{ fontSize: 10, color: "#CBD5E1" }}>—</span>}
+              {overallStatus === "PAID" && latestPaidInvoice
+                ? <PrintButton compact onClick={() => printInvoice({ invoice: latestPaidInvoice, student: s, schoolName, t })} />
                 : <span />}
               <ChevronRight size={14} color="#CBD5E1" />
             </div>
@@ -1119,7 +1180,7 @@ export default function Students() {
   const displayList  = filtered ?? (viewMode === "all" ? allStudents : null);
 
   const totalCount = viewMode === "all" ? allStudents.length : uniqueInLevel.length;
-  const paidCount  = (viewMode === "all" ? allStudents : uniqueInLevel).filter((s) => currentMonthInvoice(invoiceByStudentId[s.id])?.status === "PAID").length;
+  const paidCount  = (viewMode === "all" ? allStudents : uniqueInLevel).filter((s) => overallInvoiceStatus(invoiceByStudentId[s.id]) === "PAID").length;
 
   const handleSuccess = (msg) => {
     setShowModal(false);
@@ -1128,9 +1189,9 @@ export default function Students() {
   };
   const handleError = (msg) => setToast({ message: msg ?? t("students.toastGenericError"), tone: "error" });
 
-  const handleRemoveFromModule = async (studentId, moduleId, studentName, moduleLabel) => {
+  const handleSuspendFromModule = async (studentId, moduleId, studentName, moduleLabel) => {
     try {
-      await schoolApi.removeEnrollment(studentId, moduleId);
+      await schoolApi.adminSuspend(studentId, moduleId);
       setToast({ message: t("students.removedFromModule", { name: studentName, module: moduleLabel }), tone: "success" });
       load();
     } catch (err) {
@@ -1212,7 +1273,7 @@ export default function Students() {
           ? <AllStudentsList students={displayList} invoiceByStudentId={invoiceByStudentId} allLevels={allLevels} schoolName={schoolName} onStudentClick={setDrawerStudent} />
           : activeMods.map((m) => {
             const c = levelColor(m._idx);
-            return <ModuleSection key={m.id} module={m} students={studentMap[m.id] ?? []} invoiceByStudentId={invoiceByStudentId} color={c.color} light={c.light} schoolName={schoolName} onStudentClick={setDrawerStudent} onRemoveStudent={handleRemoveFromModule} />;
+            return <ModuleSection key={m.id} module={m} students={studentMap[m.id] ?? []} invoiceByStudentId={invoiceByStudentId} color={c.color} light={c.light} schoolName={schoolName} onStudentClick={setDrawerStudent} onSuspendStudent={handleSuspendFromModule} />;
           })
       }
     </div>

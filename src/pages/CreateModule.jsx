@@ -268,7 +268,7 @@ export default function CreateModule() {
   const [maxStudents,    setMaxStudents]    = useState("");
   const [cycleNumber,    setCycleNumber]    = useState(""); // NEW: matches CourseModuleRequestDto.cycleNumber
   const [pricingModel,   setPricingModel]   = useState("MONTHLY_FLAT");
-  const [monthlyPrice,   setMonthlyPrice]   = useState("");
+  const [monthlyPrice,   setMonthlyPrice]   = useState(null);
   const [pricePerSession,setPricePerSession]= useState("");
   const [periodStart,    setPeriodStart]    = useState("");
   const [periodEnd,      setPeriodEnd]      = useState("");
@@ -353,7 +353,7 @@ export default function CreateModule() {
         maxStudents:    Number(maxStudents),
         cycleNumber:    cycleNumber !== "" ? Number(cycleNumber) : null, // NEW
         pricingModel,
-        monthlyprice:    pricingModel === "MONTHLY_FLAT" ? Number(monthlyPrice)    : null,
+        monthlyPrice:    pricingModel === "MONTHLY_FLAT" ? Number(monthlyPrice)    : null,
         pricePerSession: pricingModel === "PER_SESSION"  ? Number(pricePerSession) : null,
         periodStart,
         periodEnd,

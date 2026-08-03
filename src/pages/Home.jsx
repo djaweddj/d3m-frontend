@@ -724,7 +724,7 @@ export default function Home() {
               className="relative z-10"
             >
               <div className="flex h-52 w-52 items-center justify-center">
-                <img src="/src/assets/herologo.png" alt="Numeria Academy" className="h-full w-full object-contain drop-shadow-2xl" />
+                <img src={heroLogo} alt="Numeria Academy" className="h-full w-full object-contain drop-shadow-2xl" />
               </div>
               {/* Ripple rings */}
               <div className="absolute inset-0 -z-10">

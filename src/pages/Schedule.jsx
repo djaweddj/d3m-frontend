@@ -333,7 +333,7 @@ function EditModal({ slot, onClose, onSaved }) {
       <div style={{ padding: "1rem 1.25rem", background: c.bg, borderBottom: `1.5px solid ${c.border}`, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
           <div style={{ fontSize: 14, fontWeight: 700, color: c.text }}>{t("schedule.editModal.title")}</div>
-          <div style={{ fontSize: 11, color: c.text, opacity: .75, marginTop: 2 }}>{slot.subjectName ?? slot.moduleName}</div>
+          <div style={{ fontSize: 11, color: c.text, opacity: .75, marginTop: 2 }}>{slot.moduleName ?? slot.subjectName}</div>
         </div>
         <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${c.border}`, background: "rgba(255,255,255,.5)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <X size={14} color={c.text} />
@@ -390,7 +390,7 @@ function ArchiveModal({ slot, onClose, onConfirm }) {
           <Trash2 size={22} color="#DC2626" />
         </div>
         <p style={{ fontSize: 13, color: "#475569", lineHeight: 1.7, margin: 0 }}>
-          {t("schedule.archiveModal.confirmQuestion", { name: slot.subjectName ?? slot.moduleName })}
+          {t("schedule.archiveModal.confirmQuestion", { name: slot.moduleName ?? slot.subjectName })}
           <br />
           <span style={{ fontSize: 11, color: "#94A3B8" }}>
             {t("schedule.archiveModal.note")}
@@ -700,13 +700,18 @@ function AttendanceSheetModal({ session, onClose }) {
   return (
     <>
       <ModalWrap onClose={onClose} maxWidth={700}>
-        <div style={{ padding: isMobile ? "0.9rem 1rem" : "1.1rem 1.35rem", background: c.bg, borderBottom: `1.5px solid ${c.border}`, flexShrink: 0 }}>
+      <div style={{ padding: isMobile ? "0.9rem 1rem" : "1.1rem 1.35rem", background: c.bg, borderBottom: `1.5px solid ${c.border}`, flexShrink: 0 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 <div style={{ fontSize: isMobile ? 14 : 16, fontWeight: 700, color: c.text }}>
-                  {sheet?.subjectName ?? session.subjectName ?? session.moduleName}
+                  {session.moduleName ?? sheet?.moduleName ?? sheet?.subjectName}
                 </div>
+                {!loading && sheet?.totalSessionsInMonth > 0 && (
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "rgba(255,255,255,.7)", color: c.text, border: `1px solid ${c.border}` }}>
+                    {sheet.sessionOrdinalInMonth}/{sheet.totalSessionsInMonth}
+                  </span>
+                )}
               </div>
               <div style={{ fontSize: 11, color: c.text, opacity: .8, marginTop: 3, display: "flex", gap: 12, flexWrap: "wrap" }}>
                 <span>{t("schedule.attendance.teacherLabel", { name: sheet?.teacherName ?? session.teacherName ?? "—" })}</span>
@@ -727,29 +732,6 @@ function AttendanceSheetModal({ session, onClose }) {
               </button>
             </div>
           </div>
-
-          {/* ── cycle progress ── */}
-          {!loading && sheet?.totalSessionsInMonth > 0 && (
-            <div style={{ marginTop: 12, background: "rgba(255,255,255,.55)", border: `1px solid ${c.border}`, borderRadius: 10, padding: "8px 12px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: c.text }}>
-                  {t("schedule.attendance.sessionOfMonth", { ordinal: sheet.sessionOrdinalInMonth, total: sheet.totalSessionsInMonth })}
-                </span>
-                <span style={{ fontSize: 10, fontWeight: 600, color: c.text, opacity: .7 }}>
-                  {Math.round((sheet.sessionOrdinalInMonth / sheet.totalSessionsInMonth) * 100)}%
-                </span>
-              </div>
-              <div style={{ display: "flex", gap: 3 }}>
-                {Array.from({ length: sheet.totalSessionsInMonth }).map((_, i) => (
-                  <div key={i} style={{
-                    flex: 1, height: 6, borderRadius: 4,
-                    background: i < sheet.sessionOrdinalInMonth ? c.accent : "rgba(255,255,255,.7)",
-                    border: i < sheet.sessionOrdinalInMonth ? "none" : `1px solid ${c.border}`,
-                  }} />
-                ))}
-              </div>
-            </div>
-          )}
 
           {!loading && (
             <div style={{ display: "flex", gap: 7, marginTop: 10, flexWrap: "wrap" }}>
@@ -1179,7 +1161,7 @@ function ModuleChip({ slot, onEdit, onArchive, onDragStart, onDragEnd, isMobile 
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: c.text }}>
-              {slot.subjectName ?? slot.moduleName}
+              {slot.moduleName ?? slot.subjectName}
             </div>
             <div style={{ fontSize: 10, color: c.text, opacity: .75, marginTop: 2 }}>
               {fmtTime(slot.startTime)} – {fmtTime(slot.endTime)}
@@ -1219,7 +1201,7 @@ function ModuleChip({ slot, onEdit, onArchive, onDragStart, onDragEnd, isMobile 
         <GripVertical size={10} color={c.text} />
       </div>
       <div style={{ fontSize: 11, fontWeight: 700, color: c.text, paddingRight: 12 }}>
-        {slot.subjectName ?? slot.moduleName}
+        {slot.moduleName ?? slot.subjectName}
       </div>
       <div style={{ fontSize: 9, color: c.text, opacity: .75, marginTop: 1 }}>
         {fmtTime(slot.startTime)} – {fmtTime(slot.endTime)}

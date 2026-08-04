@@ -204,7 +204,7 @@ function printAttendanceSheet({ module, students, schoolName, sessionCount = 8, 
     <html dir="rtl" lang="ar">
     <head>
       <meta charset="UTF-8" />
-      <title>${t("students.print.attendanceDocTitle", { name: module.subjectName ?? module.name ?? "" })}</title>
+      <title>${t("students.print.attendanceDocTitle", { name: module.name ?? module.subjectName ?? "" })}</title>
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
         * { box-sizing: border-box; }
@@ -234,7 +234,7 @@ function printAttendanceSheet({ module, students, schoolName, sessionCount = 8, 
         </div>
       </div>
       <div class="meta">
-        <div><span>${t("students.print.metaModule")}</span><strong>${module.subjectName ?? module.name ?? "—"}</strong></div>
+        <div><span>${t("students.print.metaModule")}</span><strong>${module.name ?? module.subjectName ?? "—"}</strong></div>
         <div><span>${t("students.print.metaTeacher")}</span><strong>${module.teacherName ?? "—"}</strong></div>
         <div><span>${t("students.print.metaLevel")}</span><strong>${module.level ?? "—"}</strong></div>
         <div><span>${t("students.print.metaStudentCount")}</span><strong>${students.length}</strong></div>
@@ -535,7 +535,7 @@ function AddStudentModal({ modules, allLevels, onClose, onSuccess, onError }) {
                   <button key={m.id} onClick={() => set("moduleId", m.id)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 10, border: active ? `1.5px solid ${c.color}` : "1.5px solid #E2E8F0", background: active ? c.light : "#fff", cursor: "pointer", fontFamily: "inherit", textAlign: "right", width: "100%" }}>
                     <div style={{ width: 36, height: 36, borderRadius: 9, background: active ? c.color : "#F1F5F9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: active ? "#fff" : "#94A3B8", flexShrink: 0 }}>{m.level?.slice(0, 3) ?? "—"}</div>
                     <div style={{ flex: 1, textAlign: "right" }}>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: active ? c.color : "#0F172A", margin: 0 }}>{m.subjectName ?? m.name}</p>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: active ? c.color : "#0F172A", margin: 0 }}>{m.name ?? m.subjectName}</p>
                       <p style={{ fontSize: 11, color: "#94A3B8", margin: 0, marginTop: 2 }}>👨‍🏫 {m.teacherName ?? "—"} · {money(m.monthlyprice ?? m.monthlyPrice)} {t("students.addModal.perMonth")}</p>
                     </div>
                     {active && <CheckCircle size={16} color={c.color} />}
@@ -623,7 +623,7 @@ function EnrollExistingModal({ student, modules, allLevels, enrolledModuleIds, o
                 <button key={m.id} onClick={() => setSelectedModule(m.id)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", borderRadius: 10, border: active ? `1.5px solid ${c.color}` : "1.5px solid #E2E8F0", background: active ? c.light : "#fff", cursor: "pointer", fontFamily: "inherit", textAlign: "right", width: "100%" }}>
                   <div style={{ width: 34, height: 34, borderRadius: 8, background: active ? c.color : "#F1F5F9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: active ? "#fff" : "#94A3B8", flexShrink: 0 }}>{m.level?.slice(0, 3) ?? "—"}</div>
                   <div style={{ flex: 1, textAlign: "right" }}>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: active ? c.color : "#0F172A", margin: 0 }}>{m.subjectName ?? m.name}</p>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: active ? c.color : "#0F172A", margin: 0 }}>{m.name ?? m.subjectName}</p>
                     <p style={{ fontSize: 11, color: "#94A3B8", margin: 0, marginTop: 1 }}>👨‍🏫 {m.teacherName ?? "—"} · {m.level}</p>
                   </div>
                   {active && <CheckCircle size={15} color={c.color} />}
@@ -695,7 +695,7 @@ const [periodStart, setPeriodStart]   = useState(new Date().toISOString().slice(
             <label style={lbl}>{t("students.invoiceModal.moduleLabel")}</label>
             <select style={{ ...inp, appearance: "auto" }} value={enrollmentId} onChange={(e) => setEnrollmentId(e.target.value)}>
               {enrollments.length === 0 && <option value="">{t("students.invoiceModal.noEnrolledModules")}</option>}
-              {enrollments.map((e) => <option key={e.id} value={e.id}>{e.subjectName ?? e.moduleName}</option>)}
+              {enrollments.map((e) => <option key={e.id} value={e.id}>{e.moduleName ?? e.subjectName}</option>)}
             </select>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -821,7 +821,7 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
     try {
       await schoolApi.adminSuspend(student.id, enr.moduleId);
       loadEnrollments();
-      onSuccess(t("students.drawer.unenrollSuccess", { name: student.fullName, module: enr.subjectName ?? enr.moduleName ?? t("students.drawer.defaultModuleLabel") }));
+      onSuccess(t("students.drawer.unenrollSuccess", { name: student.fullName, module: enr.moduleName ?? enr.subjectName ?? t("students.drawer.defaultModuleLabel") }));
       setSuspendTarget(null);
     } catch (err) {
       onError(err?.response?.data?.message || t("students.drawer.unenrollError"));
@@ -852,7 +852,7 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
       {suspendTarget && (
         <ConfirmSuspendModal
           studentName={student.fullName}
-          moduleLabel={suspendTarget.subjectName ?? suspendTarget.moduleName ?? t("students.drawer.defaultModuleLabel")}
+          moduleLabel={suspendTarget.moduleName ?? suspendTarget.subjectName ?? t("students.drawer.defaultModuleLabel")}
           busy={suspendingEnrId === suspendTarget.id}
           onConfirm={confirmSuspend}
           onCancel={() => setSuspendTarget(null)}
@@ -950,7 +950,7 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
                         {(student.level ?? "—").slice(0, 3)}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", margin: 0 }}>{enr.subjectName ?? enr.moduleName ?? "—"}</p>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", margin: 0 }}>{enr.moduleName ?? enr.subjectName ?? "—"}</p>
                         <p style={{ fontSize: 11, color: "#94A3B8", margin: "2px 0 0" }}>👨‍🏫 {enr.teacherName ?? "—"} · {money(enr.monthlyPrice)} {t("students.drawer.perMonth")}</p>
                       </div>
                       <SuspendEnrollButton compact busy={suspendingEnrId === enr.id} onClick={() => requestSuspend(enr)} />
@@ -989,7 +989,7 @@ function ModuleSection({ module, students, invoiceByStudentId, color, light, sch
   const confirmSuspend = async () => {
     const s = suspendTarget;
     if (!s) return;
-    const moduleLabel = module.subjectName ?? module.name ?? t("students.drawer.defaultModuleLabel");
+    const moduleLabel = module.name ?? module.subjectName ?? t("students.drawer.defaultModuleLabel");
     setSuspendingId(s.id);
     try {
       await onSuspendStudent(s.id, module.id, s.fullName, moduleLabel);
@@ -1004,7 +1004,7 @@ function ModuleSection({ module, students, invoiceByStudentId, color, light, sch
       {suspendTarget && (
         <ConfirmSuspendModal
           studentName={suspendTarget.fullName}
-          moduleLabel={module.subjectName ?? module.name ?? t("students.drawer.defaultModuleLabel")}
+          moduleLabel={module.name ?? module.subjectName ?? t("students.drawer.defaultModuleLabel")}
           busy={suspendingId === suspendTarget.id}
           onConfirm={confirmSuspend}
           onCancel={() => setSuspendTarget(null)}
@@ -1014,7 +1014,7 @@ function ModuleSection({ module, students, invoiceByStudentId, color, light, sch
         <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
           <div style={{ width: 36, height: 36, borderRadius: 10, background: light, color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{module.level?.slice(0, 3) ?? "—"}</div>
           <div style={{ minWidth: 0 }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{module.subjectName ?? module.name}</p>
+            <p style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{module.name ?? module.subjectName}</p>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 3, flexWrap: "wrap" }}>
               <span style={{ fontSize: 11, color: "#64748B" }}>👨‍🏫 {module.teacherName ?? "—"}</span>
               <span style={{ fontSize: 10, color: "#94A3B8" }}>·</span>

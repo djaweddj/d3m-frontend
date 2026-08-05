@@ -13,6 +13,7 @@ import ArrowForwardOutlinedIcon from "@mui/icons-material/ArrowForwardOutlined";
 import PhoneOutlinedIcon from "@mui/icons-material/PhoneOutlined";
 import CakeOutlinedIcon from "@mui/icons-material/CakeOutlined";
 import FamilyRestroomOutlinedIcon from "@mui/icons-material/FamilyRestroomOutlined";
+import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
 import backImage from "../assets/numeria_login_background.png";
 import platformLogo from "../assets/num3 (2).png";
 import { useLanguage } from "../context/LanguageContext";
@@ -152,10 +153,10 @@ export default function Signup() {
   };
 
   return (
-    <div style={styles.container} dir={dir}>
+    <div className="signup-container" style={styles.container} dir={dir}>
       {/* Error toast */}
       {error && (
-        <div style={styles.alert}>
+        <div className="signup-alert" style={styles.alert}>
           <span>{error}</span>
           <button onClick={() => setError("")} style={styles.alertClose}>
             ×
@@ -164,8 +165,15 @@ export default function Signup() {
       )}
 
       {/* ── Left (form) ── */}
-      <div style={styles.leftSide}>
+      <div className="signup-left" style={styles.leftSide}>
         <div style={styles.formWrapper}>
+          {/* Mobile-only home link (right panel + its home button are hidden on mobile) */}
+          <Link to="/" className="mobile-home-link">
+            <HomeOutlinedIcon style={{ fontSize: 18 }} />
+            {t("signup.logoSubtext") ? "" : ""}
+            <img src={platformLogo} alt="" className="mobile-home-logo" />
+          </Link>
+
           {/* Logo */}
           <div style={styles.logoSection}>
             <div style={styles.logoCircle}>📚</div>
@@ -174,7 +182,7 @@ export default function Signup() {
 
           {/* Welcome */}
           <div style={styles.welcomeSection}>
-            <h1 style={styles.welcomeTitle}>{t("signup.title")}</h1>
+            <h1 className="signup-title" style={styles.welcomeTitle}>{t("signup.title")}</h1>
             <p style={styles.welcomeSubtitle}>{t("signup.subtitle")}</p>
           </div>
 
@@ -334,7 +342,7 @@ export default function Signup() {
       </div>
 
       {/* ── Right (decorative) ── */}
-      <div style={styles.rightSide}>
+      <div className="signup-right" style={styles.rightSide}>
         <div style={styles.rightSideOverlay}></div>
 
         <Link to="/" className="home-btn" style={styles.homeButton} aria-label="Home">
@@ -644,7 +652,7 @@ const styles = {
   },
 };
 
-/* ── Global keyframes + focus styles ── */
+/* ── Global keyframes + focus styles + mobile breakpoints ── */
 const styleSheet = document.createElement("style");
 styleSheet.textContent = `
 @keyframes spin {
@@ -657,5 +665,54 @@ input:focus, select:focus {
 }
 button:hover { opacity: 0.95; }
 .home-btn:hover { background-color: rgba(255,255,255,0.22) !important; transform: translateY(-1px); }
+
+.mobile-home-link {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: ${PRIMARY};
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+.mobile-home-logo {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+
+@media (max-width: 900px) {
+  .signup-container {
+    flex-direction: column !important;
+    height: auto !important;
+    min-height: 100vh;
+    overflow: visible !important;
+  }
+  .signup-left {
+    padding: 24px 20px !important;
+    overflow-y: visible !important;
+  }
+  .signup-right {
+    display: none !important;
+  }
+  .mobile-home-link {
+    display: flex;
+  }
+  .signup-title {
+    font-size: 22px !important;
+  }
+  .signup-alert {
+    left: 16px !important;
+    right: 16px !important;
+    top: 12px !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .signup-left {
+    padding: 20px 14px !important;
+  }
+}
 `;
 document.head.appendChild(styleSheet);

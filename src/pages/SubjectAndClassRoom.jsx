@@ -25,10 +25,10 @@ function TabBar({ active, onChange }) {
     { key: "classrooms", label: t("subjectsClassrooms.tabs.classrooms") },
   ];
   return (
-    <div className="flex gap-2 mb-6">
+    <div className="flex gap-2 mb-6 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
       {tabs.map(t => (
         <button key={t.key} onClick={() => onChange(t.key)}
-          className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
+          className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-200 whitespace-nowrap shrink-0 ${
             active === t.key
               ? "bg-[#185FA5] text-white shadow"
               : "bg-white text-gray-500 border border-gray-200 hover:border-[#185FA5] hover:text-[#185FA5]"
@@ -50,9 +50,9 @@ function Modal({ open, title, onClose, onConfirm, confirmLabel, confirmColor = "
   return (
     <AnimatePresence>
       {open && (
-        <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+        <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
-          <motion.div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6"
+          <motion.div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-5 sm:p-6"
             initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.92, opacity: 0 }}
             transition={{ type: "spring", damping: 20, stiffness: 300 }}
             onClick={e => e.stopPropagation()} dir={dir}>
@@ -60,11 +60,11 @@ function Modal({ open, title, onClose, onConfirm, confirmLabel, confirmColor = "
             <div className="space-y-3">{children}</div>
             <div className="flex gap-2 mt-6 justify-end">
               <button onClick={onClose}
-                className="px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition">
+                className="flex-1 sm:flex-none px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition">
                 {t("subjectsClassrooms.modal.cancel")}
               </button>
               <button onClick={onConfirm}
-                className={`px-4 py-2 rounded-lg text-sm text-white font-semibold transition ${btnColor}`}>
+                className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm text-white font-semibold transition ${btnColor}`}>
                 {confirmLabel}
               </button>
             </div>
@@ -119,7 +119,7 @@ function EmptyState({ message }) {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
           d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
       </svg>
-      <p className="text-sm">{message}</p>
+      <p className="text-sm text-center px-4">{message}</p>
     </div>
   );
 }
@@ -227,10 +227,10 @@ function SubjectsTab() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-gray-500">{t("subjectsClassrooms.subjects.countLabel", { count: subjects.length })}</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+        <p className="text-sm text-gray-500 shrink-0">{t("subjectsClassrooms.subjects.countLabel", { count: subjects.length })}</p>
         <button onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2 bg-[#185FA5] text-white text-sm font-semibold rounded-xl hover:bg-[#134d8a] transition shadow">
+          className="flex items-center justify-center gap-2 px-4 py-2 bg-[#185FA5] text-white text-sm font-semibold rounded-xl hover:bg-[#134d8a] transition shadow shrink-0">
           <span className="text-lg leading-none">+</span> {t("subjectsClassrooms.subjects.addButton")}
         </button>
       </div>
@@ -246,7 +246,7 @@ function SubjectsTab() {
               <motion.div key={s.id}
                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.2 }}
-                className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-start justify-between gap-3"
+                className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-3"
                 dir={dir}>
                 <div className="flex items-start gap-3 min-w-0">
                   <div className="w-10 h-10 rounded-xl bg-[#185FA5]/10 flex items-center justify-center shrink-0">
@@ -258,7 +258,7 @@ function SubjectsTab() {
                   <div className="min-w-0">
                     <p className="font-semibold text-gray-800 text-sm">{s.name}</p>
                     {s.description && (
-                      <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{s.description}</p>
+                      <p className="text-xs text-gray-400 mt-0.5 sm:truncate sm:max-w-xs">{s.description}</p>
                     )}
                     {s.teacherName ? (
                       <p className="text-xs text-[#185FA5] mt-1">👨‍🏫 {s.teacherName}</p>
@@ -269,11 +269,11 @@ function SubjectsTab() {
                 </div>
                 <div className="flex gap-2 shrink-0">
                   <button onClick={() => openEdit(s)}
-                    className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:border-[#185FA5] hover:text-[#185FA5] transition">
+                    className="flex-1 sm:flex-none text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:border-[#185FA5] hover:text-[#185FA5] transition">
                     {t("subjectsClassrooms.subjects.editButton")}
                   </button>
                   <button onClick={() => setArchiveTarget(s)}
-                    className="text-xs px-3 py-1.5 rounded-lg border border-red-100 text-red-500 hover:bg-red-50 transition">
+                    className="flex-1 sm:flex-none text-xs px-3 py-1.5 rounded-lg border border-red-100 text-red-500 hover:bg-red-50 transition">
                     {t("subjectsClassrooms.subjects.archiveButton")}
                   </button>
                 </div>
@@ -359,10 +359,10 @@ function ClassroomsTab() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-gray-500">{t("subjectsClassrooms.classrooms.countLabel", { count: classrooms.length })}</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+        <p className="text-sm text-gray-500 shrink-0">{t("subjectsClassrooms.classrooms.countLabel", { count: classrooms.length })}</p>
         <button onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2 bg-[#0F6E56] text-white text-sm font-semibold rounded-xl hover:bg-[#0a5540] transition shadow">
+          className="flex items-center justify-center gap-2 px-4 py-2 bg-[#0F6E56] text-white text-sm font-semibold rounded-xl hover:bg-[#0a5540] transition shadow shrink-0">
           <span className="text-lg leading-none">+</span> {t("subjectsClassrooms.classrooms.addButton")}
         </button>
       </div>
@@ -428,9 +428,9 @@ export default function SubjectsAndClassrooms() {
   const [activeTab, setActiveTab] = useState("subjects");
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6" dir={dir}>
+    <div className="min-h-screen bg-gray-50 p-3 sm:p-6" dir={dir}>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">{t("subjectsClassrooms.page.title")}</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{t("subjectsClassrooms.page.title")}</h1>
         <p className="text-sm text-gray-400 mt-1">{t("subjectsClassrooms.page.subtitle")}</p>
       </div>
       <TabBar active={activeTab} onChange={setActiveTab} />

@@ -4,7 +4,7 @@ import {
   ChevronDown, ChevronUp, Plus, X, Eye, EyeOff, UserPlus,
   BookOpen, CreditCard, ChevronRight, ArrowLeft, GraduationCap,
   Clock, Wallet, Printer, History, ClipboardList, UserMinus,
-  Ban,
+  Ban,Pencil,Check
 } from "lucide-react";
 import { useSchool } from "../context/SchoolContext";
 import { useLanguage } from "../context/LanguageContext";
@@ -25,6 +25,8 @@ const schoolApi = {
   getSchoolRevenue:    (period)                 => api.get(`api/invoices/school/revenue?period=${period}`),
   markInvoicePaid:     (invoiceId)              => api.post(`api/invoices/${invoiceId}/pay`),
   createInvoiceManually: (payload)              => api.post("api/invoices/create", payload),
+  updateInvoicePrice: (invoiceId, price) =>
+  api.put(`api/invoices/${invoiceId}/price`, { price }),
 };
 
 function isCurrentPeriod(invoice) {
@@ -204,7 +206,7 @@ function printAttendanceSheet({ module, students, schoolName, sessionCount = 8, 
     <html dir="rtl" lang="ar">
     <head>
       <meta charset="UTF-8" />
-      <title>${t("students.print.attendanceDocTitle", { name: module.subjectName ?? module.name ?? "" })}</title>
+      <title>${t("students.print.attendanceDocTitle", { name: module.name ?? module.subjectName ?? "" })}</title>
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
         * { box-sizing: border-box; }
@@ -234,7 +236,7 @@ function printAttendanceSheet({ module, students, schoolName, sessionCount = 8, 
         </div>
       </div>
       <div class="meta">
-        <div><span>${t("students.print.metaModule")}</span><strong>${module.subjectName ?? module.name ?? "—"}</strong></div>
+        <div><span>${t("students.print.metaModule")}</span><strong>${module.name ?? module.subjectName ?? "—"}</strong></div>
         <div><span>${t("students.print.metaTeacher")}</span><strong>${module.teacherName ?? "—"}</strong></div>
         <div><span>${t("students.print.metaLevel")}</span><strong>${module.level ?? "—"}</strong></div>
         <div><span>${t("students.print.metaStudentCount")}</span><strong>${students.length}</strong></div>
@@ -410,9 +412,25 @@ function Toast({ message, tone = "success", onDone }) {
   );
 }
 
-const inp = { width: "100%", padding: "10px 12px", borderRadius: 9, border: "1.5px solid #E2E8F0", fontSize: 13, fontFamily: "inherit", color: "#0F172A", background: "#fff", outline: "none", boxSizing: "border-box" };
+// NOTE: fontSize bumped from 13 to 16 across the board. Anything under 16px
+// triggers iOS Safari's auto-zoom-on-focus on real inputs/selects, which is
+// jarring on a phone even though it looks fine on desktop.
+const inp = { width: "100%", padding: "10px 12px", borderRadius: 9, border: "1.5px solid #E2E8F0", fontSize: 16, fontFamily: "inherit", color: "#0F172A", background: "#fff", outline: "none", boxSizing: "border-box" };
 const lbl = { fontSize: 12, fontWeight: 700, color: "#475569", marginBottom: 5, display: "block" };
 const fw  = { display: "flex", flexDirection: "column", gap: 4 };
+
+// --- simple mobile breakpoint hook (no extra deps) ---
+function useIsMobile(breakpoint = 640) {
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== "undefined" ? window.innerWidth <= breakpoint : false
+  );
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= breakpoint);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [breakpoint]);
+  return isMobile;
+}
 
 // ── Add Student Modal (3-step: register + enroll) ─────────
 function AddStudentModal({ modules, allLevels, onClose, onSuccess, onError }) {
@@ -519,7 +537,7 @@ function AddStudentModal({ modules, allLevels, onClose, onSuccess, onError }) {
                   <button key={m.id} onClick={() => set("moduleId", m.id)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 10, border: active ? `1.5px solid ${c.color}` : "1.5px solid #E2E8F0", background: active ? c.light : "#fff", cursor: "pointer", fontFamily: "inherit", textAlign: "right", width: "100%" }}>
                     <div style={{ width: 36, height: 36, borderRadius: 9, background: active ? c.color : "#F1F5F9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: active ? "#fff" : "#94A3B8", flexShrink: 0 }}>{m.level?.slice(0, 3) ?? "—"}</div>
                     <div style={{ flex: 1, textAlign: "right" }}>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: active ? c.color : "#0F172A", margin: 0 }}>{m.subjectName ?? m.name}</p>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: active ? c.color : "#0F172A", margin: 0 }}>{m.name ?? m.subjectName}</p>
                       <p style={{ fontSize: 11, color: "#94A3B8", margin: 0, marginTop: 2 }}>👨‍🏫 {m.teacherName ?? "—"} · {money(m.monthlyprice ?? m.monthlyPrice)} {t("students.addModal.perMonth")}</p>
                     </div>
                     {active && <CheckCircle size={16} color={c.color} />}
@@ -607,7 +625,7 @@ function EnrollExistingModal({ student, modules, allLevels, enrolledModuleIds, o
                 <button key={m.id} onClick={() => setSelectedModule(m.id)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", borderRadius: 10, border: active ? `1.5px solid ${c.color}` : "1.5px solid #E2E8F0", background: active ? c.light : "#fff", cursor: "pointer", fontFamily: "inherit", textAlign: "right", width: "100%" }}>
                   <div style={{ width: 34, height: 34, borderRadius: 8, background: active ? c.color : "#F1F5F9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: active ? "#fff" : "#94A3B8", flexShrink: 0 }}>{m.level?.slice(0, 3) ?? "—"}</div>
                   <div style={{ flex: 1, textAlign: "right" }}>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: active ? c.color : "#0F172A", margin: 0 }}>{m.subjectName ?? m.name}</p>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: active ? c.color : "#0F172A", margin: 0 }}>{m.name ?? m.subjectName}</p>
                     <p style={{ fontSize: 11, color: "#94A3B8", margin: 0, marginTop: 1 }}>👨‍🏫 {m.teacherName ?? "—"} · {m.level}</p>
                   </div>
                   {active && <CheckCircle size={15} color={c.color} />}
@@ -679,7 +697,7 @@ const [periodStart, setPeriodStart]   = useState(new Date().toISOString().slice(
             <label style={lbl}>{t("students.invoiceModal.moduleLabel")}</label>
             <select style={{ ...inp, appearance: "auto" }} value={enrollmentId} onChange={(e) => setEnrollmentId(e.target.value)}>
               {enrollments.length === 0 && <option value="">{t("students.invoiceModal.noEnrolledModules")}</option>}
-              {enrollments.map((e) => <option key={e.id} value={e.id}>{e.subjectName ?? e.moduleName}</option>)}
+              {enrollments.map((e) => <option key={e.id} value={e.id}>{e.moduleName ?? e.subjectName}</option>)}
             </select>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -709,21 +727,55 @@ const [periodStart, setPeriodStart]   = useState(new Date().toISOString().slice(
 }
 
 // ── Invoice row (used inside the drawer's unpaid list + collapsible paid list) ──
-function InvoiceHistoryRow({ invoice, student, schoolName, onPay, payingId, t }) {
+function InvoiceHistoryRow({ invoice, student, schoolName, onPay, payingId, t,
+  editing, priceDraft, onStartEdit, onCancelEdit, onSavePrice, onDraftChange, saving }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 12px", borderRadius: 9, background: "#fff", border: "1px solid #F1F5F9" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
         <span style={{ fontSize: 12, color: "#0F172A", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{invoice.moduleName ?? t("students.print.rowModule")}</span>
-          <span style={{ fontSize: 11, color: "#94A3B8" }}>{formatPeriod(invoice.periodStart, invoice.periodEnd)}{invoice.amount != null ? ` · ${money(invoice.amount)} ${t("students.print.currency")}` : ""}</span>
+        <span style={{ fontSize: 11, color: "#94A3B8", display: "flex", alignItems: "center", gap: 6 }}>
+          {formatPeriod(invoice.periodStart, invoice.periodEnd)}
+          {editing ? (
+            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              ·
+              <input
+                type="number"
+                autoFocus
+                value={priceDraft}
+                onChange={(e) => onDraftChange(e.target.value)}
+                style={{ width: 64, fontSize: 11, padding: "2px 5px", borderRadius: 5, border: "1.5px solid #3B82F6", fontFamily: "inherit", direction: "ltr" }}
+              />
+              {t("students.print.currency")}
+            </span>
+          ) : (
+            invoice.amount != null ? ` · ${money(invoice.amount)} ${t("students.print.currency")}` : ""
+          )}
+        </span>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
         <StatusBadge status={invoice.status} size={9} />
-        {invoice.status !== "PAID" && invoice.id && (
+
+        {editing ? (
+          <>
+            <button onClick={() => onSavePrice(invoice)} disabled={saving} style={{ width: 22, height: 22, borderRadius: 6, border: "none", background: "#059669", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+              <Check size={12} />
+            </button>
+            <button onClick={onCancelEdit} disabled={saving} style={{ width: 22, height: 22, borderRadius: 6, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+              <X size={12} color="#64748B" />
+            </button>
+          </>
+        ) : (
+          <button onClick={() => onStartEdit(invoice)} title={t("students.drawer.editPrice") ?? "Edit price"} style={{ width: 22, height: 22, borderRadius: 6, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+            <Pencil size={11} color="#64748B" />
+          </button>
+        )}
+
+        {invoice.status !== "PAID" && invoice.id && !editing && (
           <button onClick={() => onPay(invoice)} disabled={payingId === invoice.id} style={{ padding: "4px 10px", borderRadius: 7, border: "none", background: "#059669", color: "#fff", fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", opacity: payingId === invoice.id ? .6 : 1 }}>
             {payingId === invoice.id ? "..." : t("students.drawer.registerPayment")}
           </button>
         )}
-        {invoice.status === "PAID" && (
+        {invoice.status === "PAID" && !editing && (
           <PrintButton compact onClick={() => printInvoice({ invoice, student, schoolName, t })} />
         )}
       </div>
@@ -740,6 +792,35 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
   const [showEnroll, setShowEnroll]   = useState(false);
   const [showInvoice, setShowInvoice] = useState(false);
   const [payingId, setPayingId]       = useState(null);
+  const [editingPriceId, setEditingPriceId] = useState(null); // invoice id being edited
+const [priceDraft, setPriceDraft]         = useState("");
+const [savingPrice, setSavingPrice]       = useState(false);
+
+const startEditPrice = (invoice) => {
+  setEditingPriceId(invoice.id);
+  setPriceDraft(String(invoice.amount ?? ""));
+};
+
+const cancelEditPrice = () => { setEditingPriceId(null); setPriceDraft(""); };
+
+const saveEditPrice = async (invoice) => {
+  if (!priceDraft || isNaN(Number(priceDraft))) return;
+  setSavingPrice(true);
+  try {
+    await schoolApi.updateInvoicePrice(invoice.id, Number(priceDraft));
+    onSuccess(t("students.drawer.priceUpdateSuccess") ?? "Price updated");
+    loadInvoices();
+    setEditingPriceId(null);
+  } catch (err) {
+    onError(
+  err?.response?.data?.message ??
+  t("students.drawer.priceUpdateError") ??
+  "Failed to update price"
+);
+  } finally {
+    setSavingPrice(false);
+  }
+};
 
   const [invoices, setInvoices]       = useState([]);
   const [loadingInv, setLoadingInv]   = useState(true);
@@ -805,7 +886,7 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
     try {
       await schoolApi.adminSuspend(student.id, enr.moduleId);
       loadEnrollments();
-      onSuccess(t("students.drawer.unenrollSuccess", { name: student.fullName, module: enr.subjectName ?? enr.moduleName ?? t("students.drawer.defaultModuleLabel") }));
+      onSuccess(t("students.drawer.unenrollSuccess", { name: student.fullName, module: enr.moduleName ?? enr.subjectName ?? t("students.drawer.defaultModuleLabel") }));
       setSuspendTarget(null);
     } catch (err) {
       onError(err?.response?.data?.message || t("students.drawer.unenrollError"));
@@ -836,7 +917,7 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
       {suspendTarget && (
         <ConfirmSuspendModal
           studentName={student.fullName}
-          moduleLabel={suspendTarget.subjectName ?? suspendTarget.moduleName ?? t("students.drawer.defaultModuleLabel")}
+          moduleLabel={suspendTarget.moduleName ?? suspendTarget.subjectName ?? t("students.drawer.defaultModuleLabel")}
           busy={suspendingEnrId === suspendTarget.id}
           onConfirm={confirmSuspend}
           onCancel={() => setSuspendTarget(null)}
@@ -887,9 +968,19 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
                 ? <p style={{ fontSize: 12, color: "#94A3B8", margin: 0 }}>{t("students.drawer.noInvoiceThisMonth")}</p>
                 : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {unpaidInvoices.map((inv) => (
-                      <InvoiceHistoryRow key={inv.id} invoice={inv} student={student} schoolName={schoolName} onPay={handlePay} payingId={payingId} t={t} />
-                    ))}
+                   {unpaidInvoices.map((inv) => (
+  <InvoiceHistoryRow
+    key={inv.id} invoice={inv} student={student} schoolName={schoolName}
+    onPay={handlePay} payingId={payingId} t={t}
+    editing={editingPriceId === inv.id}
+    priceDraft={priceDraft}
+    onStartEdit={startEditPrice}
+    onCancelEdit={cancelEditPrice}
+    onSavePrice={saveEditPrice}
+    onDraftChange={setPriceDraft}
+    saving={savingPrice}
+  />
+))}
                   </div>
                 )
             }
@@ -904,9 +995,19 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
                 </button>
                 {showPaidInvoices && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
-                    {paidInvoices.map((inv) => (
-                      <InvoiceHistoryRow key={inv.id} invoice={inv} student={student} schoolName={schoolName} onPay={handlePay} payingId={payingId} t={t} />
-                    ))}
+                  {paidInvoices.map((inv) => (
+  <InvoiceHistoryRow
+    key={inv.id} invoice={inv} student={student} schoolName={schoolName}
+    onPay={handlePay} payingId={payingId} t={t}
+    editing={editingPriceId === inv.id}
+    priceDraft={priceDraft}
+    onStartEdit={startEditPrice}
+    onCancelEdit={cancelEditPrice}
+    onSavePrice={saveEditPrice}
+    onDraftChange={setPriceDraft}
+    saving={savingPrice}
+  />
+))}
                   </div>
                 )}
               </div>
@@ -934,7 +1035,7 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
                         {(student.level ?? "—").slice(0, 3)}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", margin: 0 }}>{enr.subjectName ?? enr.moduleName ?? "—"}</p>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", margin: 0 }}>{enr.moduleName ?? enr.subjectName ?? "—"}</p>
                         <p style={{ fontSize: 11, color: "#94A3B8", margin: "2px 0 0" }}>👨‍🏫 {enr.teacherName ?? "—"} · {money(enr.monthlyPrice)} {t("students.drawer.perMonth")}</p>
                       </div>
                       <SuspendEnrollButton compact busy={suspendingEnrId === enr.id} onClick={() => requestSuspend(enr)} />
@@ -960,7 +1061,7 @@ function LevelTab({ levelKey, count, color, light, active, onClick }) {
 }
 
 // ── Module accordion ──────────────────────────────────────
-function ModuleSection({ module, students, invoiceByStudentId, color, light, schoolName, onStudentClick, onSuspendStudent }) {
+function ModuleSection({ module, students, invoiceByStudentId, color, light, schoolName, onStudentClick, onSuspendStudent, isMobile }) {
   const { t } = useLanguage();
   const [open, setOpen] = useState(true);
   const [suspendTarget, setSuspendTarget] = useState(null); // { student } pending confirmation
@@ -973,7 +1074,7 @@ function ModuleSection({ module, students, invoiceByStudentId, color, light, sch
   const confirmSuspend = async () => {
     const s = suspendTarget;
     if (!s) return;
-    const moduleLabel = module.subjectName ?? module.name ?? t("students.drawer.defaultModuleLabel");
+    const moduleLabel = module.name ?? module.subjectName ?? t("students.drawer.defaultModuleLabel");
     setSuspendingId(s.id);
     try {
       await onSuspendStudent(s.id, module.id, s.fullName, moduleLabel);
@@ -988,18 +1089,18 @@ function ModuleSection({ module, students, invoiceByStudentId, color, light, sch
       {suspendTarget && (
         <ConfirmSuspendModal
           studentName={suspendTarget.fullName}
-          moduleLabel={module.subjectName ?? module.name ?? t("students.drawer.defaultModuleLabel")}
+          moduleLabel={module.name ?? module.subjectName ?? t("students.drawer.defaultModuleLabel")}
           busy={suspendingId === suspendTarget.id}
           onConfirm={confirmSuspend}
           onCancel={() => setSuspendTarget(null)}
         />
       )}
-      <button onClick={() => setOpen((o) => !o)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "#fff", border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "right" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: light, color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700 }}>{module.level?.slice(0, 3) ?? "—"}</div>
-          <div>
-            <p style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", margin: 0 }}>{module.subjectName ?? module.name}</p>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 3 }}>
+      <button onClick={() => setOpen((o) => !o)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "#fff", border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "right", flexWrap: "wrap", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: light, color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{module.level?.slice(0, 3) ?? "—"}</div>
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{module.name ?? module.subjectName}</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 3, flexWrap: "wrap" }}>
               <span style={{ fontSize: 11, color: "#64748B" }}>👨‍🏫 {module.teacherName ?? "—"}</span>
               <span style={{ fontSize: 10, color: "#94A3B8" }}>·</span>
               <span style={{ fontSize: 11, color: "#64748B" }}><Users size={10} style={{ verticalAlign: "middle" }} /> {students.length} {t("students.moduleSection.studentsCount")}</span>
@@ -1007,7 +1108,7 @@ function ModuleSection({ module, students, invoiceByStudentId, color, light, sch
             </div>
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
           <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 20, background: light, color }}>{module.level}</span>
           <AttendanceSheetButton color={color} light={light} onClick={() => printAttendanceSheet({ module, students, schoolName, t })} />
           {open ? <ChevronUp size={16} color="#94A3B8" /> : <ChevronDown size={16} color="#94A3B8" />}
@@ -1017,7 +1118,43 @@ function ModuleSection({ module, students, invoiceByStudentId, color, light, sch
         <div style={{ background: "#fff", borderTop: "1px solid #F8FAFC" }}>
           {students.length === 0
             ? <div style={{ padding: "1.5rem", textAlign: "center", color: "#94A3B8", fontSize: 13 }}>{t("students.moduleSection.noStudents")}</div>
-            : (
+            : isMobile ? (
+              // ── Mobile: stacked cards instead of the fixed-column grid table below.
+              // The desktop grid ("28px 36px 1fr 140px 100px 80px 30px 30px") adds up to
+              // well over 400px of fixed columns alone, which overflows on a phone screen.
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: 12 }}>
+                {students.map((s) => {
+                  const overallStatus = overallInvoiceStatus(invoiceByStudentId[s.id]);
+                  const latestPaidInvoice = (invoiceByStudentId[s.id] ?? []).find((inv) => inv.status === "PAID");
+                  return (
+                    <div key={s.id} onClick={() => onStudentClick(s)}
+                      style={{ display: "flex", flexDirection: "column", gap: 8, padding: 12, borderRadius: 10, border: "1px solid #E2E8F0", background: "#fff", cursor: "pointer" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{ width: 32, height: 32, borderRadius: "50%", background: color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff", flexShrink: 0 }}>{initials(s.fullName)}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", margin: 0 }}>{s.fullName}</p>
+                          <p style={{ fontSize: 11, color: "#94A3B8", margin: "1px 0 0", direction: "ltr", textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.email || "—"}</p>
+                        </div>
+                        <SuspendEnrollButton compact busy={suspendingId === s.id} onClick={() => requestSuspend(s)} />
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
+                        <span style={{ fontSize: 11, color: "#64748B" }}>{s.parentPhone || "—"}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          {overallStatus ? <StatusBadge status={overallStatus} /> : <span style={{ fontSize: 10, color: "#CBD5E1" }}>—</span>}
+                          {overallStatus === "PAID" && latestPaidInvoice && (
+                            <PrintButton compact onClick={() => printInvoice({ invoice: latestPaidInvoice, student: s, schoolName, t })} />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 4px 0", fontSize: 11, color: "#94A3B8" }}>
+                  <span>{t("students.moduleSection.paidSummary")}: <strong style={{ color: "#0F172A" }}>{paid}</strong></span>
+                  <span>{t("students.moduleSection.unpaidSummary")}: <strong style={{ color: "#BA7517" }}>{unpaid}</strong></span>
+                </div>
+              </div>
+            ) : (
               <>
                 <div style={{ display: "grid", gridTemplateColumns: "28px 36px 1fr 140px 100px 80px 30px 30px", gap: 8, padding: "8px 16px", background: "#F8FAFC", borderBottom: "1px solid #F1F5F9" }}>
                   {["", "", t("students.moduleSection.headerName"), t("students.moduleSection.headerEmail"), t("students.moduleSection.headerParent"), t("students.moduleSection.headerPayment"), "", ""].map((h, i) => <span key={i} style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8" }}>{h}</span>)}
@@ -1057,38 +1194,81 @@ function ModuleSection({ module, students, invoiceByStudentId, color, light, sch
 }
 
 // ── All-students flat list ────────────────────────────────
-function AllStudentsList({ students, invoiceByStudentId, allLevels, schoolName, onStudentClick }) {
+function AllStudentsList({ students, invoiceByStudentId, allLevels, schoolName, onStudentClick, isMobile }) {
   const { t } = useLanguage();
+
+  if (students.length === 0) {
+    return (
+      <div style={{ background: "#fff", borderRadius: 12, border: "1.5px solid #E8EEF6", overflow: "hidden" }}>
+        <div style={{ textAlign: "center", color: "#94A3B8", padding: "2rem", fontSize: 13 }}>{t("students.allStudentsList.noResults")}</div>
+      </div>
+    );
+  }
+
+  if (isMobile) {
+    // Same reasoning as ModuleSection: a fixed-column grid table doesn't fit a
+    // phone screen, so this becomes a stacked card list instead.
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {students.map((s) => {
+          const c = levelColorByName(s.level, allLevels);
+          const overallStatus = overallInvoiceStatus(invoiceByStudentId[s.id]);
+          const latestPaidInvoice = (invoiceByStudentId[s.id] ?? []).find((inv) => inv.status === "PAID");
+          return (
+            <div key={s.id} onClick={() => onStudentClick(s)}
+              style={{ display: "flex", flexDirection: "column", gap: 8, padding: 12, borderRadius: 12, border: "1.5px solid #E8EEF6", background: "#fff", cursor: "pointer" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 32, height: 32, borderRadius: "50%", background: c.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff", flexShrink: 0 }}>{initials(s.fullName)}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", margin: 0 }}>{s.fullName}</p>
+                  <p style={{ fontSize: 11, color: "#94A3B8", margin: 0 }}>{s.parentPhone || "—"}</p>
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 10px", borderRadius: 20, background: c.light, color: c.color, flexShrink: 0 }}>{s.level || "—"}</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
+                <span style={{ fontSize: 11, color: "#64748B", direction: "ltr", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.email || "—"}</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  {overallStatus ? <StatusBadge status={overallStatus} /> : <span style={{ fontSize: 10, color: "#CBD5E1" }}>—</span>}
+                  {overallStatus === "PAID" && latestPaidInvoice && (
+                    <PrintButton compact onClick={() => printInvoice({ invoice: latestPaidInvoice, student: s, schoolName, t })} />
+                  )}
+                  <ChevronRight size={14} color="#CBD5E1" />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <div style={{ background: "#fff", borderRadius: 12, border: "1.5px solid #E8EEF6", overflow: "hidden" }}>
       <div style={{ display: "grid", gridTemplateColumns: "28px 36px 1fr 100px 140px 80px 30px 20px", gap: 8, padding: "8px 16px", background: "#F8FAFC", borderBottom: "1px solid #F1F5F9" }}>
         {["", "", t("students.allStudentsList.headerName"), t("students.allStudentsList.headerLevel"), t("students.allStudentsList.headerEmail"), t("students.allStudentsList.headerPayment"), "", ""].map((h, i) => <span key={i} style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8" }}>{h}</span>)}
       </div>
-      {students.length === 0
-        ? <div style={{ textAlign: "center", color: "#94A3B8", padding: "2rem", fontSize: 13 }}>{t("students.allStudentsList.noResults")}</div>
-        : students.map((s, i) => {
-          const c   = levelColorByName(s.level, allLevels);
-          const overallStatus = overallInvoiceStatus(invoiceByStudentId[s.id]);
-          const latestPaidInvoice = (invoiceByStudentId[s.id] ?? []).find((inv) => inv.status === "PAID");
-          return (
-            <div key={s.id} onClick={() => onStudentClick(s)}
-              onMouseEnter={(e) => e.currentTarget.style.background = "#FAFBFF"}
-              onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-              style={{ display: "grid", gridTemplateColumns: "28px 36px 1fr 100px 140px 80px 30px 20px", gap: 8, padding: "10px 16px", alignItems: "center", borderBottom: i < students.length - 1 ? "1px solid #F8FAFC" : "none", cursor: "pointer" }}>
-              <span style={{ fontSize: 11, color: "#CBD5E1", textAlign: "center" }}>{i + 1}</span>
-              <div style={{ width: 30, height: 30, borderRadius: "50%", background: c.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff" }}>{initials(s.fullName)}</div>
-              <div><p style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", margin: 0 }}>{s.fullName}</p><p style={{ fontSize: 10, color: "#94A3B8", margin: 0 }}>{s.parentPhone || "—"}</p></div>
-              <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 10px", borderRadius: 20, background: c.light, color: c.color }}>{s.level || "—"}</span>
-              <span style={{ fontSize: 11, color: "#64748B", direction: "ltr", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.email || "—"}</span>
-              {overallStatus ? <StatusBadge status={overallStatus} /> : <span style={{ fontSize: 10, color: "#CBD5E1" }}>—</span>}
-              {overallStatus === "PAID" && latestPaidInvoice
-                ? <PrintButton compact onClick={() => printInvoice({ invoice: latestPaidInvoice, student: s, schoolName, t })} />
-                : <span />}
-              <ChevronRight size={14} color="#CBD5E1" />
-            </div>
-          );
-        })
-      }
+      {students.map((s, i) => {
+        const c   = levelColorByName(s.level, allLevels);
+        const overallStatus = overallInvoiceStatus(invoiceByStudentId[s.id]);
+        const latestPaidInvoice = (invoiceByStudentId[s.id] ?? []).find((inv) => inv.status === "PAID");
+        return (
+          <div key={s.id} onClick={() => onStudentClick(s)}
+            onMouseEnter={(e) => e.currentTarget.style.background = "#FAFBFF"}
+            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+            style={{ display: "grid", gridTemplateColumns: "28px 36px 1fr 100px 140px 80px 30px 20px", gap: 8, padding: "10px 16px", alignItems: "center", borderBottom: i < students.length - 1 ? "1px solid #F8FAFC" : "none", cursor: "pointer" }}>
+            <span style={{ fontSize: 11, color: "#CBD5E1", textAlign: "center" }}>{i + 1}</span>
+            <div style={{ width: 30, height: 30, borderRadius: "50%", background: c.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff" }}>{initials(s.fullName)}</div>
+            <div><p style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", margin: 0 }}>{s.fullName}</p><p style={{ fontSize: 10, color: "#94A3B8", margin: 0 }}>{s.parentPhone || "—"}</p></div>
+            <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 10px", borderRadius: 20, background: c.light, color: c.color }}>{s.level || "—"}</span>
+            <span style={{ fontSize: 11, color: "#64748B", direction: "ltr", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.email || "—"}</span>
+            {overallStatus ? <StatusBadge status={overallStatus} /> : <span style={{ fontSize: 10, color: "#CBD5E1" }}>—</span>}
+            {overallStatus === "PAID" && latestPaidInvoice
+              ? <PrintButton compact onClick={() => printInvoice({ invoice: latestPaidInvoice, student: s, schoolName, t })} />
+              : <span />}
+            <ChevronRight size={14} color="#CBD5E1" />
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1099,6 +1279,7 @@ export default function Students() {
   const { school, error: schoolError, refetchSchool } = useSchool();
   const schoolId    = school?.id;
   const schoolName  = school?.schoolName ?? t("students.print.schoolFallback");
+  const isMobile    = useIsMobile();
 
   const [modules,       setModules]      = useState([]);
   const [studentMap,    setStudentMap]   = useState({});
@@ -1200,7 +1381,7 @@ export default function Students() {
   };
 
   return (
-    <div dir="rtl" style={{ padding: "1.25rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
+    <div dir="rtl" style={{ padding: isMobile ? "1rem" : "1.25rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
 
       {showModal && <AddStudentModal modules={modules} allLevels={allLevels} onClose={() => setShowModal(false)} onSuccess={handleSuccess} onError={handleError} />}
@@ -1219,7 +1400,7 @@ export default function Students() {
       {toast && <Toast message={toast.message} tone={toast.tone} onDone={() => setToast(null)} />}
 
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.25rem" }}>
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "stretch" : "center", justifyContent: "space-between", gap: isMobile ? 12 : 0, marginBottom: "1.25rem" }}>
         <div>
           <h1 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("students.title")}</h1>
           <p style={{ fontSize: 12, color: "#94A3B8", marginTop: 2, margin: 0 }}>
@@ -1227,8 +1408,8 @@ export default function Students() {
           </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={load} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}><RefreshCw size={13} />{t("students.refresh")}</button>
-          <button onClick={() => setShowModal(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 16px", borderRadius: 9, border: "none", background: "#3B82F6", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 4px 12px #3B82F640" }}><Plus size={14} />{t("students.addStudent")}</button>
+          <button onClick={load} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "7px 14px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 12, cursor: "pointer", fontFamily: "inherit", flex: isMobile ? 1 : "none" }}><RefreshCw size={13} />{t("students.refresh")}</button>
+          <button onClick={() => setShowModal(true)} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "7px 16px", borderRadius: 9, border: "none", background: "#3B82F6", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 4px 12px #3B82F640", flex: isMobile ? 1 : "none" }}><Plus size={14} />{t("students.addStudent")}</button>
         </div>
       </div>
 
@@ -1251,7 +1432,7 @@ export default function Students() {
       )}
 
       {/* Stats + Search */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: "1.25rem", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "stretch" : "center", justifyContent: "space-between", gap: 12, marginBottom: "1.25rem", flexWrap: "wrap" }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {[{ label: t("students.statLabels.students"), value: totalCount }, { label: t("students.statLabels.paid"), value: paidCount }, { label: t("students.statLabels.modules"), value: viewMode === "modules" ? activeMods.length : modules.length }].map(({ label, value }) => (
             <div key={label} style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", borderRadius: 9, border: "1px solid #E2E8F0", padding: "6px 12px" }}>
@@ -1260,9 +1441,9 @@ export default function Students() {
             </div>
           ))}
         </div>
-        <div style={{ position: "relative", width: 240 }}>
+        <div style={{ position: "relative", width: isMobile ? "100%" : 240 }}>
           <Search size={14} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "#94A3B8", pointerEvents: "none" }} />
-          <input style={{ width: "100%", paddingRight: 32, paddingLeft: 10, paddingTop: 8, paddingBottom: 8, borderRadius: 9, border: `1.5px solid ${search ? color : "#E2E8F0"}`, fontSize: 13, fontFamily: "inherit", color: "#0F172A", background: "#fff", outline: "none", boxSizing: "border-box" }} placeholder={t("students.searchPlaceholder")} value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input style={{ width: "100%", paddingRight: 32, paddingLeft: 10, paddingTop: 8, paddingBottom: 8, borderRadius: 9, border: `1.5px solid ${search ? color : "#E2E8F0"}`, fontSize: 16, fontFamily: "inherit", color: "#0F172A", background: "#fff", outline: "none", boxSizing: "border-box" }} placeholder={t("students.searchPlaceholder")} value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
       </div>
 
@@ -1270,10 +1451,10 @@ export default function Students() {
       {levels.length === 0
         ? <div style={{ textAlign: "center", color: "#94A3B8", padding: "3rem", fontSize: 13 }}>{t("students.noModulesRegistered")}</div>
         : displayList !== null
-          ? <AllStudentsList students={displayList} invoiceByStudentId={invoiceByStudentId} allLevels={allLevels} schoolName={schoolName} onStudentClick={setDrawerStudent} />
+          ? <AllStudentsList students={displayList} invoiceByStudentId={invoiceByStudentId} allLevels={allLevels} schoolName={schoolName} onStudentClick={setDrawerStudent} isMobile={isMobile} />
           : activeMods.map((m) => {
             const c = levelColor(m._idx);
-            return <ModuleSection key={m.id} module={m} students={studentMap[m.id] ?? []} invoiceByStudentId={invoiceByStudentId} color={c.color} light={c.light} schoolName={schoolName} onStudentClick={setDrawerStudent} onSuspendStudent={handleSuspendFromModule} />;
+            return <ModuleSection key={m.id} module={m} students={studentMap[m.id] ?? []} invoiceByStudentId={invoiceByStudentId} color={c.color} light={c.light} schoolName={schoolName} onStudentClick={setDrawerStudent} onSuspendStudent={handleSuspendFromModule} isMobile={isMobile} />;
           })
       }
     </div>

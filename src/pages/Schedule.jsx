@@ -3,6 +3,7 @@ import {
   Plus, X, Edit2, Trash2, Users, Check, XCircle, Clock4, MinusCircle,
   RefreshCw, AlertCircle, Clock, BookOpen, GripVertical, ChevronDown,
   Calendar, LayoutGrid, ChevronLeft, ChevronRight, Repeat, ArrowLeft,
+  Wallet, Search, ArrowDownAZ,
 } from "lucide-react";
 import { useAuth } from "../context/authContext";
 import { useLanguage } from "../context/LanguageContext";
@@ -26,6 +27,9 @@ const scheduleApi = {
   // ── تعويض (makeup attendance) ──
   getSiblingModules:   (moduleId)            => api.get(`api/sessions/module/${moduleId}/siblings`),
   getStudentsByModule: (moduleId)            => api.get(`api/students/by-module/${moduleId}`),
+
+  // ── payments — reuses the existing Invoice endpoints, no new backend needed ──
+  payInvoice:          (invoiceId)           => api.post(`api/invoices/${invoiceId}/pay`),
 };
 
 // ══════════════════════════════════════════════════════════════════
@@ -39,6 +43,8 @@ const IDX_TO_DAY = ["FRIDAY","SATURDAY","SUNDAY","MONDAY","TUESDAY","WEDNESDAY",
 
 const fmtTime = (t) => (t ? String(t).slice(0, 5) : "—");
 const toLocalDate = (d) => d.toLocaleDateString("fr-CA");
+const fmtDA = (amount) =>
+  amount == null ? null : new Intl.NumberFormat("fr-DZ", { maximumFractionDigits: 0 }).format(amount) + " DA";
 
 const PALETTE = [
   { bg: "#EEF2FF", text: "#4338CA", border: "#C7D2FE", accent: "#6366F1" },
@@ -53,6 +59,13 @@ const PALETTE = [
 const colFor = (id) => PALETTE[(Number(id) || 0) % PALETTE.length];
 const P = "#185FA5";
 const MAKEUP_COLOR = "#7C3AED";
+const PAID_COLOR = "#0F6E56";
+const INVOICE_COLORS = {
+  PAID:      { bg: "#E1F5EE", border: "#A7F3D0", text: PAID_COLOR },
+  PENDING:   { bg: "#FEF9C3", border: "#FDE68A", text: "#854D0E" },
+  OVERDUE:   { bg: "#FEF2F2", border: "#FECACA", text: "#991B1B" },
+  CANCELLED: { bg: "#F1F5F9", border: "#E2E8F0", text: "#64748B" },
+};
 
 // ══════════════════════════════════════════════════════════════════
 //  RESPONSIVE HELPER
@@ -320,7 +333,7 @@ function EditModal({ slot, onClose, onSaved }) {
       <div style={{ padding: "1rem 1.25rem", background: c.bg, borderBottom: `1.5px solid ${c.border}`, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
           <div style={{ fontSize: 14, fontWeight: 700, color: c.text }}>{t("schedule.editModal.title")}</div>
-          <div style={{ fontSize: 11, color: c.text, opacity: .75, marginTop: 2 }}>{slot.subjectName ?? slot.moduleName}</div>
+          <div style={{ fontSize: 11, color: c.text, opacity: .75, marginTop: 2 }}>{slot.moduleName ?? slot.subjectName}</div>
         </div>
         <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${c.border}`, background: "rgba(255,255,255,.5)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <X size={14} color={c.text} />
@@ -377,7 +390,7 @@ function ArchiveModal({ slot, onClose, onConfirm }) {
           <Trash2 size={22} color="#DC2626" />
         </div>
         <p style={{ fontSize: 13, color: "#475569", lineHeight: 1.7, margin: 0 }}>
-          {t("schedule.archiveModal.confirmQuestion", { name: slot.subjectName ?? slot.moduleName })}
+          {t("schedule.archiveModal.confirmQuestion", { name: slot.moduleName ?? slot.subjectName })}
           <br />
           <span style={{ fontSize: 11, color: "#94A3B8" }}>
             {t("schedule.archiveModal.note")}
@@ -520,6 +533,14 @@ function AttendanceSheetModal({ session, onClose }) {
 
   const [submitted, setSubmitted] = useState(false);
 
+  // ── search / sort ──
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortAlpha,  setSortAlpha]  = useState(false);
+
+  // ── payments ──
+  const [payingId,     setPayingId]     = useState(null);
+  const [paymentError, setPaymentError] = useState("");
+
   useEffect(() => {
     scheduleApi.getAttendanceSheet(session.id)
       .then((r) => {
@@ -536,6 +557,21 @@ function AttendanceSheetModal({ session, onClose }) {
 
   const students = sheet?.students ?? [];
 
+  const filterSort = (list) => {
+    let out = list;
+    if (searchTerm.trim()) {
+      const q = searchTerm.trim().toLowerCase();
+      out = out.filter((s) => (s.fullName ?? "").toLowerCase().includes(q));
+    }
+    if (sortAlpha) {
+      out = [...out].sort((a, b) => (a.fullName ?? "").localeCompare(b.fullName ?? "", locale));
+    }
+    return out;
+  };
+
+  const visibleStudents = filterSort(students);
+  const visibleMakeup   = filterSort(makeupEntries);
+
   const mark = (id, status) => setMarks((prev) => ({ ...prev, [id]: prev[id] === status ? null : status }));
   const markAll = (status) => {
     const all = {};
@@ -548,6 +584,7 @@ function AttendanceSheetModal({ session, onClose }) {
   const absentCount  = Object.values(marks).filter((v) => v === "ABSENT").length;
   const markedCount  = Object.values(marks).filter(Boolean).length;
   const totalPeople  = students.length + makeupEntries.length;
+  const paidCount    = students.filter((s) => s.invoiceStatus === "PAID").length;
 
   const handleAddMakeup = (entry) => {
     setMakeupEntries((prev) => [...prev, entry]);
@@ -557,6 +594,25 @@ function AttendanceSheetModal({ session, onClose }) {
   const handleRemoveMakeup = (studentId) => {
     setMakeupEntries((prev) => prev.filter((m) => m.studentId !== studentId));
     setMarks((prev) => { const next = { ...prev }; delete next[studentId]; return next; });
+  };
+
+  const handlePay = async (studentId, invoiceId) => {
+    if (!invoiceId) return;
+    setPayingId(studentId);
+    setPaymentError("");
+    try {
+      await scheduleApi.payInvoice(invoiceId);
+      setSheet((prev) => ({
+        ...prev,
+        students: (prev.students ?? []).map((s) =>
+          s.studentId === studentId ? { ...s, invoiceStatus: "PAID" } : s
+        ),
+      }));
+    } catch (err) {
+      setPaymentError(err?.response?.data?.message || t("schedule.attendance.paymentFailed"));
+    } finally {
+      setPayingId(null);
+    }
   };
 
   const handleSave = async () => {
@@ -593,19 +649,67 @@ function AttendanceSheetModal({ session, onClose }) {
     { key: "ABSENT",  Icon: XCircle, activeColor: "#DC2626", activeBg: "#FEE2E2", title: t("schedule.attendance.absentTitle") },
   ];
 
+  const PayButton = ({ studentId, invoiceId, invoiceStatus, invoiceAmount }) => {
+    const isLoading = payingId === studentId;
+    const isPayable = !!invoiceId && (invoiceStatus === "PENDING" || invoiceStatus === "OVERDUE");
+    const style = INVOICE_COLORS[invoiceStatus] ?? { bg: "#F8FAFC", border: "#E2E8F0", text: "#94A3B8" };
+    const shownAmount = fmtDA(invoiceAmount);
+
+    const label = !invoiceId
+      ? t("schedule.attendance.noInvoice")
+      : invoiceStatus === "PAID"
+        ? t("schedule.attendance.paidLabel")
+        : invoiceStatus === "CANCELLED"
+          ? t("schedule.attendance.invoiceCancelled")
+          : t("schedule.attendance.payLabel");
+
+    const title = !invoiceId
+      ? t("schedule.attendance.noInvoiceTitle")
+      : invoiceStatus === "PAID"
+        ? t("schedule.attendance.alreadyPaid")
+        : t("schedule.attendance.markPaid");
+
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        {shownAmount && (
+          <span style={{ fontSize: 10, fontWeight: 700, color: style.text, whiteSpace: "nowrap" }}>
+            {shownAmount}
+          </span>
+        )}
+        <button
+          title={title}
+          onClick={() => isPayable && handlePay(studentId, invoiceId)}
+          disabled={!isPayable || isLoading}
+          style={{
+            height: 30, padding: isMobile ? "0 8px" : "0 10px", borderRadius: 8,
+            cursor: isPayable && !isLoading ? "pointer" : "default",
+            border: `1.5px solid ${style.border}`,
+            background: style.bg,
+            color: style.text,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+            fontSize: 10, fontWeight: 700, fontFamily: "inherit",
+            transition: "all .15s", whiteSpace: "nowrap",
+          }}>
+          {isLoading ? <Spinner size={12} color={P} /> : invoiceStatus === "PAID" ? <Check size={12} /> : <Wallet size={12} />}
+          {!isMobile && label}
+        </button>
+      </div>
+    );
+  };
+
   return (
     <>
-      <ModalWrap onClose={onClose} maxWidth={560}>
-        <div style={{ padding: isMobile ? "0.9rem 1rem" : "1.1rem 1.25rem", background: c.bg, borderBottom: `1.5px solid ${c.border}`, flexShrink: 0 }}>
+      <ModalWrap onClose={onClose} maxWidth={700}>
+      <div style={{ padding: isMobile ? "0.9rem 1rem" : "1.1rem 1.35rem", background: c.bg, borderBottom: `1.5px solid ${c.border}`, flexShrink: 0 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <div style={{ fontSize: isMobile ? 14 : 15, fontWeight: 700, color: c.text }}>
-                  {sheet?.subjectName ?? session.subjectName ?? session.moduleName}
+                <div style={{ fontSize: isMobile ? 14 : 16, fontWeight: 700, color: c.text }}>
+                  {session.moduleName ?? sheet?.moduleName ?? sheet?.subjectName}
                 </div>
                 {!loading && sheet?.totalSessionsInMonth > 0 && (
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 9px", borderRadius: 20, background: "rgba(255,255,255,.7)", color: c.text, border: `1px solid ${c.border}` }}>
-                    {t("schedule.attendance.sessionOfMonth", { ordinal: sheet.sessionOrdinalInMonth, total: sheet.totalSessionsInMonth })}
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "rgba(255,255,255,.7)", color: c.text, border: `1px solid ${c.border}` }}>
+                    {sheet.sessionOrdinalInMonth}/{sheet.totalSessionsInMonth}
                   </span>
                 )}
               </div>
@@ -640,6 +744,10 @@ function AttendanceSheetModal({ session, onClose }) {
               <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "rgba(239,68,68,.15)", color: c.text, border: `1px solid ${c.border}` }}>
                 {t("schedule.attendance.absentCount", { count: absentCount })}
               </span>
+              <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "rgba(15,110,86,.15)", color: PAID_COLOR, border: `1px solid ${c.border}` }}>
+                <Wallet size={9} style={{ verticalAlign: "-1px", marginInlineEnd: 3 }} />
+                {t("schedule.attendance.paidCount", { count: paidCount })}
+              </span>
               {makeupEntries.length > 0 && (
                 <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "#EDE9FE", color: MAKEUP_COLOR, border: `1px solid ${MAKEUP_COLOR}55` }}>
                   {t("schedule.makeup.countBadge", { count: makeupEntries.length })}
@@ -652,6 +760,39 @@ function AttendanceSheetModal({ session, onClose }) {
                   <button onClick={() => markAll("ABSENT")} style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "#FEE2E2", color: "#DC2626", border: "1px solid #FECACA", cursor: "pointer", fontFamily: "inherit" }}>{t("schedule.attendance.markAllAbsent")}</button>
                 </>
               )}
+            </div>
+          )}
+
+          {/* ── search / sort ── */}
+          {!loading && totalPeople > 0 && (
+            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+              <div style={{ position: "relative", flex: 1 }}>
+                <Search size={13} color="#94A3B8" style={{ position: "absolute", insetInlineStart: 11, top: "50%", transform: "translateY(-50%)" }} />
+                <input
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder={t("schedule.attendance.searchPlaceholder")}
+                  style={{ ...inp_css, paddingInlineStart: 32, background: "rgba(255,255,255,.85)", border: `1.5px solid ${c.border}` }}
+                />
+                {searchTerm && (
+                  <button onClick={() => setSearchTerm("")}
+                    style={{ position: "absolute", insetInlineEnd: 8, top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", cursor: "pointer", display: "flex" }}>
+                    <X size={13} color="#94A3B8" />
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={() => setSortAlpha((p) => !p)}
+                title={t("schedule.attendance.sortAlpha")}
+                style={{
+                  width: 38, height: 38, borderRadius: 9, flexShrink: 0,
+                  border: `1.5px solid ${sortAlpha ? c.accent : c.border}`,
+                  background: sortAlpha ? c.accent : "rgba(255,255,255,.85)",
+                  color: sortAlpha ? "#fff" : c.text,
+                  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                <ArrowDownAZ size={15} />
+              </button>
             </div>
           )}
         </div>
@@ -669,23 +810,28 @@ function AttendanceSheetModal({ session, onClose }) {
               <Users size={32} color="#E2E8F0" style={{ marginBottom: 8 }} />
               <div>{t("schedule.attendance.noStudents")}</div>
             </div>
+          ) : visibleStudents.length === 0 && visibleMakeup.length === 0 ? (
+            <div style={{ padding: "2.5rem", textAlign: "center", color: "#94A3B8", fontSize: 13 }}>
+              <Search size={32} color="#E2E8F0" style={{ marginBottom: 8 }} />
+              <div>{t("schedule.attendance.noSearchResults")}</div>
+            </div>
           ) : (
             <>
-              {students.map((s) => {
+              {visibleStudents.map((s) => {
                 const status = marks[s.studentId];
                 const rowBg =
                   status === "PRESENT" ? "rgba(225,245,238,.55)" :
                   status === "ABSENT"  ? "rgba(254,226,226,.45)" :
                   "#fff";
                 return (
-                  <div key={s.studentId} style={{ padding: isMobile ? "10px 1rem" : "10px 1.25rem", borderBottom: "1px solid #F8FAFC", background: rowBg, transition: "background .2s" }}>
+                  <div key={s.studentId} style={{ padding: isMobile ? "12px 1rem" : "13px 1.35rem", borderBottom: "1px solid #F8FAFC", background: rowBg, transition: "background .2s" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 12, flexWrap: isMobile ? "wrap" : "nowrap" }}>
-                      <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#EBF4FE", border: "2px solid #B5D4F4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#0C447C", flexShrink: 0 }}>
+                      <div style={{ width: 38, height: 38, borderRadius: "50%", background: "#EBF4FE", border: "2px solid #B5D4F4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#0C447C", flexShrink: 0 }}>
                         {s.fullName?.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?"}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>{s.fullName}</span>
+                          <span style={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>{s.fullName}</span>
                           {s.isMakeup && (
                             <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 7px", borderRadius: 20, background: "#EDE9FE", color: MAKEUP_COLOR }}>
                               {t("schedule.makeup.tag")}
@@ -694,7 +840,8 @@ function AttendanceSheetModal({ session, onClose }) {
                         </div>
                         <div style={{ fontSize: 10, color: "#94A3B8", marginTop: 1 }}>{s.level ?? s.parentPhone ?? ""}</div>
                       </div>
-                      <div style={{ display: "flex", gap: 5, marginInlineStart: isMobile ? "auto" : 0 }}>
+                      <div style={{ display: "flex", gap: 5, marginInlineStart: isMobile ? "auto" : 0, flexWrap: isMobile ? "wrap" : "nowrap", justifyContent: "flex-end" }}>
+                        <PayButton studentId={s.studentId} invoiceId={s.invoiceId} invoiceStatus={s.invoiceStatus} invoiceAmount={s.invoiceAmount} />
                         {STATUS_BTNS.map(({ key, Icon, activeColor, activeBg, title }) => (
                           <button key={key} title={title} onClick={() => mark(s.studentId, key)}
                             style={{ width: 30, height: 30, borderRadius: 8, cursor: "pointer", border: `1.5px solid ${status === key ? activeColor : "#E2E8F0"}`, background: status === key ? activeBg : "#fff", color: status === key ? activeColor : "#CBD5E1", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s" }}>
@@ -707,21 +854,21 @@ function AttendanceSheetModal({ session, onClose }) {
                 );
               })}
 
-              {makeupEntries.map((m) => {
+              {visibleMakeup.map((m) => {
                 const status = marks[m.studentId];
                 const rowBg =
                   status === "PRESENT" ? "rgba(225,245,238,.55)" :
                   status === "ABSENT"  ? "rgba(254,226,226,.45)" :
                   "#FAF5FF";
                 return (
-                  <div key={`makeup-${m.studentId}`} style={{ padding: isMobile ? "10px 1rem" : "10px 1.25rem", borderBottom: "1px solid #F8FAFC", background: rowBg, borderInlineStart: `3px solid ${MAKEUP_COLOR}` }}>
+                  <div key={`makeup-${m.studentId}`} style={{ padding: isMobile ? "12px 1rem" : "13px 1.35rem", borderBottom: "1px solid #F8FAFC", background: rowBg, borderInlineStart: `3px solid ${MAKEUP_COLOR}` }}>
                     <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 12, flexWrap: isMobile ? "wrap" : "nowrap" }}>
-                      <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#EDE9FE", border: `2px solid ${MAKEUP_COLOR}88`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: MAKEUP_COLOR, flexShrink: 0 }}>
+                      <div style={{ width: 38, height: 38, borderRadius: "50%", background: "#EDE9FE", border: `2px solid ${MAKEUP_COLOR}88`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: MAKEUP_COLOR, flexShrink: 0 }}>
                         {m.fullName?.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?"}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>{m.fullName}</span>
+                          <span style={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>{m.fullName}</span>
                           <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 7px", borderRadius: 20, background: "#EDE9FE", color: MAKEUP_COLOR }}>
                             {t("schedule.makeup.tag")}
                           </span>
@@ -750,12 +897,13 @@ function AttendanceSheetModal({ session, onClose }) {
           )}
         </div>
 
-        {error && sheet && <div style={{ padding: isMobile ? "0 1rem" : "0 1.25rem" }}><ErrorBox msg={error} /></div>}
+        {error && sheet && <div style={{ padding: isMobile ? "0 1rem" : "0 1.35rem", paddingTop: 8 }}><ErrorBox msg={error} /></div>}
+        {paymentError && <div style={{ padding: isMobile ? "0 1rem" : "0 1.35rem", paddingTop: 8 }}><ErrorBox msg={paymentError} /></div>}
 
-        <div style={{ padding: isMobile ? "0.75rem 1rem" : ".85rem 1.25rem", borderTop: "1.5px solid #F1F5F9", background: "#FAFCFF", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0, gap: 10 }}>
+        <div style={{ padding: isMobile ? "0.75rem 1rem" : ".9rem 1.35rem", borderTop: "1.5px solid #F1F5F9", background: "#FAFCFF", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0, gap: 10 }}>
           <span style={{ fontSize: 11, color: "#94A3B8" }}>{t("schedule.attendance.markedCount", { marked: markedCount, total: totalPeople })}</span>
           <button onClick={handleSave} disabled={submitted || saving || totalPeople === 0}
-            style={{ padding: isMobile ? "10px 16px" : "8px 20px", borderRadius: 9, border: "none", background: submitted ? "#10B981" : P, color: "#fff", fontSize: 13, fontWeight: 600, cursor: submitted ? "default" : "pointer", fontFamily: "'Cairo',sans-serif", display: "flex", alignItems: "center", gap: 6, transition: "background .3s" }}>
+            style={{ padding: isMobile ? "10px 16px" : "9px 22px", borderRadius: 9, border: "none", background: submitted ? "#10B981" : P, color: "#fff", fontSize: 13, fontWeight: 600, cursor: submitted ? "default" : "pointer", fontFamily: "'Cairo',sans-serif", display: "flex", alignItems: "center", gap: 6, transition: "background .3s" }}>
             {saving ? <Spinner size={14} color="#fff" /> : submitted ? <><Check size={14} /> {t("schedule.attendance.saved")}</> : t("schedule.attendance.save")}
           </button>
         </div>
@@ -1013,7 +1161,7 @@ function ModuleChip({ slot, onEdit, onArchive, onDragStart, onDragEnd, isMobile 
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: c.text }}>
-              {slot.subjectName ?? slot.moduleName}
+              {slot.moduleName ?? slot.subjectName}
             </div>
             <div style={{ fontSize: 10, color: c.text, opacity: .75, marginTop: 2 }}>
               {fmtTime(slot.startTime)} – {fmtTime(slot.endTime)}
@@ -1053,7 +1201,7 @@ function ModuleChip({ slot, onEdit, onArchive, onDragStart, onDragEnd, isMobile 
         <GripVertical size={10} color={c.text} />
       </div>
       <div style={{ fontSize: 11, fontWeight: 700, color: c.text, paddingRight: 12 }}>
-        {slot.subjectName ?? slot.moduleName}
+        {slot.moduleName ?? slot.subjectName}
       </div>
       <div style={{ fontSize: 9, color: c.text, opacity: .75, marginTop: 1 }}>
         {fmtTime(slot.startTime)} – {fmtTime(slot.endTime)}

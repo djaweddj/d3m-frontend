@@ -336,6 +336,17 @@ function GlobalStyles() {
       .sd-scroll::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
       .sd-scroll::-webkit-scrollbar-track { background: transparent; }
 
+      /* Hidden-scrollbar horizontal scroller, used by the mobile tab bar so it
+         can scroll if the icons+labels don't all fit on very narrow screens,
+         without a visible scrollbar cluttering the bottom nav. */
+      .sd-tabbar-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+      .sd-tabbar-scroll::-webkit-scrollbar { display: none; }
+
+      /* Utility: only rendered on mobile widths. Used for things that
+         normally live in the desktop sidebar (e.g. logout) but need a
+         reachable equivalent once the sidebar is hidden on mobile. */
+      .sd-mobile-only { display: none; }
+
       *:focus-visible {
         outline: 2px solid ${ACTION};
         outline-offset: 2px;
@@ -362,9 +373,17 @@ function GlobalStyles() {
         .sd-mobile-tabbar { display: flex !important; }
         .sd-form-grid { grid-template-columns: 1fr !important; }
         .sd-schools-summary { grid-template-columns: 1fr 1fr !important; }
+        .sd-card { padding: 1.05rem !important; }
+        .sd-mobile-only { display: flex !important; }
       }
       @media (min-width: 861px) {
         .sd-mobile-tabbar { display: none !important; }
+      }
+
+      /* ── Very small phones: keep the 6-item tab bar from feeling cramped ── */
+      @media (max-width: 380px) {
+        .sd-mobile-tabbar button { padding: 6px 9px !important; min-width: 54px !important; }
+        .sd-mobile-tabbar span { font-size: 9px !important; }
       }
     `}</style>
   );
@@ -592,7 +611,7 @@ function Sidebar({ active, setActive, profile, profileLoading, enrollments, onLo
               }}
 
             >
-              <Home></Home>
+              <Home size={16} style={{ flexShrink: 0 }} />
               {t("studentDashboard.sidebar.homePage")}
             </button></Link>
         {NAV.map((item) => {
@@ -660,26 +679,29 @@ function Sidebar({ active, setActive, profile, profileLoading, enrollments, onLo
 function MobileTabBar({ active, setActive }) {
   const { t } = useLanguage();
   return (
-    <nav className="sd-mobile-tabbar" style={{
+    <nav className="sd-mobile-tabbar sd-tabbar-scroll" style={{
       position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 50,
       background: "#fff", borderTop: `1px solid ${LINE}`,
-      padding: "6px 8px calc(6px + env(safe-area-inset-bottom))",
-      justifyContent: "space-around",
+      padding: "6px 6px calc(6px + env(safe-area-inset-bottom))",
+      justifyContent: "flex-start",
+      overflowX: "auto",
+      WebkitOverflowScrolling: "touch",
       boxShadow: "0 -8px 24px -8px rgba(11,37,64,.08)",
     }}>
-      <Link to={"/home"}>
+      <Link to={"/home"} style={{ flexShrink: 0 }}>
           <button
             className="sd-btn"
             style={{
               display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
               border: "none", background: "none", cursor: "pointer",
-              padding: "6px 14px", borderRadius: 12,
+              padding: "6px 12px", borderRadius: 12,
               color: "#94A3B8",
               fontFamily: "inherit",
+              minWidth: 60,
             }}
           >
-            <Home/>
-            <span style={{ fontSize: 10, fontWeight: 600 }}>{t("studentDashboard.sidebar.homePage")}</span>
+            <Home size={19} strokeWidth={2} />
+            <span style={{ fontSize: 10, fontWeight: 600, whiteSpace: "nowrap" }}>{t("studentDashboard.sidebar.homePage")}</span>
           </button>
           </Link>
       {NAV.map((item) => {
@@ -693,13 +715,15 @@ function MobileTabBar({ active, setActive }) {
             style={{
               display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
               border: "none", background: "none", cursor: "pointer",
-              padding: "6px 14px", borderRadius: 12,
+              padding: "6px 12px", borderRadius: 12,
               color: isActive ? ACTION_DEEP : "#94A3B8",
               fontFamily: "inherit",
+              flexShrink: 0,
+              minWidth: 60,
             }}
           >
             <Icon size={19} strokeWidth={isActive ? 2.4 : 2} />
-            <span style={{ fontSize: 10, fontWeight: isActive ? 800 : 600 }}>{t(`studentDashboard.nav.${item.id}`)}</span>
+            <span style={{ fontSize: 10, fontWeight: isActive ? 800 : 600, whiteSpace: "nowrap" }}>{t(`studentDashboard.nav.${item.id}`)}</span>
           </button>
         );
       })}
@@ -1581,6 +1605,20 @@ const {
               onMouseLeave={(e) => { e.currentTarget.style.color = "#64748B"; e.currentTarget.style.borderColor = LINE; }}
             >
               <RefreshCw size={14} />
+            </button>
+            {/* Mobile-only logout: the sidebar (the only other place this
+                lives) is hidden below 860px, so without this there is no
+                way to log out on a phone. */}
+            <button className="sd-btn sd-mobile-only" onClick={handleLogout} title={t("studentDashboard.sidebar.logout")} style={{
+              alignItems: "center", justifyContent: "center",
+              width: 34, height: 34, borderRadius: 10,
+              border: `1.5px solid #F7C9C9`, background: "#fff",
+              cursor: "pointer", color: DANGER,
+            }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = DANGER_BG; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "#fff"; }}
+            >
+              <LogOut size={14} />
             </button>
           </div>
         </div>

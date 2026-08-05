@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { Check, X, GraduationCap, RefreshCw, AlertCircle, BookOpen, DollarSign, Mail, Phone, User, Layers, MessageSquare } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { Check, X, GraduationCap, RefreshCw, AlertCircle, BookOpen, DollarSign, Mail, Phone, User, Layers, MessageSquare, Search } from "lucide-react";
 import { useAuth } from "../context/authContext";
 import { useLanguage } from "../context/LanguageContext";
 import { LOCALE_MAP } from "../i18n/translations"; // ⚠️ adjust path // ⚠️ adjust to your actual hook/path
@@ -81,7 +81,7 @@ function RejectModal({ enrollment, onClose, onConfirm, t, dir }) {
 function InfoRow({ icon: Icon, label, value, dir }) {
   if (!value) return null;
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#F8FAFC", borderRadius: 9, padding: "8px 12px" }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#F8FAFC", borderRadius: 9, padding: "8px 12px", flexWrap: "wrap", gap: 6 }}>
       <span style={{ fontSize: 12, color: "#64748B", display: "flex", alignItems: "center", gap: 6 }}>
         <Icon size={12} color="#94A3B8" /> {label}
       </span>
@@ -102,7 +102,9 @@ function RequestCard({ enrollment, onApprove, onReject, approving, rejecting, t,
   const reviewedDate  = formatDate(enrollment.reviewedAt);
 
   return (
-    <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #E8EEF6", padding: "1.25rem", display: "flex", flexDirection: "column", gap: 14, transition: "box-shadow .2s" }}
+    <div
+      className="req-card"
+      style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #E8EEF6", padding: "1.25rem", display: "flex", flexDirection: "column", gap: 14, transition: "box-shadow .2s" }}
       onMouseEnter={(e) => (e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,.07)")}
       onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "none")}
     >
@@ -151,7 +153,7 @@ function RequestCard({ enrollment, onApprove, onReject, approving, rejecting, t,
       )}
 
       {(requestedDate || reviewedDate) && (
-        <div style={{ display: "flex", justifyContent: "center", gap: 14, fontSize: 10, color: "#94A3B8" }}>
+        <div style={{ display: "flex", justifyContent: "center", gap: 14, fontSize: 10, color: "#94A3B8", flexWrap: "wrap" }}>
           {requestedDate && <span>{t("requests.requestedDate")} {requestedDate}</span>}
           {reviewedDate && <span>{t("requests.reviewedDate")} {reviewedDate}</span>}
         </div>
@@ -191,6 +193,7 @@ export default function Requests() {
   const [approving, setApproving] = useState(null);
   const [rejectTarget, setRejectTarget] = useState(null);
   const [filter,    setFilter]    = useState("PENDING");
+  const [search,    setSearch]    = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -236,42 +239,88 @@ export default function Requests() {
     } catch {}
   };
 
-  const displayed = filter === "PENDING"
+  const statusFiltered = filter === "PENDING"
     ? requests.filter((r) => r.status === "PENDING")
     : requests;
+
+  const displayed = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return statusFiltered;
+    return statusFiltered.filter((r) =>
+      (r.studentFullName ?? "").toLowerCase().includes(q)
+    );
+  }, [statusFiltered, search]);
 
   const pendingCount = requests.filter((r) => r.status === "PENDING").length;
 
   return (
-    <div dir={dir} style={{ padding: "1.25rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    <div dir={dir} className="req-page" style={{ padding: "1.25rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh", boxSizing: "border-box" }}>
+      <style>{`
+        @keyframes spin{to{transform:rotate(360deg)}}
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.25rem" }}>
+        .req-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:1.25rem; flex-wrap:wrap; gap:12px; }
+        .req-controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+        .req-search-wrap { position:relative; display:flex; align-items:center; }
+        .req-search-input { padding:7px 12px 7px 32px; border-radius:9px; border:1.5px solid #E2E8F0; font-size:12px; font-family:inherit; color:#0F172A; background:#fff; outline:none; width:200px; box-sizing:border-box; }
+        .req-search-input:focus { border-color:#185FA5; }
+        [dir="rtl"] .req-search-input { padding:7px 32px 7px 12px; }
+        .req-search-icon { position:absolute; left:10px; pointer-events:none; }
+        [dir="rtl"] .req-search-icon { left:auto; right:10px; }
+
+        .req-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:14px; }
+
+        @media (max-width: 640px) {
+          .req-page { padding:0.75rem !important; }
+          .req-header { flex-direction:column; align-items:stretch; gap:10px; }
+          .req-controls { width:100%; }
+          .req-search-wrap { width:100%; order:-1; }
+          .req-search-input { width:100%; }
+          .req-filter-btns { display:flex; gap:8px; width:100%; }
+          .req-filter-btns button { flex:1; }
+          .req-refresh-btn { flex-shrink:0; }
+          .req-grid { grid-template-columns:1fr !important; gap:10px !important; }
+          .req-card { padding:1rem !important; }
+        }
+      `}</style>
+
+      <div className="req-header">
         <div>
           <h1 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("requests.title")}</h1>
           <p style={{ fontSize: 12, color: "#94A3B8", marginTop: 2, margin: 0 }}>
             {loading ? "..." : t("requests.countPending", { count: pendingCount })}
           </p>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {[
-            { key: "PENDING", label: t("requests.filters.pending") },
-            { key: "ALL",     label: t("requests.filters.all") },
-          ].map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => setFilter(key)}
-              style={{ padding: "5px 14px", borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", border: `1.5px solid ${filter === key ? "#185FA5" : "#E2E8F0"}`, background: filter === key ? "#EBF4FE" : "#fff", color: filter === key ? "#185FA5" : "#64748B" }}
-            >
-              {label}
-              {key === "PENDING" && pendingCount > 0 && (
-                <span style={{ marginInlineStart: 5, fontSize: 10, background: "#185FA5", color: "#fff", borderRadius: 20, padding: "1px 6px" }}>
-                  {pendingCount}
-                </span>
-              )}
-            </button>
-          ))}
-          <button onClick={load} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+        <div className="req-controls">
+          <div className="req-search-wrap">
+            <Search size={13} color="#94A3B8" className="req-search-icon" />
+            <input
+              className="req-search-input"
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t("requests.searchPlaceholder", "Search by student name...")}
+            />
+          </div>
+          <div className="req-filter-btns">
+            {[
+              { key: "PENDING", label: t("requests.filters.pending") },
+              { key: "ALL",     label: t("requests.filters.all") },
+            ].map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setFilter(key)}
+                style={{ padding: "5px 14px", borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", border: `1.5px solid ${filter === key ? "#185FA5" : "#E2E8F0"}`, background: filter === key ? "#EBF4FE" : "#fff", color: filter === key ? "#185FA5" : "#64748B", whiteSpace: "nowrap" }}
+              >
+                {label}
+                {key === "PENDING" && pendingCount > 0 && (
+                  <span style={{ marginInlineStart: 5, fontSize: 10, background: "#185FA5", color: "#fff", borderRadius: 20, padding: "1px 6px" }}>
+                    {pendingCount}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+          <button className="req-refresh-btn" onClick={load} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
             <RefreshCw size={13} />
           </button>
         </div>
@@ -289,13 +338,15 @@ export default function Requests() {
         </div>
       ) : displayed.length === 0 ? (
         <div style={{ background: "#fff", borderRadius: 16, border: "2px dashed #E2E8F0", padding: "4rem 2rem", textAlign: "center" }}>
-          <div style={{ fontSize: 36, marginBottom: 12 }}>✅</div>
+          <div style={{ fontSize: 36, marginBottom: 12 }}>{search.trim() ? "🔍" : "✅"}</div>
           <p style={{ fontSize: 14, fontWeight: 600, color: "#475569", margin: 0 }}>
-            {filter === "PENDING" ? t("requests.emptyPending") : t("requests.emptyAll")}
+            {search.trim()
+              ? t("requests.emptySearch", "No requests match that name")
+              : filter === "PENDING" ? t("requests.emptyPending") : t("requests.emptyAll")}
           </p>
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 14 }}>
+        <div className="req-grid">
           {displayed.map((enr) => (
             <RequestCard
               key={enr.id}

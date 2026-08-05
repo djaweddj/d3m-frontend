@@ -120,7 +120,7 @@ const InputIcon = ({ icon: Icon, children }) => (
 );
 
 const SectionHeader = ({ icon: Icon, label, sub }) => (
-  <div className="flex items-center gap-3 px-6 py-4 bg-gray-50 border-b border-gray-100">
+  <div className="flex items-center gap-3 px-4 sm:px-6 py-4 bg-gray-50 border-b border-gray-100">
     <div className="w-8 h-8 rounded-lg bg-[#E4F0EC] flex items-center justify-center flex-shrink-0">
       <Icon className="h-4 w-4 text-[#0F5A46]" />
     </div>
@@ -144,25 +144,28 @@ function SuccessScreen({ t, dir }) {
     >
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&family=Tajawal:wght@400;500;700&display=swap');`}</style>
 
-      <header className="border-b bg-white h-16 flex items-center px-6 justify-between sticky top-0 z-10">
-        <Link to="/" className="flex items-center gap-2.5">
-          <img src={logo} alt="Numeria Academy" className="w-[105px] h-[105px] object-contain" />
-          <span className="text-lg font-bold" style={{ fontFamily: "'Tajawal', sans-serif" }}>
+      <header className="border-b bg-white h-16 flex items-center px-4 sm:px-6 justify-between sticky top-0 z-10">
+        <Link to="/" className="flex items-center gap-2 min-w-0">
+          <img src={logo} alt="Numeria Academy" className="w-14 h-14 sm:w-[105px] sm:h-[105px] object-contain flex-shrink-0" />
+          <span
+            className="text-sm sm:text-lg font-bold truncate"
+            style={{ fontFamily: "'Tajawal', sans-serif" }}
+          >
             Numeria academy
           </span>
         </Link>
       </header>
 
-      <div className="max-w-lg mx-auto px-4 py-16 text-center">
-        <div className="w-20 h-20 rounded-full bg-[#E4F0EC] border-2 border-[#0F5A46]/30 flex items-center justify-center mx-auto mb-6">
-          <CheckCircle2 className="h-10 w-10 text-[#0F5A46]" />
+      <div className="max-w-lg mx-auto px-4 py-10 sm:py-16 text-center">
+        <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#E4F0EC] border-2 border-[#0F5A46]/30 flex items-center justify-center mx-auto mb-6">
+          <CheckCircle2 className="h-8 w-8 sm:h-10 sm:w-10 text-[#0F5A46]" />
         </div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-2" style={{ fontFamily: "'Tajawal', sans-serif" }}>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2" style={{ fontFamily: "'Tajawal', sans-serif" }}>
           {t("schoolRegister.success.title")}
         </h1>
         <p className="text-sm text-gray-500 mb-8">{t("schoolRegister.success.subtitle")}</p>
 
-        <div className="bg-white border border-gray-100 rounded-2xl p-5 text-start mb-8">
+        <div className="bg-white border border-gray-100 rounded-2xl p-4 sm:p-5 text-start mb-8">
           <p className="text-sm font-semibold text-gray-800 mb-3">
             {t("schoolRegister.success.nextStepsTitle")}
           </p>
@@ -174,14 +177,14 @@ function SuccessScreen({ t, dir }) {
           ))}
         </div>
 
-        <div className="flex gap-3 justify-center">
-          <Link to="/schools">
-            <button className="px-6 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition">
+        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <Link to="/schools" className="w-full sm:w-auto">
+            <button className="w-full px-6 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition">
               {t("schoolRegister.success.browseSchools")}
             </button>
           </Link>
-          <Link to="/">
-            <button className="px-6 py-2.5 rounded-lg bg-[#0F5A46] text-white text-sm font-bold hover:bg-[#0A4335] transition flex items-center gap-2">
+          <Link to="/" className="w-full sm:w-auto">
+            <button className="w-full px-6 py-2.5 rounded-lg bg-[#0F5A46] text-white text-sm font-bold hover:bg-[#0A4335] transition flex items-center justify-center gap-2">
               <Home className="h-4 w-4" />
               {t("schoolRegister.success.home")}
             </button>
@@ -225,7 +228,7 @@ export default function SchoolRegister() {
     };
 
     try {
-      const response = await fetch(`${API_URL}/api/school-requests`, {
+      const response = await fetch(`${API_URL}/api/school-requests/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -259,24 +262,27 @@ export default function SchoolRegister() {
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&family=Tajawal:wght@400;500;700&display=swap');`}</style>
 
       {/* ── Header ── */}
-      <header className="bg-white border-b border-gray-100 h-16 flex items-center px-6 justify-between sticky top-0 z-10">
-        <Link to="/" className="flex items-center gap-2.5">
-          <img src={logo} alt="Numeria Academy" className="w-[105px] h-[105px] object-contain" />
-          <span className="text-lg font-bold text-gray-900" style={{ fontFamily: "'Tajawal', sans-serif", color: "#0F5A46" }}>
-           Numeria academy
-          </span> 
+      <header className="bg-white border-b border-gray-100 h-16 flex items-center px-4 sm:px-6 justify-between sticky top-0 z-10">
+        <Link to="/" className="flex items-center gap-2 min-w-0">
+          <img src={logo} alt="Numeria Academy" className="w-14 h-14 sm:w-[105px] sm:h-[105px] object-contain flex-shrink-0" />
+          <span
+            className="text-sm sm:text-lg font-bold text-gray-900 truncate"
+            style={{ fontFamily: "'Tajawal', sans-serif", color: "#0F5A46" }}
+          >
+            Numeria academy
+          </span>
         </Link>
-        <Link to="/schools">
-          <button className="text-sm font-medium text-gray-500 border border-gray-200 px-4 py-2 rounded-lg hover:bg-gray-50 hover:text-gray-800 transition flex items-center gap-1.5">
+        <Link to="/schools" className="flex-shrink-0">
+          <button className="text-sm font-medium text-gray-500 border border-gray-200 px-2.5 sm:px-4 py-2 rounded-lg hover:bg-gray-50 hover:text-gray-800 transition flex items-center gap-1.5">
             <Building2 className="h-4 w-4" />
-            {t("schoolRegister.browseSchools")}
+            <span className="hidden sm:inline">{t("schoolRegister.browseSchools")}</span>
           </button>
         </Link>
       </header>
 
       {/* ── Hero strip ── */}
       <div
-        className="relative overflow-hidden text-center px-4 py-10"
+        className="relative overflow-hidden text-center px-4 py-8 sm:py-10"
         style={{ background: "linear-gradient(135deg, #0A4335 0%, #0F5A46 55%, #1C8A6C 100%)" }}
       >
         <div
@@ -286,23 +292,21 @@ export default function SchoolRegister() {
               "repeating-linear-gradient(-45deg, transparent, transparent 20px, rgba(255,255,255,0.03) 20px, rgba(255,255,255,0.03) 40px)",
           }}
         />
-        <h1 className="text-2xl font-bold text-white relative" style={{ fontFamily: "'Tajawal', sans-serif" }}>
+        <h1 className="text-xl sm:text-2xl font-bold text-white relative" style={{ fontFamily: "'Tajawal', sans-serif" }}>
           {t("schoolRegister.hero.title")}
         </h1>
-        <p className="text-sm text-white/80 mt-1 relative">{t("schoolRegister.hero.subtitle")}</p>
+        <p className="text-xs sm:text-sm text-white/80 mt-1 relative px-2">{t("schoolRegister.hero.subtitle")}</p>
 
         {/* Step pills */}
-        <div className="flex justify-center mt-6 relative">
+        <div className="flex flex-wrap justify-center gap-y-1.5 mt-6 relative">
           {stepLabels.map((label, i) => (
             <div
               key={label}
-              className={`flex items-center gap-2 px-4 py-1.5 text-xs font-medium border transition
-                ${i === 0 ? "rounded-s-full" : ""}
-                ${i === stepLabels.length - 1 ? "rounded-e-full" : ""}
+              className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 text-[11px] sm:text-xs font-medium border transition rounded-full mx-0.5
                 ${i === 0 ? "bg-white/20 text-white border-white/40" : "bg-white/10 text-white/60 border-white/15"}`}
             >
               <span
-                className={`w-5 h-5 rounded-full border text-[10px] flex items-center justify-center
+                className={`w-5 h-5 rounded-full border text-[10px] flex items-center justify-center flex-shrink-0
                   ${i === 0 ? "bg-white text-[#0F5A46] border-white font-bold" : "border-current"}`}
               >
                 {i + 1}
@@ -314,12 +318,12 @@ export default function SchoolRegister() {
       </div>
 
       {/* ── Form card ── */}
-      <div className="max-w-2xl mx-auto px-4 -mt-5 pb-12 relative">
+      <div className="max-w-2xl mx-auto px-3 sm:px-4 -mt-5 pb-12 relative">
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
             {/* Server error banner */}
             {serverError && (
-              <div className="mx-6 mt-6 bg-[#FBE4E4] border border-[#C53030]/30 rounded-xl p-4 flex gap-3 items-start">
+              <div className="mx-4 sm:mx-6 mt-6 bg-[#FBE4E4] border border-[#C53030]/30 rounded-xl p-4 flex gap-3 items-start">
                 <X className="h-5 w-5 text-[#C53030] flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-semibold text-[#8A2424]">
@@ -337,7 +341,7 @@ export default function SchoolRegister() {
               sub={t("schoolRegister.sections.schoolInfo.sub")}
             />
 
-            <div className="p-6 space-y-4">
+            <div className="p-4 sm:p-6 space-y-4">
               <Field label={t("schoolRegister.fields.schoolName")} req error={errors.schoolName?.message}>
                 <input
                   className={inputCls}
@@ -347,7 +351,7 @@ export default function SchoolRegister() {
               </Field>
 
               {/* Wilaya + Commune */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label={t("schoolRegister.fields.wilaya")} req error={errors.wilaya?.message}>
                   <InputIcon icon={MapPin}>
                     <select
@@ -387,7 +391,7 @@ export default function SchoolRegister() {
               </Field>
             </div>
 
-            <div className="border-t border-gray-100 mx-6" />
+            <div className="border-t border-gray-100 mx-4 sm:mx-6" />
 
             {/* ── Section 2: Owner info ── */}
             <SectionHeader
@@ -396,7 +400,7 @@ export default function SchoolRegister() {
               sub={t("schoolRegister.sections.ownerInfo.sub")}
             />
 
-            <div className="p-6 space-y-4">
+            <div className="p-4 sm:p-6 space-y-4">
               <Field label={t("schoolRegister.fields.ownerFullName")} req error={errors.ownerFullName?.message}>
                 <InputIcon icon={User}>
                   <input
@@ -407,7 +411,7 @@ export default function SchoolRegister() {
                 </InputIcon>
               </Field>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label={t("schoolRegister.fields.phone")} req error={errors.phone?.message}>
                   <InputIcon icon={Phone}>
                     <input
@@ -447,7 +451,7 @@ export default function SchoolRegister() {
               </div>
             </div>
 
-            <div className="border-t border-gray-100 mx-6" />
+            <div className="border-t border-gray-100 mx-4 sm:mx-6" />
 
             {/* ── Section 3: Account security ── */}
             <SectionHeader
@@ -456,7 +460,7 @@ export default function SchoolRegister() {
               sub={t("schoolRegister.sections.security.sub")}
             />
 
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               <Field label={t("schoolRegister.fields.password")} req error={errors.password?.message}>
                 <div className="relative">
                   <input
@@ -480,7 +484,7 @@ export default function SchoolRegister() {
             </div>
 
             {/* ── Notice box ── */}
-            <div className="mx-6 mb-6 bg-[#E4F0EC] border border-[#0F5A46]/20 rounded-xl p-4 flex gap-3">
+            <div className="mx-4 sm:mx-6 mb-6 bg-[#E4F0EC] border border-[#0F5A46]/20 rounded-xl p-4 flex gap-3">
               <ShieldCheck className="h-5 w-5 text-[#0F5A46] flex-shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-semibold text-[#0A4335] mb-1">{t("schoolRegister.notice.title")}</p>
@@ -496,11 +500,11 @@ export default function SchoolRegister() {
             </div>
 
             {/* ── Footer ── */}
-            <div className="border-t border-gray-100 bg-gray-50 px-6 py-4 flex gap-3">
-              <Link to="/">
+            <div className="border-t border-gray-100 bg-gray-50 px-4 sm:px-6 py-4 flex flex-col-reverse sm:flex-row gap-3">
+              <Link to="/" className="w-full sm:w-auto">
                 <button
                   type="button"
-                  className="px-6 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-500 hover:bg-white hover:text-gray-800 transition"
+                  className="w-full sm:w-auto px-6 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-500 hover:bg-white hover:text-gray-800 transition"
                 >
                   {t("schoolRegister.cancel")}
                 </button>
@@ -508,7 +512,7 @@ export default function SchoolRegister() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="flex-1 py-2.5 rounded-lg bg-[#0F5A46] hover:bg-[#0A4335] disabled:bg-[#0F5A46]/50 disabled:cursor-not-allowed text-white text-sm font-bold transition flex items-center justify-center gap-2"
+                className="w-full sm:flex-1 py-2.5 rounded-lg bg-[#0F5A46] hover:bg-[#0A4335] disabled:bg-[#0F5A46]/50 disabled:cursor-not-allowed text-white text-sm font-bold transition flex items-center justify-center gap-2"
               >
                 {isLoading ? (
                   <>

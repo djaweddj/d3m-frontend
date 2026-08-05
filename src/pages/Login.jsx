@@ -84,10 +84,10 @@ export default function Login() {
   };
 
   return (
-    <div style={styles.container} dir={dir}>
+    <div style={styles.container} className="login-container" dir={dir}>
       {/* Alert */}
       {error && (
-        <div style={styles.alert}>
+        <div style={styles.alert} className="login-alert">
           <span>
             {error === "too_many" ? (
               <>
@@ -109,7 +109,7 @@ export default function Login() {
       )}
 
       {/* Left Side */}
-      <div style={styles.leftSide}>
+      <div style={styles.leftSide} className="login-left">
         <div style={styles.formWrapper}>
           {/* Logo */}
           <div style={styles.logoSection}>
@@ -119,7 +119,9 @@ export default function Login() {
 
           {/* Welcome */}
           <div style={styles.welcomeSection}>
-            <h1 style={styles.welcomeTitle}>{t("login.welcomeTitle")}</h1>
+            <h1 style={styles.welcomeTitle} className="login-welcome-title">
+              {t("login.welcomeTitle")}
+            </h1>
             <p style={styles.welcomeSubtitle}>{t("login.welcomeSubtitle")}</p>
           </div>
 
@@ -139,10 +141,13 @@ export default function Login() {
                 <input
                   id="email"
                   type="email"
+                  inputMode="email"
+                  autoComplete="username"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder={t("login.emailPlaceholder")}
                   style={styles.input}
+                  className="login-input"
                 />
               </div>
             </div>
@@ -161,16 +166,20 @@ export default function Login() {
                 <input
                   id="password"
                   type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder={t("login.passwordPlaceholder")}
                   style={styles.input}
+                  className="login-input"
                 />
 
                 <button
                   type="button"
                   style={styles.passwordToggle}
+                  className="login-visibility-toggle"
                   onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? (
                     <VisibilityOffOutlinedIcon style={styles.icon} />
@@ -224,7 +233,7 @@ export default function Login() {
       </div>
 
       {/* Right Side */}
-      <div style={styles.rightSide}>
+      <div style={styles.rightSide} className="right-side">
         <div style={styles.rightSideOverlay}></div>
 
         <Link to="/" className="home-btn" style={styles.homeButton} aria-label="Home">
@@ -271,10 +280,9 @@ export default function Login() {
 
 const styles = {
   container: {
-    height: "100vh",
+    minHeight: "100vh",
     display: "flex",
     backgroundColor: BG,
-    overflow: "hidden",
   },
 
   alert: {
@@ -384,7 +392,7 @@ const styles = {
   inputIcon: {
     position: "absolute",
     top: "50%",
-    left: "14px",
+    insetInlineStart: "14px",
     transform: "translateY(-50%)",
   },
 
@@ -395,11 +403,11 @@ const styles = {
 
   input: {
     width: "100%",
-    height: "46px",
+    height: "48px",
     padding: "0 44px",
     border: "1px solid #E2DFD5",
     borderRadius: "12px",
-    fontSize: "14px",
+    fontSize: "16px", // 16px prevents iOS Safari auto-zoom on focus
     backgroundColor: "#fff",
     outline: "none",
     transition: "all 0.2s ease",
@@ -409,11 +417,15 @@ const styles = {
   passwordToggle: {
     position: "absolute",
     top: "50%",
-    right: "14px",
+    insetInlineEnd: "10px",
     transform: "translateY(-50%)",
     background: "none",
     border: "none",
     cursor: "pointer",
+    padding: "8px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   forgotPasswordLink: {
@@ -426,7 +438,7 @@ const styles = {
 
   submitButton: {
     width: "100%",
-    height: "46px",
+    height: "48px",
     border: "none",
     borderRadius: "12px",
     backgroundColor: PRIMARY,
@@ -620,9 +632,53 @@ button:hover {
   transform: translateY(-1px);
 }
 
+/* ── Responsive: below this width the promotional right panel
+   (and the home button that lives inside it) is dropped, and the
+   login form becomes the full-width, single-column experience. ── */
 @media (max-width: 1024px) {
   .right-side {
-    display: none;
+    display: none !important;
+  }
+}
+
+/* ── Tablet / large phone: tighten the form's outer padding
+   now that it owns the full viewport width. ── */
+@media (max-width: 640px) {
+  .login-left {
+    padding: 24px 20px !important;
+    align-items: flex-start !important;
+  }
+
+  .login-welcome-title {
+    font-size: 24px !important;
+  }
+
+  .login-alert {
+    top: 12px !important;
+    left: 12px !important;
+    right: 12px !important;
+    width: auto !important;
+    align-items: flex-start !important;
+  }
+}
+
+/* ── Small phone: reclaim a bit more space and shrink type
+   further so the form never requires horizontal scrolling. ── */
+@media (max-width: 380px) {
+  .login-left {
+    padding: 18px 14px !important;
+  }
+
+  .login-welcome-title {
+    font-size: 21px !important;
+  }
+}
+
+/* ── Comfortable tap targets on touch devices. ── */
+@media (hover: none) and (pointer: coarse) {
+  .login-visibility-toggle {
+    width: 40px;
+    height: 40px;
   }
 }
 `;

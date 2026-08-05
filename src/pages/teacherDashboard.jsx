@@ -3,11 +3,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate , Link} from "react-router-dom";
 import {
   LayoutDashboard, User, Users, CalendarDays, Wallet, LogOut, School, ClipboardCheck,
-  Home,
+  Home, Menu, X,
 } from "lucide-react";
 import { useAuth } from "../context/authContext";
 
-const API = "http://localhost:8080/api";
+const API = "http://localhost:8081/api";
 
 function getToken() {
   return localStorage.getItem("accessToken");
@@ -152,11 +152,11 @@ function StatCard({ emoji, number, label }) {
     <motion.div
       whileHover={{ y: -4, scale: 1.02 }}
       transition={{ duration: 0.2 }}
-      className="rounded-3xl border border-slate-100 bg-white/80 p-6 shadow-sm backdrop-blur-sm transition-all hover:shadow-lg"
+      className="rounded-3xl border border-slate-100 bg-white/80 p-5 sm:p-6 shadow-sm backdrop-blur-sm transition-all hover:shadow-lg"
     >
       <div className="mb-4 flex items-center justify-between">
         <span className="text-3xl">{emoji}</span>
-        <span className="text-3xl font-extrabold text-blue-600">{number}</span>
+        <span className="text-2xl sm:text-3xl font-extrabold text-blue-600">{number}</span>
       </div>
       <p className="text-sm font-semibold text-slate-500">{label}</p>
     </motion.div>
@@ -185,12 +185,12 @@ function Spinner({ label = "جاري التحميل..." }) {
 
 function PageHeader({ badge, title, subtitle }) {
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-10">
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8 sm:mb-10">
       <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-4 py-1.5 text-sm font-semibold text-blue-600">
         {badge}
       </span>
-      <h1 className="mb-4 mt-2 text-5xl font-extrabold text-slate-900">{title}</h1>
-      {subtitle && <p className="max-w-2xl text-lg leading-8 text-slate-500">{subtitle}</p>}
+      <h1 className="mb-4 mt-2 text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-900">{title}</h1>
+      {subtitle && <p className="max-w-2xl text-base sm:text-lg leading-7 sm:leading-8 text-slate-500">{subtitle}</p>}
     </motion.div>
   );
 }
@@ -203,12 +203,12 @@ function LogoutModal({ onConfirm, onCancel }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="w-full max-w-sm rounded-[28px] border border-slate-200 bg-white p-8 text-center shadow-2xl"
+        className="w-full max-w-sm rounded-[28px] border border-slate-200 bg-white p-6 sm:p-8 text-center shadow-2xl"
       >
         <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-red-50 text-3xl">
           🚪
@@ -268,7 +268,7 @@ function ProfilePage({ profile, onSaved }) {
   const cur = editing ? draft : profile;
 
   return (
-    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-8" dir="rtl">
+    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-4 sm:p-6 lg:p-8" dir="rtl">
       <Blob className="right-[-100px] top-[-100px] h-[350px] w-[350px] bg-blue-100/60" />
       <Blob className="bottom-[-100px] left-[-100px] h-[320px] w-[320px] bg-emerald-100/50" />
 
@@ -276,22 +276,22 @@ function ProfilePage({ profile, onSaved }) {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-10 flex items-start justify-between"
+          className="mb-8 sm:mb-10 flex flex-wrap items-start justify-between gap-4"
         >
           <div>
             <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-4 py-1.5 text-sm font-semibold text-emerald-600">
               👤 الملف الشخصي
             </span>
-            <h1 className="mt-4 text-5xl font-extrabold text-slate-900">بروفايلي</h1>
-            <p className="mt-3 text-lg text-slate-500">اعرض وعدّل معلوماتك الشخصية.</p>
+            <h1 className="mt-4 text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-900">بروفايلي</h1>
+            <p className="mt-3 text-base sm:text-lg text-slate-500">اعرض وعدّل معلوماتك الشخصية.</p>
           </div>
 
-          <div className="mt-8 flex gap-3">
+          <div className="mt-2 sm:mt-8 flex gap-3">
             {!editing ? (
               <motion.button
                 whileHover={{ scale: 1.04 }}
                 onClick={() => { setDraft(profile); setEditing(true); }}
-                className="flex items-center gap-2 rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-200"
+                className="flex items-center gap-2 rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 px-5 sm:px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-200"
               >
                 ✏️ تعديل
               </motion.button>
@@ -300,13 +300,13 @@ function ProfilePage({ profile, onSaved }) {
                 <button
                   onClick={handleSave}
                   disabled={saving}
-                  className="flex items-center gap-2 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-500 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-200 disabled:opacity-60"
+                  className="flex items-center gap-2 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-500 px-5 sm:px-6 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-200 disabled:opacity-60"
                 >
                   {saving ? "جاري الحفظ..." : "✓ حفظ"}
                 </button>
                 <button
                   onClick={() => { setEditing(false); setError(null); }}
-                  className="rounded-2xl bg-slate-100 px-6 py-3 text-sm font-bold text-slate-600 hover:bg-red-50 hover:text-red-500"
+                  className="rounded-2xl bg-slate-100 px-5 sm:px-6 py-3 text-sm font-bold text-slate-600 hover:bg-red-50 hover:text-red-500"
                 >
                   ✕ إلغاء
                 </button>
@@ -322,23 +322,23 @@ function ProfilePage({ profile, onSaved }) {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="mb-5 rounded-3xl border border-slate-100 bg-white/80 p-8 shadow-sm backdrop-blur-sm"
+          className="mb-5 rounded-3xl border border-slate-100 bg-white/80 p-5 sm:p-8 shadow-sm backdrop-blur-sm"
         >
-          <div className="flex items-center gap-8">
-            <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-3xl bg-gradient-to-br from-blue-600 to-cyan-500 text-4xl font-extrabold text-white shadow-xl shadow-blue-200">
+          <div className="flex flex-wrap items-center gap-5 sm:gap-8">
+            <div className="flex h-20 w-20 sm:h-28 sm:w-28 shrink-0 items-center justify-center rounded-3xl bg-gradient-to-br from-blue-600 to-cyan-500 text-3xl sm:text-4xl font-extrabold text-white shadow-xl shadow-blue-200">
               {cur.fullName?.charAt(0) || "؟"}
             </div>
 
-            <div className="flex-1 space-y-3">
+            <div className="flex-1 min-w-[200px] space-y-3">
               {editing ? (
                 <input
                   value={draft.fullName || ""}
                   onChange={(e) => setDraft((p) => ({ ...p, fullName: e.target.value }))}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xl font-bold text-slate-900 outline-none focus:border-blue-400 focus:bg-white transition"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-lg sm:text-xl font-bold text-slate-900 outline-none focus:border-blue-400 focus:bg-white transition"
                   placeholder="الاسم الكامل"
                 />
               ) : (
-                <h2 className="text-3xl font-extrabold text-slate-900">{cur.fullName}</h2>
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900">{cur.fullName}</h2>
               )}
               <span className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-4 py-1.5 text-sm font-semibold text-blue-600">
                 📚 {cur.specialization || "—"}
@@ -353,18 +353,18 @@ function ProfilePage({ profile, onSaved }) {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
-          className="mb-5 rounded-3xl border border-slate-100 bg-white/80 p-8 shadow-sm backdrop-blur-sm"
+          className="mb-5 rounded-3xl border border-slate-100 bg-white/80 p-5 sm:p-8 shadow-sm backdrop-blur-sm"
         >
-          <h3 className="mb-6 flex items-center gap-3 text-xl font-extrabold text-slate-900">
+          <h3 className="mb-6 flex items-center gap-3 text-lg sm:text-xl font-extrabold text-slate-900">
             <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-md">
               ✉️
             </span>
             معلومات التواصل
           </h3>
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
             <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
               <p className="mb-1 text-xs text-slate-400">البريد الإلكتروني</p>
-              <p className="text-sm font-semibold text-slate-800">{cur.email}</p>
+              <p className="text-sm font-semibold text-slate-800 break-words">{cur.email}</p>
             </div>
             <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
               <p className="mb-1 text-xs text-slate-400">المعرف</p>
@@ -385,9 +385,9 @@ function ProfilePage({ profile, onSaved }) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.18 }}
-            className="mb-5 rounded-3xl border border-slate-100 bg-white/80 p-8 shadow-sm backdrop-blur-sm"
+            className="mb-5 rounded-3xl border border-slate-100 bg-white/80 p-5 sm:p-8 shadow-sm backdrop-blur-sm"
           >
-            <h3 className="mb-5 flex items-center gap-3 text-xl font-extrabold text-slate-900">
+            <h3 className="mb-5 flex items-center gap-3 text-lg sm:text-xl font-extrabold text-slate-900">
               <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-md">
                 📖
               </span>
@@ -411,9 +411,9 @@ function ProfilePage({ profile, onSaved }) {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="rounded-3xl border border-slate-100 bg-white/80 p-8 shadow-sm backdrop-blur-sm"
+          className="rounded-3xl border border-slate-100 bg-white/80 p-5 sm:p-8 shadow-sm backdrop-blur-sm"
         >
-          <h3 className="mb-5 flex items-center gap-3 text-xl font-extrabold text-slate-900">
+          <h3 className="mb-5 flex items-center gap-3 text-lg sm:text-xl font-extrabold text-slate-900">
             <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-purple-500 text-white shadow-md">
               📝
             </span>
@@ -428,7 +428,7 @@ function ProfilePage({ profile, onSaved }) {
               placeholder="اكتب نبذة عنك..."
             />
           ) : (
-            <p className="text-base leading-8 text-slate-600">{cur.bio || "لم تتم إضافة نبذة بعد."}</p>
+            <p className="text-base leading-7 sm:leading-8 text-slate-600">{cur.bio || "لم تتم إضافة نبذة بعد."}</p>
           )}
         </motion.div>
       </div>
@@ -460,17 +460,17 @@ function StudentsModal({ module: mod, onClose }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-3 sm:p-4 backdrop-blur-sm"
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-[32px] border border-slate-200 bg-white p-8 shadow-2xl"
+        className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-[28px] sm:rounded-[32px] border border-slate-200 bg-white p-5 sm:p-8 shadow-2xl"
       >
-        <div className="mb-6 flex items-start justify-between">
-          <div>
-            <h2 className="text-3xl font-extrabold text-slate-900">{mod.name}</h2>
-            <p className="mt-2 text-slate-500">
+        <div className="mb-6 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 truncate">{mod.name}</h2>
+            <p className="mt-2 text-sm sm:text-base text-slate-500 truncate">
               {mod.subjectName} · {mod.classroomName} · {mod.level}
             </p>
           </div>
@@ -500,7 +500,7 @@ function StudentsModal({ module: mod, onClose }) {
         ) : filtered.length === 0 ? (
           <p className="py-10 text-center text-slate-400">لا يوجد تلاميذ مسجلين بعد.</p>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2">
             {filtered.map((student, i) => (
               <motion.div
                 key={student.id}
@@ -510,12 +510,12 @@ function StudentsModal({ module: mod, onClose }) {
                 className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 transition hover:bg-white hover:shadow-md"
               >
                 <div className="mb-3 flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 font-bold text-white shadow-md shadow-blue-200 text-sm">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 font-bold text-white shadow-md shadow-blue-200 text-sm">
                     {student.fullName?.split(" ").map((w) => w[0]).join("").slice(0, 2)}
                   </div>
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900">{student.fullName}</h3>
-                    <p className="text-xs text-slate-400">{student.email}</p>
+                  <div className="min-w-0">
+                    <h3 className="text-base font-bold text-slate-900 truncate">{student.fullName}</h3>
+                    <p className="text-xs text-slate-400 truncate">{student.email}</p>
                   </div>
                 </div>
                 {(student.parentName || student.parentPhone) && (
@@ -552,7 +552,7 @@ function StudentsPage() {
   }, {});
 
   return (
-    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-8" dir="rtl">
+    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-4 sm:p-6 lg:p-8" dir="rtl">
       <Blob className="right-[-100px] top-[-100px] h-[350px] w-[350px] bg-blue-100/60" />
       <Blob className="bottom-[-100px] left-[-100px] h-[320px] w-[320px] bg-violet-100/50" />
 
@@ -568,7 +568,7 @@ function StudentsPage() {
         {loading ? (
           <Spinner />
         ) : modules.length === 0 ? (
-          <div className="rounded-3xl border border-slate-100 bg-white/80 p-16 text-center shadow-sm">
+          <div className="rounded-3xl border border-slate-100 bg-white/80 p-10 sm:p-16 text-center shadow-sm">
             <p className="mb-2 text-5xl">📭</p>
             <p className="text-lg font-bold text-slate-700">لا توجد أقسام مسندة إليك بعد</p>
             <p className="mt-1 text-sm text-slate-400">سيظهر هنا كل قسم تُسند إليه إدارة المدرسة.</p>
@@ -587,7 +587,7 @@ function StudentsPage() {
                     🎓
                   </div>
                   <div>
-                    <h2 className="text-2xl font-extrabold text-slate-900">{level}</h2>
+                    <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900">{level}</h2>
                     <p className="text-sm text-slate-400">{mods.length} أقسام</p>
                   </div>
                 </div>
@@ -598,7 +598,7 @@ function StudentsPage() {
                       key={m.id}
                       whileHover={{ y: -4, scale: 1.01 }}
                       onClick={() => setSelectedModule(m)}
-                      className="group rounded-3xl border border-slate-100 bg-white/80 p-6 text-right shadow-sm backdrop-blur-sm transition-all duration-300 hover:border-blue-100 hover:shadow-2xl"
+                      className="group rounded-3xl border border-slate-100 bg-white/80 p-5 sm:p-6 text-right shadow-sm backdrop-blur-sm transition-all duration-300 hover:border-blue-100 hover:shadow-2xl"
                     >
                       <div className="mb-6 flex items-center justify-between">
                         <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-purple-500 text-white shadow-lg text-2xl">
@@ -608,7 +608,7 @@ function StudentsPage() {
                           ‹
                         </div>
                       </div>
-                      <h3 className="mb-1 text-xl font-bold text-slate-900 transition group-hover:text-blue-600">
+                      <h3 className="mb-1 text-lg sm:text-xl font-bold text-slate-900 transition group-hover:text-blue-600">
                         {m.name}
                       </h3>
                       <p className="mb-4 text-sm text-slate-500">{m.subjectName} · {m.classroomName}</p>
@@ -681,7 +681,7 @@ function SchedulePage() {
   const activeDays = DAY_ORDER.filter((d) => sessionsByDay[d].length > 0);
 
   return (
-    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-8" dir="rtl">
+    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-4 sm:p-6 lg:p-8" dir="rtl">
       <Blob className="right-[-100px] top-[-100px] h-[350px] w-[350px] bg-blue-100/60" />
       <Blob className="bottom-[-100px] left-[-100px] h-[320px] w-[320px] bg-cyan-100/50" />
 
@@ -697,7 +697,7 @@ function SchedulePage() {
         {loading ? (
           <Spinner />
         ) : activeDays.length === 0 ? (
-          <div className="rounded-3xl border border-slate-100 bg-white/80 p-16 text-center shadow-sm">
+          <div className="rounded-3xl border border-slate-100 bg-white/80 p-10 sm:p-16 text-center shadow-sm">
             <p className="mb-2 text-5xl">🗓️</p>
             <p className="text-lg font-bold text-slate-700">لا توجد حصص مبرمجة بعد</p>
           </div>
@@ -709,13 +709,13 @@ function SchedulePage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: di * 0.08 }}
-                className="rounded-3xl border border-slate-100 bg-white/80 p-6 shadow-sm backdrop-blur-sm"
+                className="rounded-3xl border border-slate-100 bg-white/80 p-4 sm:p-6 shadow-sm backdrop-blur-sm"
               >
                 <div className="mb-5 flex items-center gap-3">
                   <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-md text-lg">
                     📅
                   </div>
-                  <h2 className="text-xl font-extrabold text-slate-900">{DAY_LABELS[day]}</h2>
+                  <h2 className="text-lg sm:text-xl font-extrabold text-slate-900">{DAY_LABELS[day]}</h2>
                   <span className="text-sm text-slate-400">{sessionsByDay[day].length} حصص</span>
                 </div>
 
@@ -785,15 +785,15 @@ function AttendanceModal({ session, onClose }) {
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-3 sm:p-4 backdrop-blur-sm"
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-[32px] border border-slate-200 bg-white p-8 shadow-2xl"
+        className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-[28px] sm:rounded-[32px] border border-slate-200 bg-white p-5 sm:p-8 shadow-2xl"
       >
-        <div className="mb-6 flex items-start justify-between">
-          <div>
-            <h2 className="text-2xl font-extrabold text-slate-900">{session.moduleName}</h2>
+        <div className="mb-6 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 truncate">{session.moduleName}</h2>
             <p className="mt-1 text-sm text-slate-500">
               {formatTime(session.startTime)} – {formatTime(session.endTime)}
             </p>
@@ -816,7 +816,7 @@ function AttendanceModal({ session, onClose }) {
               {students.map((s) => (
                 <div
                   key={s.studentId}
-                  className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/70 p-4"
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 p-4"
                 >
                   <span className="font-semibold text-slate-800">{s.fullName}</span>
                   <div className="flex gap-2">
@@ -877,12 +877,12 @@ function AttendancePage() {
   }, [date]);
 
   return (
-    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-8" dir="rtl">
+    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-4 sm:p-6 lg:p-8" dir="rtl">
       <Blob className="right-[-100px] top-[-100px] h-[350px] w-[350px] bg-blue-100/60" />
       <Blob className="bottom-[-100px] left-[-100px] h-[320px] w-[320px] bg-emerald-100/50" />
 
       <div className="relative z-10 mx-auto max-w-5xl">
-        <div className="mb-10 flex flex-wrap items-end justify-between gap-6">
+        <div className="mb-8 sm:mb-10 flex flex-wrap items-end justify-between gap-6">
           <PageHeader
             badge="✅ تسجيل الحضور"
             title="حصص اليوم"
@@ -901,7 +901,7 @@ function AttendancePage() {
         {loading ? (
           <Spinner />
         ) : sessions.length === 0 ? (
-          <div className="rounded-3xl border border-slate-100 bg-white/80 p-16 text-center shadow-sm">
+          <div className="rounded-3xl border border-slate-100 bg-white/80 p-10 sm:p-16 text-center shadow-sm">
             <p className="mb-2 text-5xl">📭</p>
             <p className="text-lg font-bold text-slate-700">لا توجد حصص في هذا اليوم</p>
           </div>
@@ -912,9 +912,9 @@ function AttendancePage() {
                 key={s.id}
                 whileHover={{ y: -4, scale: 1.01 }}
                 onClick={() => setActiveSession(s)}
-                className="rounded-3xl border border-slate-100 bg-white/80 p-6 text-right shadow-sm backdrop-blur-sm transition-all hover:shadow-xl"
+                className="rounded-3xl border border-slate-100 bg-white/80 p-5 sm:p-6 text-right shadow-sm backdrop-blur-sm transition-all hover:shadow-xl"
               >
-                <div className="mb-4 flex items-center justify-between">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                   <span className="text-sm font-extrabold text-blue-600">
                     {formatTime(s.startTime)} – {formatTime(s.endTime)}
                   </span>
@@ -984,7 +984,7 @@ function PayoutsPage() {
   }, [selectedPeriod]);
 
   return (
-    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-8" dir="rtl">
+    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-4 sm:p-6 lg:p-8" dir="rtl">
       <Blob className="right-[-100px] top-[-100px] h-[350px] w-[350px] bg-emerald-100/60" />
       <Blob className="bottom-[-100px] left-[-100px] h-[320px] w-[320px] bg-blue-100/50" />
 
@@ -992,14 +992,14 @@ function PayoutsPage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-10 flex flex-wrap items-end justify-between gap-6"
+          className="mb-8 sm:mb-10 flex flex-wrap items-end justify-between gap-6"
         >
           <div>
             <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-4 py-1.5 text-sm font-semibold text-blue-600">
               💰 مستحقاتي
             </span>
-            <h1 className="mb-4 mt-2 text-5xl font-extrabold text-slate-900">سجل المستحقات</h1>
-            <p className="max-w-2xl text-lg leading-8 text-slate-500">
+            <h1 className="mb-4 mt-2 text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-900">سجل المستحقات</h1>
+            <p className="max-w-2xl text-base sm:text-lg leading-7 sm:leading-8 text-slate-500">
               تفاصيل مستحقاتك الشهرية بناءً على نسبتك من إيرادات أقسامك ودوراتك.
             </p>
           </div>
@@ -1034,9 +1034,9 @@ function PayoutsPage() {
           <div className="space-y-10">
             {/* Module payouts */}
             <div>
-              <h2 className="mb-4 text-xl font-extrabold text-slate-900">مستحقات الأقسام</h2>
+              <h2 className="mb-4 text-lg sm:text-xl font-extrabold text-slate-900">مستحقات الأقسام</h2>
               {payouts.length === 0 ? (
-                <div className="rounded-3xl border border-slate-100 bg-white/80 p-16 text-center shadow-sm">
+                <div className="rounded-3xl border border-slate-100 bg-white/80 p-10 sm:p-16 text-center shadow-sm">
                   <p className="mb-2 text-5xl">💤</p>
                   <p className="text-lg font-bold text-slate-700">
                     {selectedPeriod ? "لا توجد مستحقات لهذا الشهر" : "لا توجد مستحقات محسوبة بعد"}
@@ -1053,7 +1053,7 @@ function PayoutsPage() {
                         initial={{ opacity: 0, y: 15 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.05 }}
-                        className="rounded-3xl border border-slate-100 bg-white/80 p-6 shadow-sm backdrop-blur-sm"
+                        className="rounded-3xl border border-slate-100 bg-white/80 p-5 sm:p-6 shadow-sm backdrop-blur-sm"
                       >
                         <div className="flex flex-wrap items-center justify-between gap-4">
                           <div>
@@ -1066,7 +1066,7 @@ function PayoutsPage() {
                             )}
                           </div>
                           <div className="flex items-center gap-4">
-                            <span className="text-2xl font-extrabold text-emerald-600">
+                            <span className="text-xl sm:text-2xl font-extrabold text-emerald-600">
                               {formatMoney(p.payoutAmount)}
                             </span>
                             <span className={`rounded-full border px-4 py-1.5 text-sm font-semibold ${status.classes}`}>
@@ -1083,9 +1083,9 @@ function PayoutsPage() {
 
             {/* Course payouts */}
             <div>
-              <h2 className="mb-4 text-xl font-extrabold text-slate-900">مستحقات الدورات</h2>
+              <h2 className="mb-4 text-lg sm:text-xl font-extrabold text-slate-900">مستحقات الدورات</h2>
               {coursePayouts.length === 0 ? (
-                <div className="rounded-3xl border border-slate-100 bg-white/80 p-16 text-center shadow-sm">
+                <div className="rounded-3xl border border-slate-100 bg-white/80 p-10 sm:p-16 text-center shadow-sm">
                   <p className="mb-2 text-5xl">💤</p>
                   <p className="text-lg font-bold text-slate-700">لا توجد مستحقات دورات محسوبة بعد</p>
                 </div>
@@ -1099,7 +1099,7 @@ function PayoutsPage() {
                         initial={{ opacity: 0, y: 15 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.05 }}
-                        className="rounded-3xl border border-slate-100 bg-white/80 p-6 shadow-sm backdrop-blur-sm"
+                        className="rounded-3xl border border-slate-100 bg-white/80 p-5 sm:p-6 shadow-sm backdrop-blur-sm"
                       >
                         <div className="flex flex-wrap items-center justify-between gap-4">
                           <div>
@@ -1112,7 +1112,7 @@ function PayoutsPage() {
                             )}
                           </div>
                           <div className="flex items-center gap-4">
-                            <span className="text-2xl font-extrabold text-emerald-600">
+                            <span className="text-xl sm:text-2xl font-extrabold text-emerald-600">
                               {formatMoney(p.payoutAmount)}
                             </span>
                             <span className={`rounded-full border px-4 py-1.5 text-sm font-semibold ${status.classes}`}>
@@ -1150,7 +1150,7 @@ function hexToRgb(hex = "#185FA5") {
   return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
 }
 
-function Sidebar({ active, onNav, onLogoutClick, profile }) {
+function Sidebar({ active, onNav, onLogoutClick, profile, mobileOpen, onCloseMobile }) {
   const { school } = useAuth();
 
   const p = school?.primaryColor || "#185FA5";
@@ -1168,15 +1168,13 @@ function Sidebar({ active, onNav, onLogoutClick, profile }) {
   return (
     <aside
       dir="rtl"
+      className={`fixed md:sticky top-0 right-0 md:right-auto z-[60] h-screen w-[240px] sm:w-[224px] flex-shrink-0 transform transition-transform duration-300 ease-in-out md:translate-x-0 ${
+        mobileOpen ? "translate-x-0" : "translate-x-full"
+      }`}
       style={{
-        width: 224,
         display: "flex",
         flexDirection: "column",
-        height: "100vh",
-        position: "sticky",
-        top: 0,
         background: "#0F172A",
-        flexShrink: 0,
         borderLeft: "1px solid rgba(255,255,255,0.07)",
         fontFamily: "'Cairo', sans-serif",
       }}
@@ -1197,12 +1195,20 @@ function Sidebar({ active, onNav, onLogoutClick, profile }) {
             <School size={18} color="#fff" />
           </div>
         )}
-        <div>
+        <div style={{ minWidth: 0, flex: 1 }}>
           <p style={{ fontSize: 13, fontWeight: 700, color: "#fff", lineHeight: 1.2, margin: 0 }}>
             {schoolName}
           </p>
           <p style={{ fontSize: 10, color: "#64748B", marginTop: 2, margin: 0 }}>لوحة الأستاذ</p>
         </div>
+        {/* Mobile-only close button */}
+        <button
+          onClick={onCloseMobile}
+          className="md:hidden flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white"
+          aria-label="إغلاق القائمة"
+        >
+          <X size={18} />
+        </button>
       </div>
 
       {/* ── Teacher badge ── */}
@@ -1231,13 +1237,13 @@ function Sidebar({ active, onNav, onLogoutClick, profile }) {
       <nav style={{ flex: 1, padding: "8px 0", overflowY: "auto" }}>
         <Link to={"/home"}>
             <button
-         
+
               style={{
                 display: "flex", alignItems: "center", gap: 10,
                 padding: "10px 16px", fontSize: 13, fontWeight: 500,
                 color:  "#94A3B8",
                 background:  `rgba(${rgb},0.35)` ,
-                borderRight: `3px solid`  ,
+                borderRight: "3px solid transparent",
                 borderTop: "none",
                 borderBottom: "none",
                 borderLeft: "none",
@@ -1250,7 +1256,7 @@ function Sidebar({ active, onNav, onLogoutClick, profile }) {
                 transition: "background 0.15s, color 0.15s, border-color 0.15s",
                 marginBottom:"10px"
               }}
-            
+
             >
             <Home/>
               الصفحة الرئيسية
@@ -1262,7 +1268,7 @@ function Sidebar({ active, onNav, onLogoutClick, profile }) {
           return (
             <button
               key={item.id}
-              onClick={() => onNav(item.id)}
+              onClick={() => { onNav(item.id); onCloseMobile?.(); }}
               style={{
                 display: "flex", alignItems: "center", gap: 10,
                 padding: "10px 16px", fontSize: 13, fontWeight: 500,
@@ -1359,7 +1365,7 @@ function HomePage({ profile }) {
   ];
 
   return (
-    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-8" dir="rtl">
+    <div className="relative flex-1 min-h-screen overflow-hidden bg-[#fafafa] p-4 sm:p-6 lg:p-8" dir="rtl">
       <Blob className="top-[-120px] right-[-120px] h-[420px] w-[420px] bg-blue-100/60" />
       <Blob className="bottom-[-120px] left-[-120px] h-[380px] w-[380px] bg-violet-100/50" />
 
@@ -1368,17 +1374,17 @@ function HomePage({ profile }) {
           initial={{ opacity: 0, y: 25 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45 }}
-          className="rounded-[32px] border border-slate-200 bg-white/80 p-10 shadow-xl shadow-slate-100 backdrop-blur-xl"
+          className="rounded-[28px] sm:rounded-[32px] border border-slate-200 bg-white/80 p-6 sm:p-8 lg:p-10 shadow-xl shadow-slate-100 backdrop-blur-xl"
         >
           <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-4 py-1.5 text-sm font-semibold text-blue-600">
             ✨ لوحة تحكم حديثة
           </span>
 
-          <h1 className="mb-3 text-5xl font-extrabold leading-tight text-slate-900">
+          <h1 className="mb-3 text-3xl sm:text-4xl lg:text-5xl font-extrabold leading-tight text-slate-900">
             مرحباً، <span className="text-blue-600">{profile ? profile.fullName : "أستاذ"}</span> 👋
           </h1>
 
-          <p className="mb-10 max-w-2xl text-lg leading-8 text-slate-500">
+          <p className="mb-10 max-w-2xl text-base sm:text-lg leading-7 sm:leading-8 text-slate-500">
             يمكنك متابعة أقسامك وتلاميذك، الاطلاع على جدولك الأسبوعي، ومراجعة مستحقاتك الشهرية.
           </p>
 
@@ -1386,12 +1392,12 @@ function HomePage({ profile }) {
             <div className="mb-8 rounded-2xl border border-emerald-100 bg-emerald-50 p-5">
               <p className="text-sm font-bold text-emerald-700">
                 📋 تخصصك: <span className="font-extrabold">{profile.specialization || "—"}</span>
-                &nbsp;·&nbsp; البريد: <span className="font-extrabold">{profile.email}</span>
+                &nbsp;·&nbsp; البريد: <span className="font-extrabold break-words">{profile.email}</span>
               </p>
             </div>
           )}
 
-          <div className="grid gap-5 md:grid-cols-3">
+          <div className="grid gap-4 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {stats.map((s) => (
               <StatCard key={s.label} {...s} />
             ))}
@@ -1410,6 +1416,7 @@ export default function TeacherDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { logout } = useAuth();
   const navigate = useNavigate();
 
@@ -1426,35 +1433,70 @@ export default function TeacherDashboard() {
     navigate("/login");
   };
 
+  const activeLabel = NAV.find((n) => n.id === page)?.label || "لوحة التحكم";
+
   return (
     <div dir="rtl" className="flex min-h-screen overflow-hidden bg-[#fafafa] text-slate-900">
+      {/* Mobile top bar — hidden on md and up, where the sidebar is always visible */}
+      <div
+        className="md:hidden fixed top-0 inset-x-0 z-50 flex items-center justify-between px-4 h-14 bg-[#0F172A] border-b border-white/10"
+        dir="rtl"
+      >
+        <button
+          onClick={() => setMobileNavOpen(true)}
+          className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-300 hover:bg-white/10 hover:text-white"
+          aria-label="فتح القائمة"
+        >
+          <Menu size={20} />
+        </button>
+        <span className="text-sm font-bold text-white">{activeLabel}</span>
+        <div className="h-9 w-9" /> {/* spacer to keep the label centered */}
+      </div>
+
+      {/* Backdrop for the mobile drawer */}
+      <AnimatePresence>
+        {mobileNavOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setMobileNavOpen(false)}
+            className="md:hidden fixed inset-0 z-[55] bg-black/50"
+          />
+        )}
+      </AnimatePresence>
+
       <Sidebar
         active={page}
         onNav={setPage}
         onLogoutClick={() => setShowLogoutModal(true)}
         profile={profile}
+        mobileOpen={mobileNavOpen}
+        onCloseMobile={() => setMobileNavOpen(false)}
       />
 
-      {loading ? (
-        <Spinner />
-      ) : error ? (
-        <div className="flex flex-1 items-center justify-center p-8">
-          <div className="rounded-3xl border border-red-100 bg-red-50 p-10 text-center">
-            <p className="text-5xl mb-4">⚠️</p>
-            <p className="text-xl font-bold text-red-600 mb-2">خطأ في الاتصال</p>
-            <p className="text-slate-500">{error}</p>
+      <div className="flex-1 min-w-0 pt-14 md:pt-0">
+        {loading ? (
+          <Spinner />
+        ) : error ? (
+          <div className="flex flex-1 items-center justify-center p-8">
+            <div className="rounded-3xl border border-red-100 bg-red-50 p-10 text-center">
+              <p className="text-5xl mb-4">⚠️</p>
+              <p className="text-xl font-bold text-red-600 mb-2">خطأ في الاتصال</p>
+              <p className="text-slate-500">{error}</p>
+            </div>
           </div>
-        </div>
-      ) : (
-        <>
-          {page === "home" && <HomePage profile={profile} />}
-          {page === "profile" && <ProfilePage profile={profile} onSaved={setProfile} />}
-          {page === "students" && <StudentsPage />}
-          {page === "schedule" && <SchedulePage />}
-          {page === "attendance" && <AttendancePage />}
-          {page === "payouts" && <PayoutsPage />}
-        </>
-      )}
+        ) : (
+          <>
+            {page === "home" && <HomePage profile={profile} />}
+            {page === "profile" && <ProfilePage profile={profile} onSaved={setProfile} />}
+            {page === "students" && <StudentsPage />}
+            {page === "schedule" && <SchedulePage />}
+            {page === "attendance" && <AttendancePage />}
+            {page === "payouts" && <PayoutsPage />}
+          </>
+        )}
+      </div>
 
       {showLogoutModal && (
         <LogoutModal onConfirm={handleLogout} onCancel={() => setShowLogoutModal(false)} />

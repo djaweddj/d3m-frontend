@@ -203,12 +203,12 @@ export default function BrowseSchools() {
           <div className="absolute bottom-0 right-0 h-52 w-52 rounded-full blur-3xl" style={{ background: "#1C8A6C" }} />
         </div>
 
-        <div className="relative mx-auto max-w-6xl px-6 py-24 text-center">
+        <div className="relative mx-auto max-w-6xl px-4 py-14 text-center sm:px-6 sm:py-24">
           <motion.h1
             initial={{ opacity: 0, y: -15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
-            className="mb-5 text-4xl md:text-6xl font-extrabold text-white"
+            className="mb-4 text-3xl font-extrabold text-white sm:mb-5 sm:text-4xl md:text-6xl"
             style={{ letterSpacing: "-0.025em", lineHeight: 1.15, textShadow: "0 4px 24px rgba(0,0,0,0.18)" }}
           >
             {t("browseSchools.hero.title")}
@@ -218,7 +218,7 @@ export default function BrowseSchools() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15, duration: 0.4 }}
-            className="mx-auto mb-10 max-w-2xl text-base md:text-lg font-normal leading-8 text-white/90"
+            className="mx-auto mb-8 max-w-2xl text-sm font-normal leading-7 text-white/90 sm:mb-10 sm:text-base sm:leading-8 md:text-lg"
             style={{ letterSpacing: "0.01em" }}
           >
             {t("browseSchools.hero.subtitle")}
@@ -231,13 +231,13 @@ export default function BrowseSchools() {
             transition={{ delay: 0.25, duration: 0.35 }}
             className="mx-auto max-w-2xl"
           >
-            <div className="flex items-center gap-3 rounded-2xl border border-white/20 bg-white/95 p-4 shadow-2xl backdrop-blur-xl">
+            <div className="flex items-center gap-2 rounded-2xl border border-white/20 bg-white/95 p-3 shadow-2xl backdrop-blur-xl sm:gap-3 sm:p-4">
               <Search className="h-5 w-5 shrink-0" style={{ color: COLORS.textMuted }} />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={t("browseSchools.hero.searchPlaceholder")}
-                className="w-full bg-transparent text-base md:text-lg font-medium outline-none placeholder:font-normal placeholder:text-slate-400"
+                className="w-full bg-transparent text-sm font-medium outline-none placeholder:font-normal placeholder:text-slate-400 sm:text-base md:text-lg"
                 style={{ color: COLORS.textDark }}
               />
             </div>
@@ -246,11 +246,11 @@ export default function BrowseSchools() {
       </section>
 
       {/* Schools */}
-      <section className="mx-auto max-w-7xl px-6 py-14">
+      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14">
         {/* Top */}
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-bold" style={{ color: COLORS.textDark }}>
+            <h2 className="text-xl font-bold sm:text-2xl" style={{ color: COLORS.textDark }}>
               {t("browseSchools.availableTitle")}
             </h2>
             <p className="mt-1 text-sm font-medium" style={{ color: COLORS.textMuted }}>
@@ -263,8 +263,10 @@ export default function BrowseSchools() {
         <div className="mb-8 flex flex-wrap items-center gap-3">
           <FormControl
             size="small"
+            fullWidth
             sx={{
-              minWidth: 260,
+              minWidth: { xs: "100%", sm: 260 },
+              width: { xs: "100%", sm: "auto" },
               "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": {
                 borderColor: COLORS.primary,
               },
@@ -300,6 +302,7 @@ export default function BrowseSchools() {
                 color: COLORS.primary,
                 fontWeight: 600,
                 border: `1px solid ${COLORS.primary}33`,
+                maxWidth: "100%",
               }}
             />
           )}
@@ -318,14 +321,14 @@ export default function BrowseSchools() {
 
         {/* Loading */}
         {loading ? (
-          <div className="grid gap-7 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-5 sm:grid-cols-2 sm:gap-7 xl:grid-cols-3">
             {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="h-80 animate-pulse rounded-3xl border border-slate-200 bg-slate-100" />
+              <div key={i} className="h-72 animate-pulse rounded-3xl border border-slate-200 bg-slate-100 sm:h-80" />
             ))}
           </div>
         ) : filtered.length === 0 ? (
           /* Empty */
-          <div className="rounded-3xl border border-dashed border-slate-300 bg-white py-20 text-center shadow-sm">
+          <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-4 py-16 text-center shadow-sm sm:py-20">
             <Building2 className="mx-auto mb-4 h-12 w-12" style={{ color: COLORS.textMuted, opacity: 0.5 }} />
             <p className="text-lg font-semibold" style={{ color: COLORS.textDark }}>
               {t("browseSchools.emptyTitle")}
@@ -336,7 +339,7 @@ export default function BrowseSchools() {
           </div>
         ) : (
           <>
-            <div className="grid gap-7 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-5 sm:grid-cols-2 sm:gap-7 xl:grid-cols-3">
               {filtered.map((school, index) => (
                 <motion.div
                   key={school.schoolId}
@@ -348,7 +351,7 @@ export default function BrowseSchools() {
                 >
                   {/* Image — fills the box, cropped/centered, with graceful fallback */}
                   <div
-                    className="relative h-48 w-full overflow-hidden"
+                    className="relative h-40 w-full overflow-hidden sm:h-48"
                     style={{ background: `linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.secondary} 100%)` }}
                   >
                     {school.logoUrl ? (
@@ -366,21 +369,21 @@ export default function BrowseSchools() {
                       className="absolute inset-0 flex items-center justify-center"
                       style={{ display: school.logoUrl ? "none" : "flex" }}
                     >
-                      <Building2 className="h-14 w-14 text-white/60" />
+                      <Building2 className="h-12 w-12 text-white/60 sm:h-14 sm:w-14" />
                     </div>
                     {/* subtle bottom shade for polish / future overlay text */}
                     <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/15 to-transparent" />
                   </div>
 
                   {/* Content */}
-                  <div className="p-5">
-                    <h3 className="mb-1 text-xl font-bold" style={{ color: COLORS.textDark }}>
+                  <div className="p-4 sm:p-5">
+                    <h3 className="mb-1 text-lg font-bold sm:text-xl" style={{ color: COLORS.textDark }}>
                       {school.schoolName}
                     </h3>
 
                     <div className="mb-4 flex items-center gap-2 text-sm font-medium" style={{ color: COLORS.textBody }}>
                       <MapPin className="h-4 w-4 shrink-0" style={{ color: COLORS.primary }} />
-                      <span>{school.wilaya} - {school.commune}</span>
+                      <span className="truncate">{school.wilaya} - {school.commune}</span>
                     </div>
 
                     <div className="mb-1.5 flex items-center gap-2 text-xs" style={{ color: COLORS.textMuted }}>
@@ -394,7 +397,7 @@ export default function BrowseSchools() {
                     </div>
 
                     {/* Footer */}
-                    <div className="flex items-center justify-between border-t border-slate-100 pt-4">
+                    <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-0">
                       <div className="space-y-1">
                         <p className="flex items-center gap-1.5 text-sm font-bold" style={{ color: COLORS.primary }}>
                           <Users className="h-4 w-4" />
@@ -408,7 +411,7 @@ export default function BrowseSchools() {
 
                       <button
                         onClick={() => navigate(`/schools/${school.schoolId}`)}
-                        className="rounded-2xl px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition"
+                        className="w-full rounded-2xl px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition sm:w-auto"
                         style={{
                           background: COLORS.primary,
                           boxShadow: `0 10px 15px -3px ${COLORS.primary}33`,
@@ -426,7 +429,7 @@ export default function BrowseSchools() {
 
             {/* Pagination (only relevant when a wilaya is selected, since that's the paginated server call) */}
             {wilaya && totalPages > 1 && (
-              <div className="mt-10 flex items-center justify-center gap-2">
+              <div className="mt-10 flex flex-wrap items-center justify-center gap-2">
                 <button
                   disabled={page === 0}
                   onClick={() => setPage((p) => Math.max(0, p - 1))}

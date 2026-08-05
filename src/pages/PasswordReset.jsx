@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { useLanguage } from "../context/LanguageContext"; // ← adjust path to your actual file
 
 const API_BASE = import.meta.env.VITE_API_URL; // ← change to your base URL
 
@@ -8,9 +9,13 @@ const API_BASE = import.meta.env.VITE_API_URL; // ← change to your base URL
 // ─────────────────────────────────────────────
 
 function Card({ children }) {
+  const { dir } = useLanguage();
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center px-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-blue-100 p-8">
+    <div
+      dir={dir}
+      className="min-h-screen bg-[#FAFAF7] flex items-center justify-center px-4 py-8"
+    >
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-[#0F5A46]/10 p-6 sm:p-8">
         {children}
       </div>
     </div>
@@ -18,23 +23,26 @@ function Card({ children }) {
 }
 
 function Logo() {
+  const { t } = useLanguage();
   return (
-    <div className="flex items-center gap-2 mb-8">
-      <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
+    <Link to="/" className="flex items-center gap-2 mb-6 sm:mb-8 w-fit">
+      <div className="w-8 h-8 rounded-lg bg-[#0F5A46] flex items-center justify-center shrink-0">
         <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4 text-white" stroke="currentColor" strokeWidth={2.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
         </svg>
       </div>
-      <span className="font-semibold text-slate-700 tracking-tight text-sm">School SaaS</span>
-    </div>
+      <span className="font-semibold text-[#0F5A46] tracking-tight text-sm">
+        Numeria Academy
+      </span>
+    </Link>
   );
 }
 
 function Button({ children, loading, disabled, onClick, variant = "primary" }) {
   const base = "w-full py-3 px-4 rounded-xl font-medium text-sm transition-all duration-200 flex items-center justify-center gap-2";
   const styles = {
-    primary: "bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white shadow-sm shadow-blue-200 disabled:opacity-50 disabled:cursor-not-allowed",
-    ghost: "text-blue-600 hover:text-blue-700 hover:bg-blue-50 border border-blue-200 disabled:opacity-50",
+    primary: "bg-[#0F5A46] hover:bg-[#0c4a3a] active:bg-[#0a3f31] text-white shadow-sm shadow-[#0F5A46]/20 disabled:opacity-50 disabled:cursor-not-allowed",
+    ghost: "text-[#0F5A46] hover:bg-[#0F5A46]/5 border border-[#0F5A46]/25 disabled:opacity-50",
   };
   return (
     <button onClick={onClick} disabled={disabled || loading} className={`${base} ${styles[variant]}`}>
@@ -60,10 +68,10 @@ function Input({ label, type = "text", value, onChange, placeholder, disabled, a
         placeholder={placeholder}
         disabled={disabled}
         autoFocus={autoFocus}
-        className={`w-full px-4 py-3 rounded-xl border text-slate-800 text-sm placeholder-slate-400 bg-white transition-all outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-50 disabled:text-slate-400
-          ${error ? "border-red-400 focus:ring-red-400 focus:border-red-400" : "border-slate-200"}`}
+        className={`w-full px-4 py-3 rounded-xl border text-slate-800 text-sm placeholder-slate-400 bg-white transition-all outline-none focus:ring-2 focus:ring-[#0F5A46] focus:border-[#0F5A46] disabled:bg-slate-50 disabled:text-slate-400
+          ${error ? "border-[#C53030] focus:ring-[#C53030] focus:border-[#C53030]" : "border-slate-200"}`}
       />
-      {error && <p className="mt-1.5 text-xs text-red-500">{error}</p>}
+      {error && <p className="mt-1.5 text-xs text-[#C53030]">{error}</p>}
     </div>
   );
 }
@@ -71,9 +79,9 @@ function Input({ label, type = "text", value, onChange, placeholder, disabled, a
 function Alert({ type, message }) {
   if (!message) return null;
   const styles = {
-    error: "bg-red-50 border-red-200 text-red-700",
-    success: "bg-green-50 border-green-200 text-green-700",
-    info: "bg-blue-50 border-blue-200 text-blue-700",
+    error: "bg-[#C53030]/5 border-[#C53030]/20 text-[#C53030]",
+    success: "bg-[#0F5A46]/5 border-[#0F5A46]/20 text-[#0F5A46]",
+    info: "bg-[#C8A24B]/10 border-[#C8A24B]/30 text-[#8a6d2f]",
   };
   const icons = {
     error: (
@@ -110,7 +118,9 @@ function StepDots({ current }) {
       {[1, 2, 3].map((s) => (
         <div
           key={s}
-          className={`h-1.5 rounded-full transition-all duration-300 ${s === current ? "w-6 bg-blue-600" : s < current ? "w-3 bg-blue-300" : "w-3 bg-slate-200"}`}
+          className={`h-1.5 rounded-full transition-all duration-300 ${
+            s === current ? "w-6 bg-[#0F5A46]" : s < current ? "w-3 bg-[#C8A24B]" : "w-3 bg-slate-200"
+          }`}
         />
       ))}
     </div>
@@ -122,14 +132,15 @@ function StepDots({ current }) {
 // ─────────────────────────────────────────────
 
 function ForgotPasswordPage({ onSuccess }) {
+  const { t } = useLanguage();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [fieldError, setFieldError] = useState("");
 
   const validate = () => {
-    if (!email.trim()) return "Please enter your email address.";
-    if (!/\S+@\S+\.\S+/.test(email)) return "Enter a valid email address.";
+    if (!email.trim()) return t("passwordReset.step1.errorRequired");
+    if (!/\S+@\S+\.\S+/.test(email)) return t("passwordReset.step1.errorInvalid");
     return "";
   };
 
@@ -147,7 +158,7 @@ function ForgotPasswordPage({ onSuccess }) {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || "Something went wrong.");
+        throw new Error(data.message || t("passwordReset.step1.genericError"));
       }
       onSuccess(email);
     } catch (e) {
@@ -161,23 +172,31 @@ function ForgotPasswordPage({ onSuccess }) {
     <Card>
       <Logo />
       <StepDots current={1} />
-      <h1 className="text-2xl font-bold text-slate-800 mb-1">Forgot your password?</h1>
-      <p className="text-sm text-slate-500 mb-6">Enter your account email and we'll send you a 6-digit code.</p>
+      <h1 className="text-xl sm:text-2xl font-bold text-slate-800 mb-1">
+        {t("passwordReset.step1.title")}
+      </h1>
+      <p className="text-sm text-slate-500 mb-6">
+        {t("passwordReset.step1.subtitle")}
+      </p>
       <Alert type="error" message={error} />
       <Input
-        label="Email address"
+        label={t("passwordReset.step1.emailLabel")}
         type="email"
         value={email}
         onChange={(e) => { setEmail(e.target.value); setFieldError(""); }}
-        placeholder="you@school.dz"
+        placeholder={t("passwordReset.step1.emailPlaceholder")}
         autoFocus
         error={fieldError}
         disabled={loading}
       />
-      <Button loading={loading} onClick={handleSubmit}>Send OTP code</Button>
+      <Button loading={loading} onClick={handleSubmit}>
+        {t("passwordReset.step1.submitButton")}
+      </Button>
       <p className="text-center text-sm text-slate-400 mt-5">
-        Remembered it?{" "}
-        <Link to="/login" className="text-blue-600 hover:underline font-medium">Back to login</Link>
+        {t("passwordReset.step1.rememberedText")}{" "}
+        <Link to="/login" className="text-[#0F5A46] hover:underline font-medium">
+          {t("passwordReset.step1.backToLogin")}
+        </Link>
       </p>
     </Card>
   );
@@ -187,7 +206,7 @@ function ForgotPasswordPage({ onSuccess }) {
 //  Step 2 — OTP input with individual cells
 // ─────────────────────────────────────────────
 
-function OtpCell({ value, inputRef, onChange, onKeyDown, onPaste }) {
+function OtpCell({ value, inputRef, onChange, onKeyDown, onPaste, disabled, invalid }) {
   return (
     <input
       ref={inputRef}
@@ -198,40 +217,37 @@ function OtpCell({ value, inputRef, onChange, onKeyDown, onPaste }) {
       onChange={onChange}
       onKeyDown={onKeyDown}
       onPaste={onPaste}
-      className="w-12 h-14 text-center text-xl font-bold rounded-xl border-2 border-slate-200 text-slate-800 bg-white outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all caret-transparent"
+      disabled={disabled}
+      className={`w-10 h-12 sm:w-12 sm:h-14 text-center text-lg sm:text-xl font-bold rounded-xl border-2 text-slate-800 bg-white outline-none focus:border-[#0F5A46] focus:ring-2 focus:ring-[#0F5A46]/10 transition-all caret-transparent disabled:opacity-50
+        ${invalid ? "border-[#C53030]/60" : "border-slate-200"}`}
     />
   );
 }
 
 function VerifyOtpPage({ email, onSuccess, onBack }) {
+  const { t, dir } = useLanguage();
   const [digits,         setDigits]         = useState(Array(6).fill(""));
   const [loading,        setLoading]        = useState(false);
   const [error,          setError]          = useState("");
-  const [errorType,      setErrorType]      = useState(null);   // "rate_limit" | "invalid" | null
+  const [errorType,      setErrorType]      = useState(null);   // "rate_limit" | "resend_rate_limit" | "invalid" | null
 
-  // Resend cooldown (starts at 60s when page loads, resets after resend)
   const [resendCooldown, setResendCooldown] = useState(60);
   const [resending,      setResending]      = useState(false);
-
-  // Submit cooldown — triggered when rate-limited on verify attempts
   const [submitCooldown, setSubmitCooldown] = useState(0);
 
   const inputRefs = useRef([]);
 
-  // ── Resend countdown ────────────────────────────────────────────
   useEffect(() => {
     if (resendCooldown <= 0) return;
-    const t = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
-    return () => clearTimeout(t);
+    const t2 = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t2);
   }, [resendCooldown]);
 
-  // ── Submit cooldown (rate limit) ────────────────────────────────
   useEffect(() => {
     if (submitCooldown <= 0) return;
-    const t = setTimeout(() => {
+    const t2 = setTimeout(() => {
       setSubmitCooldown((c) => {
         if (c <= 1) {
-          // Auto-clear the rate limit error when cooldown ends
           setError("");
           setErrorType(null);
           return 0;
@@ -239,7 +255,7 @@ function VerifyOtpPage({ email, onSuccess, onBack }) {
         return c - 1;
       });
     }, 1000);
-    return () => clearTimeout(t);
+    return () => clearTimeout(t2);
   }, [submitCooldown]);
 
   const focusAt = (i) => inputRefs.current[i]?.focus();
@@ -280,13 +296,13 @@ function VerifyOtpPage({ email, onSuccess, onBack }) {
     focusAt(Math.min(pasted.length, 5));
   };
 
-  // ── Verify OTP ──────────────────────────────────────────────────
   const handleSubmit = async () => {
-    if (submitCooldown > 0) return; // blocked by rate limit
+    if (submitCooldown > 0) return;
 
     const otp = digits.join("");
     if (otp.length < 6) {
-      setError("أدخل جميع الأرقام الستة.");
+      setErrorType("invalid");
+      setError(t("passwordReset.step2.incompleteOtp"));
       return;
     }
 
@@ -301,18 +317,15 @@ function VerifyOtpPage({ email, onSuccess, onBack }) {
         body:    JSON.stringify({ email, otp }),
       });
 
-      // ── 429: rate limited ──────────────────────────────────────
       if (res.status === 429) {
         const data       = await res.json().catch(() => ({}));
         const retryAfter = data.retryAfter
           ?? parseInt(res.headers.get("Retry-After"))
-          ?? 120; // default to 2 min (matches your /auth/verify-otp policy)
+          ?? 120;
 
         setErrorType("rate_limit");
         setError("rate_limit");
         setSubmitCooldown(retryAfter);
-
-        // Clear OTP digits so user can't keep retrying the same code
         setDigits(Array(6).fill(""));
         focusAt(0);
         return;
@@ -322,7 +335,7 @@ function VerifyOtpPage({ email, onSuccess, onBack }) {
 
       if (!res.ok) {
         setErrorType("invalid");
-        setError(data.message || "الرمز غير صحيح أو منتهي الصلاحية.");
+        setError(data.message || t("passwordReset.step2.invalidOtp"));
         setDigits(Array(6).fill(""));
         focusAt(0);
         return;
@@ -332,13 +345,12 @@ function VerifyOtpPage({ email, onSuccess, onBack }) {
 
     } catch {
       setErrorType("invalid");
-      setError("خطأ في الاتصال، يرجى المحاولة مجدداً.");
+      setError(t("passwordReset.step2.connectionError"));
     } finally {
       setLoading(false);
     }
   };
 
-  // ── Resend OTP ──────────────────────────────────────────────────
   const handleResend = async () => {
     if (resendCooldown > 0 || resending) return;
 
@@ -353,12 +365,11 @@ function VerifyOtpPage({ email, onSuccess, onBack }) {
         body:    JSON.stringify({ email }),
       });
 
-      // ── 429 on resend too ──────────────────────────────────────
       if (res.status === 429) {
         const data       = await res.json().catch(() => ({}));
         const retryAfter = data.retryAfter
           ?? parseInt(res.headers.get("Retry-After"))
-          ?? 900; // 15 min matches your forgot-password policy
+          ?? 900;
 
         setErrorType("rate_limit");
         setError("resend_rate_limit");
@@ -366,10 +377,9 @@ function VerifyOtpPage({ email, onSuccess, onBack }) {
         return;
       }
 
-      // Success — reset resend timer and clear fields
       setResendCooldown(60);
       setDigits(Array(6).fill(""));
-      setSubmitCooldown(0); // allow submitting again with new code
+      setSubmitCooldown(0);
       focusAt(0);
 
     } finally {
@@ -377,81 +387,59 @@ function VerifyOtpPage({ email, onSuccess, onBack }) {
     }
   };
 
-  // ── Derived values ──────────────────────────────────────────────
   const isSubmitBlocked = submitCooldown > 0;
   const otpComplete     = digits.join("").length === 6;
+  const backArrow       = dir === "rtl" ? "→" : "←";
 
-  // ── Render ──────────────────────────────────────────────────────
   return (
     <Card>
       <Logo />
       <StepDots current={2} />
 
-      <h1 className="text-2xl font-bold text-slate-800 mb-1">
-        تحقق من بريدك الإلكتروني
+      <h1 className="text-xl sm:text-2xl font-bold text-slate-800 mb-1">
+        {t("passwordReset.step2.title")}
       </h1>
       <p className="text-sm text-slate-500 mb-1">
-        أرسلنا رمزاً من 6 أرقام إلى
+        {t("passwordReset.step2.subtitleSentTo")}
       </p>
-      <p className="text-sm font-semibold text-blue-600 mb-1 break-all">
+      <p className="text-sm font-semibold text-[#0F5A46] mb-1 break-all">
         {email}
       </p>
       <p className="text-sm text-slate-400 mb-6">
-        تحقق من مجلد الرسائل غير المرغوب فيها (Spam)
+        {t("passwordReset.step2.spamNotice")}
       </p>
 
-      {/* ── Error messages ── */}
       {error === "rate_limit" && (
-        <div style={{
-          background: "#fef2f2",
-          border: "1px solid #fecaca",
-          borderRadius: 10,
-          padding: "12px 16px",
-          marginBottom: 16,
-          display: "flex",
-          flexDirection: "column",
-          gap: 4,
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 16 }}>⛔</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: "#991b1b" }}>
-              تجاوزت الحد المسموح به من المحاولات
+        <div className="bg-[#C53030]/5 border border-[#C53030]/20 rounded-xl px-4 py-3 mb-4 flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <span className="text-base">⛔</span>
+            <span className="text-[13px] font-bold text-[#C53030]">
+              {t("passwordReset.step2.rateLimitTitle")}
             </span>
           </div>
           {submitCooldown > 0 && (
-            <p style={{ fontSize: 12, color: "#b91c1c", margin: 0, paddingRight: 24 }}>
-              انتظر{" "}
-              <strong>{submitCooldown} ثانية</strong>{" "}
-              قبل المحاولة مجدداً
+            <p className="text-xs text-[#C53030]/90 m-0 pe-6">
+              {t("passwordReset.step2.rateLimitWait", { seconds: submitCooldown })}
             </p>
           )}
         </div>
       )}
 
       {error === "resend_rate_limit" && (
-        <div style={{
-          background: "#fffbeb",
-          border: "1px solid #fde68a",
-          borderRadius: 10,
-          padding: "12px 16px",
-          marginBottom: 16,
-          display: "flex",
-          flexDirection: "column",
-          gap: 4,
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 16 }}>⚠️</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: "#92400e" }}>
-              تجاوزت الحد المسموح من إعادة الإرسال
+        <div className="bg-[#C8A24B]/10 border border-[#C8A24B]/30 rounded-xl px-4 py-3 mb-4 flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <span className="text-base">⚠️</span>
+            <span className="text-[13px] font-bold text-[#8a6d2f]">
+              {t("passwordReset.step2.resendRateLimitTitle")}
             </span>
           </div>
-          <p style={{ fontSize: 12, color: "#78350f", margin: 0, paddingRight: 24 }}>
-            يمكنك إعادة الإرسال بعد{" "}
-            <strong>
-              {Math.floor(resendCooldown / 60) > 0
-                ? `${Math.floor(resendCooldown / 60)} دقيقة و${resendCooldown % 60} ثانية`
-                : `${resendCooldown} ثانية`}
-            </strong>
+          <p className="text-xs text-[#8a6d2f] m-0 pe-6">
+            {Math.floor(resendCooldown / 60) > 0
+              ? t("passwordReset.step2.resendRateLimitWaitMinutes", {
+                  minutes: Math.floor(resendCooldown / 60),
+                  seconds: resendCooldown % 60,
+                })
+              : t("passwordReset.step2.resendRateLimitWait", { seconds: resendCooldown })}
           </p>
         </div>
       )}
@@ -460,13 +448,15 @@ function VerifyOtpPage({ email, onSuccess, onBack }) {
         <Alert type="error" message={error} />
       )}
 
-      {/* ── OTP Input ── */}
       <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
-        رمز التحقق
+        {t("passwordReset.step2.otpLabel")}
       </label>
 
-      <div className="flex gap-2 justify-between mb-6"
-        style={{ opacity: isSubmitBlocked ? 0.5 : 1, transition: "opacity .3s" }}>
+      <div
+        dir="ltr"
+        className="flex gap-1.5 sm:gap-2 justify-between mb-6"
+        style={{ opacity: isSubmitBlocked ? 0.5 : 1, transition: "opacity .3s" }}
+      >
         {digits.map((d, i) => (
           <OtpCell
             key={i}
@@ -476,99 +466,66 @@ function VerifyOtpPage({ email, onSuccess, onBack }) {
             onKeyDown={(e) => handleKeyDown(i, e)}
             onPaste={i === 0 ? handlePaste : undefined}
             disabled={isSubmitBlocked}
-            style={{
-              borderColor: isSubmitBlocked ? "#fca5a5"
-                : errorType === "invalid" ? "#fca5a5"
-                : undefined,
-            }}
+            invalid={isSubmitBlocked || errorType === "invalid"}
           />
         ))}
       </div>
 
-      {/* ── Submit button ── */}
       <button
         onClick={handleSubmit}
         disabled={loading || isSubmitBlocked || !otpComplete}
+        className="w-full h-12 rounded-xl border-none text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors"
         style={{
-          width: "100%",
-          height: 48,
-          borderRadius: 12,
-          border: "none",
-          background: isSubmitBlocked
-            ? "#94a3b8"
-            : !otpComplete
-            ? "#cbd5e1"
-            : "#2563eb",
-          color: "#fff",
-          fontSize: 14,
-          fontWeight: 700,
-          cursor: loading || isSubmitBlocked || !otpComplete
-            ? "not-allowed"
-            : "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 8,
-          transition: "background .2s",
+          background: isSubmitBlocked ? "#94a3b8" : !otpComplete ? "#cbd5e1" : "#0F5A46",
+          cursor: loading || isSubmitBlocked || !otpComplete ? "not-allowed" : "pointer",
         }}
       >
         {loading ? (
           <>
-            <span style={{
-              width: 16, height: 16, borderRadius: "50%",
-              border: "2px solid rgba(255,255,255,.4)",
-              borderTopColor: "#fff",
-              animation: "spin 0.8s linear infinite",
-              display: "inline-block",
-            }} />
-            جارٍ التحقق...
+            <span
+              className="w-4 h-4 rounded-full inline-block"
+              style={{
+                border: "2px solid rgba(255,255,255,.4)",
+                borderTopColor: "#fff",
+                animation: "spin 0.8s linear infinite",
+              }}
+            />
+            {t("passwordReset.step2.verifying")}
           </>
         ) : isSubmitBlocked ? (
-          // Live countdown on the button
-          `انتظر ${submitCooldown}s`
+          t("passwordReset.step2.waitSeconds", { seconds: submitCooldown })
         ) : (
-          "تحقق من الرمز"
+          t("passwordReset.step2.verifyButton")
         )}
       </button>
 
-      {/* ── Footer: back + resend ── */}
-      <div style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        marginTop: 20,
-        fontSize: 13,
-      }}>
+      <div className="flex items-center justify-between flex-wrap gap-3 mt-5 text-[13px]">
         <button
           onClick={onBack}
-          style={{ color: "#94a3b8", background: "none", border: "none", cursor: "pointer" }}
-          onMouseEnter={e => e.currentTarget.style.color = "#475569"}
-          onMouseLeave={e => e.currentTarget.style.color = "#94a3b8"}
+          className="text-slate-400 hover:text-slate-600 bg-transparent border-none cursor-pointer transition-colors"
         >
-          ← تغيير البريد الإلكتروني
+          {backArrow} {t("passwordReset.step2.changeEmail")}
         </button>
 
         <button
           onClick={handleResend}
           disabled={resendCooldown > 0 || resending}
+          className="bg-transparent border-none font-semibold text-[13px] transition-colors"
           style={{
-            background: "none",
-            border: "none",
             cursor: resendCooldown > 0 || resending ? "default" : "pointer",
-            color: resendCooldown > 0 || resending ? "#94a3b8" : "#2563eb",
-            fontWeight: 600,
-            fontSize: 13,
-            transition: "color .15s",
+            color: resendCooldown > 0 || resending ? "#94a3b8" : "#0F5A46",
           }}
         >
           {resending
-            ? "جارٍ الإرسال..."
+            ? t("passwordReset.step2.resending")
             : resendCooldown > 0
-            // Show MM:SS format if more than 60s remaining (rate limited)
             ? resendCooldown > 60
-              ? `إعادة الإرسال بعد ${Math.floor(resendCooldown / 60)}:${String(resendCooldown % 60).padStart(2, "0")}`
-              : `إعادة الإرسال بعد ${resendCooldown}s`
-            : "إعادة إرسال الرمز"}
+              ? t("passwordReset.step2.resendInMinutes", {
+                  minutes: Math.floor(resendCooldown / 60),
+                  seconds: String(resendCooldown % 60).padStart(2, "0"),
+                })
+              : t("passwordReset.step2.resendIn", { seconds: resendCooldown })
+            : t("passwordReset.step2.resendButton")}
         </button>
       </div>
 
@@ -582,6 +539,7 @@ function VerifyOtpPage({ email, onSuccess, onBack }) {
 // ─────────────────────────────────────────────
 
 function PasswordStrengthBar({ password }) {
+  const { t } = useLanguage();
   const checks = [
     password.length >= 8,
     /[A-Z]/.test(password),
@@ -589,17 +547,18 @@ function PasswordStrengthBar({ password }) {
     /[^A-Za-z0-9]/.test(password),
   ];
   const score = checks.filter(Boolean).length;
-  const labels = ["", "Weak", "Fair", "Good", "Strong"];
-  const colors = ["bg-slate-200", "bg-red-400", "bg-yellow-400", "bg-blue-400", "bg-green-500"];
+  const labels = ["", t("passwordReset.step3.strengthWeak"), t("passwordReset.step3.strengthFair"), t("passwordReset.step3.strengthGood"), t("passwordReset.step3.strengthStrong")];
+  const barColors = ["bg-slate-200", "bg-[#C53030]", "bg-[#C8A24B]", "bg-[#0F5A46]/60", "bg-[#0F5A46]"];
+  const textColors = ["text-slate-400", "text-[#C53030]", "text-[#8a6d2f]", "text-[#0F5A46]/80", "text-[#0F5A46]"];
   if (!password) return null;
   return (
     <div className="mb-5">
       <div className="flex gap-1 mb-1.5">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className={`h-1.5 flex-1 rounded-full transition-colors duration-300 ${i <= score ? colors[score] : "bg-slate-200"}`} />
+          <div key={i} className={`h-1.5 flex-1 rounded-full transition-colors duration-300 ${i <= score ? barColors[score] : "bg-slate-200"}`} />
         ))}
       </div>
-      <p className={`text-xs font-medium ${["text-slate-400", "text-red-500", "text-yellow-600", "text-blue-500", "text-green-600"][score]}`}>
+      <p className={`text-xs font-medium ${textColors[score]}`}>
         {password ? labels[score] : ""}
       </p>
     </div>
@@ -607,6 +566,7 @@ function PasswordStrengthBar({ password }) {
 }
 
 function ResetPasswordPage({ resetToken, onSuccess }) {
+  const { t } = useLanguage();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -616,10 +576,10 @@ function ResetPasswordPage({ resetToken, onSuccess }) {
 
   const validate = () => {
     const errs = {};
-    if (!password) errs.password = "Enter a new password.";
-    else if (password.length < 8) errs.password = "Must be at least 8 characters.";
-    if (!confirm) errs.confirm = "Please confirm your password.";
-    else if (password !== confirm) errs.confirm = "Passwords don't match.";
+    if (!password) errs.password = t("passwordReset.step3.errorPasswordRequired");
+    else if (password.length < 8) errs.password = t("passwordReset.step3.errorPasswordLength");
+    if (!confirm) errs.confirm = t("passwordReset.step3.errorConfirmRequired");
+    else if (password !== confirm) errs.confirm = t("passwordReset.step3.errorPasswordMismatch");
     return errs;
   };
 
@@ -636,7 +596,7 @@ function ResetPasswordPage({ resetToken, onSuccess }) {
         body: JSON.stringify({ resetToken, newPassword: password }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || "Could not reset password.");
+      if (!res.ok) throw new Error(data.message || t("passwordReset.step3.genericError"));
       onSuccess();
     } catch (e) {
       setError(e.message);
@@ -649,26 +609,32 @@ function ResetPasswordPage({ resetToken, onSuccess }) {
     <Card>
       <Logo />
       <StepDots current={3} />
-      <h1 className="text-2xl font-bold text-slate-800 mb-1">Set a new password</h1>
-      <p className="text-sm text-slate-500 mb-6">Choose something strong — at least 8 characters.</p>
+      <h1 className="text-xl sm:text-2xl font-bold text-slate-800 mb-1">
+        {t("passwordReset.step3.title")}
+      </h1>
+      <p className="text-sm text-slate-500 mb-6">
+        {t("passwordReset.step3.subtitle")}
+      </p>
       <Alert type="error" message={error} />
 
       <div className="mb-0">
-        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">New password</label>
+        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+          {t("passwordReset.step3.newPasswordLabel")}
+        </label>
         <div className="relative mb-1.5">
           <input
             type={showPw ? "text" : "password"}
             value={password}
             onChange={(e) => { setPassword(e.target.value); setFieldErrors((f) => ({ ...f, password: "" })); }}
-            placeholder="Min. 8 characters"
+            placeholder={t("passwordReset.step3.passwordPlaceholder")}
             autoFocus
-            className={`w-full px-4 py-3 pr-11 rounded-xl border text-slate-800 text-sm placeholder-slate-400 bg-white transition-all outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-              ${fieldErrors.password ? "border-red-400 focus:ring-red-400 focus:border-red-400" : "border-slate-200"}`}
+            className={`w-full px-4 py-3 rtl:pl-11 ltr:pr-11 rounded-xl border text-slate-800 text-sm placeholder-slate-400 bg-white transition-all outline-none focus:ring-2 focus:ring-[#0F5A46] focus:border-[#0F5A46]
+              ${fieldErrors.password ? "border-[#C53030] focus:ring-[#C53030] focus:border-[#C53030]" : "border-slate-200"}`}
           />
           <button
             type="button"
             onClick={() => setShowPw((v) => !v)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+            className="absolute end-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
           >
             {showPw ? (
               <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
@@ -683,22 +649,24 @@ function ResetPasswordPage({ resetToken, onSuccess }) {
             )}
           </button>
         </div>
-        {fieldErrors.password && <p className="text-xs text-red-500 mb-1">{fieldErrors.password}</p>}
+        {fieldErrors.password && <p className="text-xs text-[#C53030] mb-1">{fieldErrors.password}</p>}
       </div>
 
       <PasswordStrengthBar password={password} />
 
       <Input
-        label="Confirm password"
+        label={t("passwordReset.step3.confirmLabel")}
         type="password"
         value={confirm}
         onChange={(e) => { setConfirm(e.target.value); setFieldErrors((f) => ({ ...f, confirm: "" })); }}
-        placeholder="Repeat your password"
+        placeholder={t("passwordReset.step3.confirmPlaceholder")}
         error={fieldErrors.confirm}
         disabled={loading}
       />
 
-      <Button loading={loading} onClick={handleSubmit}>Reset password</Button>
+      <Button loading={loading} onClick={handleSubmit}>
+        {t("passwordReset.step3.submitButton")}
+      </Button>
     </Card>
   );
 }
@@ -708,22 +676,27 @@ function ResetPasswordPage({ resetToken, onSuccess }) {
 // ─────────────────────────────────────────────
 
 function SuccessPage() {
+  const { t } = useLanguage();
   return (
     <Card>
       <Logo />
       <div className="flex flex-col items-center text-center py-4">
-        <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mb-5">
-          <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8 text-green-600" stroke="currentColor" strokeWidth={2}>
+        <div className="w-16 h-16 rounded-full bg-[#0F5A46]/10 flex items-center justify-center mb-5">
+          <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8 text-[#0F5A46]" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <h1 className="text-2xl font-bold text-slate-800 mb-2">Password updated!</h1>
-        <p className="text-sm text-slate-500 mb-8">Your password has been changed. You can now log in with your new credentials.</p>
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-800 mb-2">
+          {t("passwordReset.success.title")}
+        </h1>
+        <p className="text-sm text-slate-500 mb-8">
+          {t("passwordReset.success.subtitle")}
+        </p>
         <Link
           to="/login"
-          className="inline-block w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm text-center transition-colors shadow-sm shadow-blue-200"
+          className="inline-block w-full py-3 px-4 rounded-xl bg-[#0F5A46] hover:bg-[#0c4a3a] text-white font-medium text-sm text-center transition-colors shadow-sm shadow-[#0F5A46]/20"
         >
-          Go to login
+          {t("passwordReset.success.goToLogin")}
         </Link>
       </div>
     </Card>

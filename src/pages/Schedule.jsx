@@ -333,7 +333,7 @@ function EditModal({ slot, onClose, onSaved }) {
       <div style={{ padding: "1rem 1.25rem", background: c.bg, borderBottom: `1.5px solid ${c.border}`, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
           <div style={{ fontSize: 14, fontWeight: 700, color: c.text }}>{t("schedule.editModal.title")}</div>
-          <div style={{ fontSize: 11, color: c.text, opacity: .75, marginTop: 2 }}>{slot.moduleName ?? slot.subjectName}</div>
+          <div style={{ fontSize: 11, color: c.text, opacity: .75, marginTop: 2 }}>{slot.subjectName ?? slot.moduleName}</div>
         </div>
         <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${c.border}`, background: "rgba(255,255,255,.5)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <X size={14} color={c.text} />
@@ -390,7 +390,7 @@ function ArchiveModal({ slot, onClose, onConfirm }) {
           <Trash2 size={22} color="#DC2626" />
         </div>
         <p style={{ fontSize: 13, color: "#475569", lineHeight: 1.7, margin: 0 }}>
-          {t("schedule.archiveModal.confirmQuestion", { name: slot.moduleName ?? slot.subjectName })}
+          {t("schedule.archiveModal.confirmQuestion", { name: slot.subjectName ?? slot.moduleName })}
           <br />
           <span style={{ fontSize: 11, color: "#94A3B8" }}>
             {t("schedule.archiveModal.note")}
@@ -409,109 +409,7 @@ function ArchiveModal({ slot, onClose, onConfirm }) {
 // ══════════════════════════════════════════════════════════════════
 //  تعويض PICKER MODAL
 // ══════════════════════════════════════════════════════════════════
-function MakeupPickerModal({ moduleId, alreadyAddedIds, onClose, onPick }) {
-  const { t } = useLanguage();
 
-  const [step,        setStep]        = useState(1);
-  const [siblings,     setSiblings]     = useState([]);
-  const [loadingSibs,  setLoadingSibs]  = useState(true);
-  const [siblingError, setSiblingError] = useState("");
-
-  const [chosenGroup,  setChosenGroup]  = useState(null);
-  const [roster,       setRoster]       = useState([]);
-  const [loadingRoster, setLoadingRoster] = useState(false);
-  const [rosterError,  setRosterError]  = useState("");
-
-  useEffect(() => {
-    scheduleApi.getSiblingModules(moduleId)
-      .then((r) => setSiblings(r.data ?? []))
-      .catch((err) => setSiblingError(err?.response?.data?.message || t("schedule.makeup.errors.loadGroupsFailed")))
-      .finally(() => setLoadingSibs(false));
-  }, [moduleId]);
-
-  const handlePickGroup = (group) => {
-    setChosenGroup(group);
-    setStep(2);
-    setLoadingRoster(true);
-    setRosterError("");
-    scheduleApi.getStudentsByModule(group.id)
-      .then((r) => setRoster(r.data?.content ?? r.data ?? []))
-      .catch((err) => setRosterError(err?.response?.data?.message || t("schedule.makeup.errors.loadRosterFailed")))
-      .finally(() => setLoadingRoster(false));
-  };
-
-  const handlePickStudent = (student) => {
-    onPick({
-      studentId:     student.id,
-      fullName:       student.fullName ?? student.name,
-      level:          student.level,
-      fromGroupName:  chosenGroup.name,
-    });
-    onClose();
-  };
-
-  return (
-    <ModalWrap onClose={onClose} maxWidth={380} zIndex={320}>
-      <ModalHeader
-        title={step === 1 ? t("schedule.makeup.pickGroupTitle") : t("schedule.makeup.pickStudentTitle", { group: chosenGroup?.name })}
-        onClose={onClose}
-        onBack={step === 2 ? () => setStep(1) : null}
-      />
-      <div style={{ padding: "0.75rem", overflowY: "auto", minHeight: 220 }}>
-        {step === 1 && (
-          loadingSibs ? (
-            <div style={{ display: "flex", justifyContent: "center", padding: "2rem" }}><Spinner size={22} /></div>
-          ) : siblingError ? (
-            <div style={{ padding: "1rem" }}><ErrorBox msg={siblingError} /></div>
-          ) : siblings.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "2rem", color: "#94A3B8", fontSize: 12 }}>
-              {t("schedule.makeup.noGroups")}
-            </div>
-          ) : siblings.map((g) => {
-            const c = colFor(g.id);
-            return (
-              <div key={g.id} onClick={() => handlePickGroup(g)}
-                style={{ padding: "10px 14px", borderRadius: 10, cursor: "pointer", display: "flex", alignItems: "center", gap: 10, marginBottom: 6, background: c.bg, border: `1.5px solid ${c.border}` }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: c.accent, flexShrink: 0 }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: c.text }}>{g.name}</div>
-                  {g.level && <div style={{ fontSize: 10, color: c.text, opacity: .7, marginTop: 1 }}>{g.level}</div>}
-                </div>
-                <ChevronDown size={13} color={c.text} style={{ transform: "rotate(-90deg)" }} />
-              </div>
-            );
-          })
-        )}
-
-        {step === 2 && (
-          loadingRoster ? (
-            <div style={{ display: "flex", justifyContent: "center", padding: "2rem" }}><Spinner size={22} /></div>
-          ) : rosterError ? (
-            <div style={{ padding: "1rem" }}><ErrorBox msg={rosterError} /></div>
-          ) : roster.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "2rem", color: "#94A3B8", fontSize: 12 }}>
-              {t("schedule.makeup.noStudents")}
-            </div>
-          ) : roster.map((s) => {
-            const disabled = alreadyAddedIds.includes(s.id);
-            return (
-              <div key={s.id} onClick={() => !disabled && handlePickStudent(s)}
-                style={{ padding: "9px 14px", borderRadius: 9, cursor: disabled ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 10, marginBottom: 4, opacity: disabled ? .45 : 1, background: "#FAFCFF", border: "1px solid #F1F5F9" }}>
-                <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#EBF4FE", border: "2px solid #B5D4F4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#0C447C", flexShrink: 0 }}>
-                  {(s.fullName ?? s.name)?.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?"}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: "#0F172A" }}>{s.fullName ?? s.name}</div>
-                  {disabled && <div style={{ fontSize: 10, color: "#94A3B8" }}>{t("schedule.makeup.alreadyAdded")}</div>}
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
-    </ModalWrap>
-  );
-}
 
 // ══════════════════════════════════════════════════════════════════
 //  ATTENDANCE SHEET MODAL
@@ -529,8 +427,7 @@ function AttendanceSheetModal({ session, onClose }) {
   const [marks,     setMarks]     = useState({});
 
   const [makeupEntries, setMakeupEntries] = useState([]);
-  const [pickerOpen,    setPickerOpen]    = useState(false);
-
+  
   const [submitted, setSubmitted] = useState(false);
 
   // ── search / sort ──
@@ -636,7 +533,26 @@ function AttendanceSheetModal({ session, onClose }) {
 
       await scheduleApi.submitAttendance(session.id, entries, user);
       setSubmitted(true);
-      setTimeout(onClose, 900);
+
+      // حصة إضافية invoices are only created once a student is marked PRESENT
+      // and attendance is actually saved — refetch so that student's button
+      // flips from "no invoice" to "pay" right here, without closing/reopening.
+      try {
+        const fresh = await scheduleApi.getAttendanceSheet(session.id);
+        const freshById = {};
+        (fresh.data?.students ?? []).forEach((s) => { freshById[s.studentId] = s; });
+        setSheet((prev) => ({
+          ...prev,
+          students: (prev.students ?? []).map((s) => {
+            const f = freshById[s.studentId];
+            return f
+              ? { ...s, invoiceId: f.invoiceId, invoiceStatus: f.invoiceStatus, invoiceAmount: f.invoiceAmount }
+              : s;
+          }),
+        }));
+      } catch {
+        // Non-fatal — payment info just won't refresh until the sheet is reopened.
+      }
     } catch (err) {
       setError(err?.response?.data?.message || t("schedule.attendance.saveFailed"));
     } finally {
@@ -700,18 +616,13 @@ function AttendanceSheetModal({ session, onClose }) {
   return (
     <>
       <ModalWrap onClose={onClose} maxWidth={700}>
-      <div style={{ padding: isMobile ? "0.9rem 1rem" : "1.1rem 1.35rem", background: c.bg, borderBottom: `1.5px solid ${c.border}`, flexShrink: 0 }}>
+        <div style={{ padding: isMobile ? "0.9rem 1rem" : "1.1rem 1.35rem", background: c.bg, borderBottom: `1.5px solid ${c.border}`, flexShrink: 0 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 <div style={{ fontSize: isMobile ? 14 : 16, fontWeight: 700, color: c.text }}>
-                  {session.moduleName ?? sheet?.moduleName ?? sheet?.subjectName}
+                  {sheet?.subjectName ?? session.subjectName ?? session.moduleName}
                 </div>
-                {!loading && sheet?.totalSessionsInMonth > 0 && (
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "rgba(255,255,255,.7)", color: c.text, border: `1px solid ${c.border}` }}>
-                    {sheet.sessionOrdinalInMonth}/{sheet.totalSessionsInMonth}
-                  </span>
-                )}
               </div>
               <div style={{ fontSize: 11, color: c.text, opacity: .8, marginTop: 3, display: "flex", gap: 12, flexWrap: "wrap" }}>
                 <span>{t("schedule.attendance.teacherLabel", { name: sheet?.teacherName ?? session.teacherName ?? "—" })}</span>
@@ -721,17 +632,32 @@ function AttendanceSheetModal({ session, onClose }) {
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-              <button
-                onClick={() => setPickerOpen(true)}
-                title={t("schedule.makeup.buttonTitle")}
-                style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${MAKEUP_COLOR}55`, background: "#F5F3FF", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Repeat size={14} color={MAKEUP_COLOR} />
-              </button>
-              <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${c.border}`, background: "rgba(255,255,255,.5)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <X size={14} color={c.text} />
-              </button>
+             
             </div>
           </div>
+
+          {/* ── cycle progress ── */}
+          {!loading && sheet?.totalSessionsInMonth > 0 && (
+            <div style={{ marginTop: 12, background: "rgba(255,255,255,.55)", border: `1px solid ${c.border}`, borderRadius: 10, padding: "8px 12px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: c.text }}>
+                  {t("schedule.attendance.sessionOfMonth", { ordinal: sheet.sessionOrdinalInMonth, total: sheet.totalSessionsInMonth })}
+                </span>
+                <span style={{ fontSize: 10, fontWeight: 600, color: c.text, opacity: .7 }}>
+                  {Math.round((sheet.sessionOrdinalInMonth / sheet.totalSessionsInMonth) * 100)}%
+                </span>
+              </div>
+              <div style={{ display: "flex", gap: 3 }}>
+                {Array.from({ length: sheet.totalSessionsInMonth }).map((_, i) => (
+                  <div key={i} style={{
+                    flex: 1, height: 6, borderRadius: 4,
+                    background: i < sheet.sessionOrdinalInMonth ? c.accent : "rgba(255,255,255,.7)",
+                    border: i < sheet.sessionOrdinalInMonth ? "none" : `1px solid ${c.border}`,
+                  }} />
+                ))}
+              </div>
+            </div>
+          )}
 
           {!loading && (
             <div style={{ display: "flex", gap: 7, marginTop: 10, flexWrap: "wrap" }}>
@@ -909,14 +835,7 @@ function AttendanceSheetModal({ session, onClose }) {
         </div>
       </ModalWrap>
 
-      {pickerOpen && (
-        <MakeupPickerModal
-          moduleId={session.moduleId}
-          alreadyAddedIds={[...students.map((s) => s.studentId), ...makeupEntries.map((m) => m.studentId)]}
-          onClose={() => setPickerOpen(false)}
-          onPick={handleAddMakeup}
-        />
-      )}
+     
     </>
   );
 }
@@ -1161,7 +1080,7 @@ function ModuleChip({ slot, onEdit, onArchive, onDragStart, onDragEnd, isMobile 
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: c.text }}>
-              {slot.moduleName ?? slot.subjectName}
+              {slot.subjectName ?? slot.moduleName}
             </div>
             <div style={{ fontSize: 10, color: c.text, opacity: .75, marginTop: 2 }}>
               {fmtTime(slot.startTime)} – {fmtTime(slot.endTime)}
@@ -1201,7 +1120,7 @@ function ModuleChip({ slot, onEdit, onArchive, onDragStart, onDragEnd, isMobile 
         <GripVertical size={10} color={c.text} />
       </div>
       <div style={{ fontSize: 11, fontWeight: 700, color: c.text, paddingRight: 12 }}>
-        {slot.moduleName ?? slot.subjectName}
+        {slot.subjectName ?? slot.moduleName}
       </div>
       <div style={{ fontSize: 9, color: c.text, opacity: .75, marginTop: 1 }}>
         {fmtTime(slot.startTime)} – {fmtTime(slot.endTime)}

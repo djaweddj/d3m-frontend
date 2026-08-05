@@ -228,7 +228,7 @@ export default function SchoolRegister() {
     };
 
     try {
-      const response = await fetch(`${API_URL}/api/school-requests`, {
+      const response = await fetch(`${API_URL}/api/school-requests/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

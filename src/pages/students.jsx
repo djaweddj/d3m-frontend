@@ -4,7 +4,7 @@ import {
   ChevronDown, ChevronUp, Plus, X, Eye, EyeOff, UserPlus,
   BookOpen, CreditCard, ChevronRight, ArrowLeft, GraduationCap,
   Clock, Wallet, Printer, History, ClipboardList, UserMinus,
-  Ban,
+  Ban,Pencil,Check
 } from "lucide-react";
 import { useSchool } from "../context/SchoolContext";
 import { useLanguage } from "../context/LanguageContext";
@@ -25,6 +25,8 @@ const schoolApi = {
   getSchoolRevenue:    (period)                 => api.get(`api/invoices/school/revenue?period=${period}`),
   markInvoicePaid:     (invoiceId)              => api.post(`api/invoices/${invoiceId}/pay`),
   createInvoiceManually: (payload)              => api.post("api/invoices/create", payload),
+  updateInvoicePrice: (invoiceId, price) =>
+  api.put(`api/invoices/${invoiceId}/price`, { price }),
 };
 
 function isCurrentPeriod(invoice) {
@@ -725,21 +727,55 @@ const [periodStart, setPeriodStart]   = useState(new Date().toISOString().slice(
 }
 
 // ── Invoice row (used inside the drawer's unpaid list + collapsible paid list) ──
-function InvoiceHistoryRow({ invoice, student, schoolName, onPay, payingId, t }) {
+function InvoiceHistoryRow({ invoice, student, schoolName, onPay, payingId, t,
+  editing, priceDraft, onStartEdit, onCancelEdit, onSavePrice, onDraftChange, saving }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 12px", borderRadius: 9, background: "#fff", border: "1px solid #F1F5F9" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
         <span style={{ fontSize: 12, color: "#0F172A", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{invoice.moduleName ?? t("students.print.rowModule")}</span>
-          <span style={{ fontSize: 11, color: "#94A3B8" }}>{formatPeriod(invoice.periodStart, invoice.periodEnd)}{invoice.amount != null ? ` · ${money(invoice.amount)} ${t("students.print.currency")}` : ""}</span>
+        <span style={{ fontSize: 11, color: "#94A3B8", display: "flex", alignItems: "center", gap: 6 }}>
+          {formatPeriod(invoice.periodStart, invoice.periodEnd)}
+          {editing ? (
+            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              ·
+              <input
+                type="number"
+                autoFocus
+                value={priceDraft}
+                onChange={(e) => onDraftChange(e.target.value)}
+                style={{ width: 64, fontSize: 11, padding: "2px 5px", borderRadius: 5, border: "1.5px solid #3B82F6", fontFamily: "inherit", direction: "ltr" }}
+              />
+              {t("students.print.currency")}
+            </span>
+          ) : (
+            invoice.amount != null ? ` · ${money(invoice.amount)} ${t("students.print.currency")}` : ""
+          )}
+        </span>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
         <StatusBadge status={invoice.status} size={9} />
-        {invoice.status !== "PAID" && invoice.id && (
+
+        {editing ? (
+          <>
+            <button onClick={() => onSavePrice(invoice)} disabled={saving} style={{ width: 22, height: 22, borderRadius: 6, border: "none", background: "#059669", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+              <Check size={12} />
+            </button>
+            <button onClick={onCancelEdit} disabled={saving} style={{ width: 22, height: 22, borderRadius: 6, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+              <X size={12} color="#64748B" />
+            </button>
+          </>
+        ) : (
+          <button onClick={() => onStartEdit(invoice)} title={t("students.drawer.editPrice") ?? "Edit price"} style={{ width: 22, height: 22, borderRadius: 6, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+            <Pencil size={11} color="#64748B" />
+          </button>
+        )}
+
+        {invoice.status !== "PAID" && invoice.id && !editing && (
           <button onClick={() => onPay(invoice)} disabled={payingId === invoice.id} style={{ padding: "4px 10px", borderRadius: 7, border: "none", background: "#059669", color: "#fff", fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", opacity: payingId === invoice.id ? .6 : 1 }}>
             {payingId === invoice.id ? "..." : t("students.drawer.registerPayment")}
           </button>
         )}
-        {invoice.status === "PAID" && (
+        {invoice.status === "PAID" && !editing && (
           <PrintButton compact onClick={() => printInvoice({ invoice, student, schoolName, t })} />
         )}
       </div>
@@ -756,6 +792,35 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
   const [showEnroll, setShowEnroll]   = useState(false);
   const [showInvoice, setShowInvoice] = useState(false);
   const [payingId, setPayingId]       = useState(null);
+  const [editingPriceId, setEditingPriceId] = useState(null); // invoice id being edited
+const [priceDraft, setPriceDraft]         = useState("");
+const [savingPrice, setSavingPrice]       = useState(false);
+
+const startEditPrice = (invoice) => {
+  setEditingPriceId(invoice.id);
+  setPriceDraft(String(invoice.amount ?? ""));
+};
+
+const cancelEditPrice = () => { setEditingPriceId(null); setPriceDraft(""); };
+
+const saveEditPrice = async (invoice) => {
+  if (!priceDraft || isNaN(Number(priceDraft))) return;
+  setSavingPrice(true);
+  try {
+    await schoolApi.updateInvoicePrice(invoice.id, Number(priceDraft));
+    onSuccess(t("students.drawer.priceUpdateSuccess") ?? "Price updated");
+    loadInvoices();
+    setEditingPriceId(null);
+  } catch (err) {
+    onError(
+  err?.response?.data?.message ??
+  t("students.drawer.priceUpdateError") ??
+  "Failed to update price"
+);
+  } finally {
+    setSavingPrice(false);
+  }
+};
 
   const [invoices, setInvoices]       = useState([]);
   const [loadingInv, setLoadingInv]   = useState(true);
@@ -903,9 +968,19 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
                 ? <p style={{ fontSize: 12, color: "#94A3B8", margin: 0 }}>{t("students.drawer.noInvoiceThisMonth")}</p>
                 : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {unpaidInvoices.map((inv) => (
-                      <InvoiceHistoryRow key={inv.id} invoice={inv} student={student} schoolName={schoolName} onPay={handlePay} payingId={payingId} t={t} />
-                    ))}
+                   {unpaidInvoices.map((inv) => (
+  <InvoiceHistoryRow
+    key={inv.id} invoice={inv} student={student} schoolName={schoolName}
+    onPay={handlePay} payingId={payingId} t={t}
+    editing={editingPriceId === inv.id}
+    priceDraft={priceDraft}
+    onStartEdit={startEditPrice}
+    onCancelEdit={cancelEditPrice}
+    onSavePrice={saveEditPrice}
+    onDraftChange={setPriceDraft}
+    saving={savingPrice}
+  />
+))}
                   </div>
                 )
             }
@@ -920,9 +995,19 @@ function StudentDrawer({ student, modules, allLevels, schoolId, schoolName, onCl
                 </button>
                 {showPaidInvoices && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
-                    {paidInvoices.map((inv) => (
-                      <InvoiceHistoryRow key={inv.id} invoice={inv} student={student} schoolName={schoolName} onPay={handlePay} payingId={payingId} t={t} />
-                    ))}
+                  {paidInvoices.map((inv) => (
+  <InvoiceHistoryRow
+    key={inv.id} invoice={inv} student={student} schoolName={schoolName}
+    onPay={handlePay} payingId={payingId} t={t}
+    editing={editingPriceId === inv.id}
+    priceDraft={priceDraft}
+    onStartEdit={startEditPrice}
+    onCancelEdit={cancelEditPrice}
+    onSavePrice={saveEditPrice}
+    onDraftChange={setPriceDraft}
+    saving={savingPrice}
+  />
+))}
                   </div>
                 )}
               </div>

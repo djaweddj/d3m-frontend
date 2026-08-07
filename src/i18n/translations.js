@@ -917,6 +917,9 @@ emptySearch: "No requests match that name",
         other: "Other level...",
       },
       basicInfo: {
+        cycleNumber: "Number of sessions covered by the monthly price",
+cycleNumberPlaceholder: "e.g. 1",
+
         title: "Basic Information",
         subtitle: "Module name and study level",
         moduleName: "Module Name",
@@ -976,6 +979,11 @@ emptySearch: "No requests match that name",
         addDay: "Add Another Day",
       },
       errors: {
+        teacherConflict: "This teacher is already teaching at this time ({module}).",
+teacherConflictGeneric: "This teacher is already teaching at one of the chosen times.",
+        classroomConflict: "This classroom is already booked at this time ({module}).",
+classroomConflictGeneric: "This classroom is already booked at one of the chosen times.",
+
         moduleName: "Enter the module name",
         subject: "Select the subject",
         teacher: "Select the teacher",
@@ -1223,6 +1231,8 @@ emptySearch: "No requests match that name",
         loadFailed: "Error loading data",
       },
       addModal: {
+        priceLabel: "Session Price :",
+pricePlaceholder: "0.00",
         title: "Add Session",
         moduleLabel: "Module *",
         modulePlaceholder: "Select a module…",
@@ -2567,6 +2577,9 @@ emptySearch: "لا توجد طلبات تطابق هذا الاسم",
         other: "مستوى آخر...",
       },
       basicInfo: {
+        cycleNumber: "عدد الحصص التي يخطيها السعر الشهري ",
+cycleNumberPlaceholder: "مثال: 1",
+
         title: "المعلومات الأساسية",
         subtitle: "اسم الوحدة والمستوى الدراسي",
         moduleName: "اسم الوحدة",
@@ -2626,6 +2639,10 @@ emptySearch: "لا توجد طلبات تطابق هذا الاسم",
         addDay: "إضافة يوم آخر",
       },
       errors: {
+        teacherConflict: "هذا الأستاذ يدرّس بالفعل في هذا التوقيت ({module}).",
+teacherConflictGeneric: "هذا الأستاذ يدرّس بالفعل في أحد الأوقات المختارة.",
+        classroomConflict: "هذه القاعة محجوزة بالفعل في هذا التوقيت ({module}).",
+classroomConflictGeneric: "هذه القاعة محجوزة بالفعل في أحد الأوقات المختارة.",
         moduleName: "أدخل اسم الوحدة",
         subject: "اختر المادة الدراسية",
         teacher: "اختر الأستاذ",
@@ -2873,6 +2890,9 @@ suspendModal: {
         loadFailed: "خطأ في تحميل البيانات",
       },
       addModal: {
+        priceLabel: "سعر الحصة :",
+pricePlaceholder: "0.00",
+
         title: "إضافة حصة",
         moduleLabel: "الوحدة الدراسية *",
         modulePlaceholder: "اختر وحدة…",
@@ -4218,6 +4238,10 @@ emptySearch: "Aucune demande ne correspond à ce nom",
         other: "Autre niveau...",
       },
       basicInfo: {
+        cycleNumber: "Nombre de séances couvertes par le prix mensuel",
+cycleNumberPlaceholder: "ex : 1",
+        
+
         title: "Informations de base",
         subtitle: "Nom du module et niveau scolaire",
         moduleName: "Nom du module",
@@ -4277,6 +4301,10 @@ emptySearch: "Aucune demande ne correspond à ce nom",
         addDay: "Ajouter un autre jour",
       },
       errors: {
+        teacherConflict: "هذا الأستاذ يدرّس بالفعل في هذا التوقيت ({module}).",
+teacherConflictGeneric: "هذا الأستاذ يدرّس بالفعل في أحد الأوقات المختارة.",
+        classroomConflict: "Cette salle est déjà réservée à ce créneau ({module}).",
+classroomConflictGeneric: "Cette salle est déjà réservée pour l'un des créneaux choisis.",
         moduleName: "Saisissez le nom du module",
         subject: "Sélectionnez la matière",
         teacher: "Sélectionnez l'enseignant",
@@ -4524,6 +4552,9 @@ suspendModal: {
         loadFailed: "Erreur lors du chargement des données",
       },
       addModal: {
+        priceLabel: "Prix de la séance :",
+pricePlaceholder: "0,00",
+
         title: "Ajouter une séance",
         moduleLabel: "Module *",
         modulePlaceholder: "Choisir un module…",

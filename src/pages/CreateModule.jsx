@@ -10,6 +10,11 @@ const getClassrooms = ()  => api.get("/api/classrooms").then(r => r.data);
 const postModule    = (d) => api.post("/api/modules", d).then(r => r.data);
 const getArchivedModules = () => api.get("/api/modules/archived").then(r => r.data);
 const restoreModule      = (id) => api.patch(`/api/modules/${id}/restore`).then(r => r.data);
+// ASSUMPTION: this endpoint returns the full list of existing modules, each with
+// `classroomId` and a `schedules` array of { day, startTime, endTime }. If your
+// modules list endpoint or field names differ, adjust `getModules` and the
+// `mod.classroomId` / `sch.day` / `sch.startTime` / `sch.endTime` accesses below.
+const getModules    = ()  => api.get("/api/modules").then(r => r.data?.content ?? r.data ?? []);
 
 const DAY_VALUES = ["SATURDAY", "SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"];
 
@@ -48,6 +53,62 @@ function useIsMobile(breakpoint = 640) {
     return () => window.removeEventListener("resize", onResize);
   }, [breakpoint]);
   return isMobile;
+}
+
+// --- classroom time-conflict helpers ---
+function toMinutes(hhmm) {
+  if (!hhmm) return null;
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + (m || 0);
+}
+
+function timeRangesOverlap(aStart, aEnd, bStart, bEnd) {
+  const as = toMinutes(aStart), ae = toMinutes(aEnd);
+  const bs = toMinutes(bStart), be = toMinutes(bEnd);
+  if (as == null || ae == null || bs == null || be == null) return false;
+  return as < be && bs < ae;
+}
+
+// Generic version: returns a map of { [rowIndex]: conflictingModuleName } for
+// the current entityId/schedules against every other existing module's
+// schedule that uses the same entity (classroom OR teacher — whichever
+// `entityField` points to, e.g. "classroomId" or "teacherId").
+function findEntityConflicts(entityId, entityField, schedules, modules) {
+  const conflicts = {};
+  if (!entityId) return conflicts;
+  const eid = Number(entityId);
+
+  schedules.forEach((row, idx) => {
+    if (!row.day || !row.startTime || !row.endTime) return;
+    for (const mod of modules) {
+      if (Number(mod[entityField]) !== eid) continue;
+      const modSchedules = mod.schedules ?? mod.scheduleEntries ?? [];
+      for (const sch of modSchedules) {
+        if (sch.day !== row.day) continue;
+        if (timeRangesOverlap(row.startTime, row.endTime, sch.startTime?.slice(0, 5), sch.endTime?.slice(0, 5))) {
+          conflicts[idx] = mod.name ?? mod.moduleName ?? "";
+          break;
+        }
+      }
+      if (conflicts[idx]) break;
+    }
+  });
+
+  return conflicts;
+}
+
+// Returns a map of { [rowIndex]: conflictingModuleName } for the current
+// classroomId/schedules against every other existing module's schedule
+// that uses the same classroom.
+function findClassroomConflicts(classroomId, schedules, modules) {
+  return findEntityConflicts(classroomId, "classroomId", schedules, modules);
+}
+
+// ASSUMPTION: existing modules expose the assigned teacher's id as
+// `teacherId` (same shape as `classroomId`). Adjust the field name below if
+// your `/api/modules` response uses something else (e.g. `teacher.id`).
+function findTeacherConflicts(teacherId, schedules, modules) {
+  return findEntityConflicts(teacherId, "teacherId", schedules, modules);
 }
 
 function Label({ children, required }) {
@@ -260,45 +321,73 @@ function PricingModelCard({ value, current, onClick, title, desc, icon: Icon, ex
   );
 }
 
-function ScheduleRow({ entry, onChange, onRemove, usedDays, days, isMobile }) {
+function ScheduleRow({ entry, onChange, onRemove, usedDays, days, isMobile, conflictMessage, teacherConflictMessage }) {
   const { t } = useLanguage();
   const availableDays = days.filter(d => !usedDays.includes(d.value) || d.value === entry.day);
+  const hasAnyConflict = !!(conflictMessage || teacherConflictMessage);
   return (
-    <div style={{
-      display: "grid",
-      gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr auto",
-      gap: 10, alignItems: "end",
-      padding: "12px 14px", borderRadius: 10,
-      background: "#F8FAFC", border: "1.5px solid #E2E8F0",
-    }}>
-      <Field style={isMobile ? { gridColumn: "1 / -1" } : undefined}>
-        <Label>{t("createModule.schedule.day")}</Label>
-        <Select value={entry.day} onChange={v => onChange({ ...entry, day: v })}
-          options={availableDays.map(d => ({ value: d.value, label: d.label }))}
-          placeholder={t("createModule.schedule.chooseDay")} />
-      </Field>
-      <Field>
-        <Label>{t("createModule.schedule.startTime")}</Label>
-        <TextInput type="time" value={entry.startTime} onChange={v => onChange({ ...entry, startTime: v })} />
-      </Field>
-      <Field>
-        <Label>{t("createModule.schedule.endTime")}</Label>
-        <TextInput type="time" value={entry.endTime} onChange={v => onChange({ ...entry, endTime: v })} />
-      </Field>
-      <button type="button" onClick={onRemove}
-        style={{
-          height: 40, borderRadius: 9, border: "1.5px solid #FECACA",
-          background: "#FEF2F2", cursor: "pointer",
-          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-          ...(isMobile ? { gridColumn: "1 / -1", width: "100%", gap: 6 } : { width: 36 }),
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr auto",
+        gap: 10, alignItems: "end",
+        padding: "12px 14px", borderRadius: 10,
+        background: hasAnyConflict ? "#FEF2F2" : "#F8FAFC",
+        border: `1.5px solid ${hasAnyConflict ? "#FCA5A5" : "#E2E8F0"}`,
+      }}>
+        <Field style={isMobile ? { gridColumn: "1 / -1" } : undefined}>
+          <Label>{t("createModule.schedule.day")}</Label>
+          <Select value={entry.day} onChange={v => onChange({ ...entry, day: v })}
+            options={availableDays.map(d => ({ value: d.value, label: d.label }))}
+            placeholder={t("createModule.schedule.chooseDay")} />
+        </Field>
+        <Field>
+          <Label>{t("createModule.schedule.startTime")}</Label>
+          <TextInput type="time" value={entry.startTime} onChange={v => onChange({ ...entry, startTime: v })} />
+        </Field>
+        <Field>
+          <Label>{t("createModule.schedule.endTime")}</Label>
+          <TextInput type="time" value={entry.endTime} onChange={v => onChange({ ...entry, endTime: v })} />
+        </Field>
+        <button type="button" onClick={onRemove}
+          style={{
+            height: 40, borderRadius: 9, border: "1.5px solid #FECACA",
+            background: "#FEF2F2", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+            ...(isMobile ? { gridColumn: "1 / -1", width: "100%", gap: 6 } : { width: 36 }),
+          }}>
+          <Trash2 size={14} color="#EF4444" />
+          {isMobile && (
+            <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "'Cairo',sans-serif", color: "#EF4444" }}>
+              {t("createModule.schedule.removeDay") || t("createModule.actions.cancel")}
+            </span>
+          )}
+        </button>
+      </div>
+      {conflictMessage && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 6,
+          fontSize: 11.5, color: "#DC2626", padding: "0 4px",
         }}>
-        <Trash2 size={14} color="#EF4444" />
-        {isMobile && (
-          <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "'Cairo',sans-serif", color: "#EF4444" }}>
-            {t("createModule.schedule.removeDay") || t("createModule.actions.cancel")}
+          <AlertCircle size={13} style={{ flexShrink: 0 }} />
+          <span>
+            {t("createModule.errors.classroomConflict", { module: conflictMessage })
+              || `This classroom is already booked at this time (${conflictMessage}).`}
           </span>
-        )}
-      </button>
+        </div>
+      )}
+      {teacherConflictMessage && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 6,
+          fontSize: 11.5, color: "#DC2626", padding: "0 4px",
+        }}>
+          <AlertCircle size={13} style={{ flexShrink: 0 }} />
+          <span>
+            {t("createModule.errors.teacherConflict", { module: teacherConflictMessage })
+              || `This teacher is already teaching at this time (${teacherConflictMessage}).`}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -311,6 +400,7 @@ export default function CreateModule() {
   const [subjects,    setSubjects]    = useState([]);
   const [teachers,    setTeachers]    = useState([]);
   const [classrooms,  setClassrooms]  = useState([]);
+  const [modules,     setModules]     = useState([]); // existing modules, used for classroom conflict checks
   const [dataLoading, setDataLoading] = useState(true);
   const [dataError,   setDataError]   = useState(null);
 
@@ -370,11 +460,12 @@ export default function CreateModule() {
   };
 
   useEffect(() => {
-    Promise.all([getSubjects(), getTeachers(), getClassrooms()])
-      .then(([s, t, c]) => {
+    Promise.all([getSubjects(), getTeachers(), getClassrooms(), getModules()])
+      .then(([s, t, c, m]) => {
         setSubjects(s?.content ?? s ?? []);
         setTeachers((Array.isArray(t) ? t : []).filter(tc => !tc.archived));
         setClassrooms(c?.content ?? c ?? []);
+        setModules(Array.isArray(m) ? m : []);
       })
       .catch(() => setDataError(t("createModule.loadError")))
       .finally(() => setDataLoading(false));
@@ -382,7 +473,7 @@ export default function CreateModule() {
   }, []);
 
   const teacherOptions = teachers
-    .filter(tc => !subjectId || !tc.subjectIds?.length || tc.subjectIds.includes(Number(subjectId)))
+    .filter(tc => !subjectId || tc.subjectIds?.includes(Number(subjectId)))
     .map(tc => ({ value: String(tc.id), label: `${tc.fullName}${tc.specialization ? " — " + tc.specialization : ""}` }));
 
   const subjectOptions   = subjects.map(s => ({ value: String(s.id), label: s.name }));
@@ -397,6 +488,18 @@ export default function CreateModule() {
     pricingModel === "PER_SESSION" && pricePerSession && weeklySessionCount > 0
       ? Math.round(Number(pricePerSession) * weeklySessionCount * 4.3)
       : null;
+
+  // Recomputed on every render from current classroomId/schedules/modules —
+  // maps schedule-row index -> name of the module it conflicts with.
+  const classroomConflicts = findClassroomConflicts(classroomId, schedules, modules);
+  const hasClassroomConflict = Object.keys(classroomConflicts).length > 0;
+
+  // Same idea, but keyed off the selected teacher: flags rows where the
+  // teacher is already teaching another module at that day/time.
+  const teacherConflicts = findTeacherConflicts(teacherId, schedules, modules);
+  const hasTeacherConflict = Object.keys(teacherConflicts).length > 0;
+
+  const hasAnyScheduleConflict = hasClassroomConflict || hasTeacherConflict;
 
   const validate = () => {
     if (!name.trim())    return t("createModule.errors.moduleName");
@@ -417,6 +520,16 @@ export default function CreateModule() {
       if (!s.day)                     return t("createModule.errors.chooseDayEachRow");
       if (!s.startTime || !s.endTime) return t("createModule.errors.enterTimeEachRow");
       if (s.startTime >= s.endTime)   return t("createModule.errors.timeOrder");
+    }
+    if (hasClassroomConflict) {
+      return t("createModule.errors.classroomConflictGeneric")
+        || t("createModule.errors.classroomConflict", { module: Object.values(classroomConflicts)[0] })
+        || "This classroom is already booked at one of the chosen times.";
+    }
+    if (hasTeacherConflict) {
+      return t("createModule.errors.teacherConflictGeneric")
+        || t("createModule.errors.teacherConflict", { module: Object.values(teacherConflicts)[0] })
+        || "This teacher is already teaching at one of the chosen times.";
     }
     return null;
   };
@@ -448,7 +561,13 @@ export default function CreateModule() {
       setSuccess(true);
       setTimeout(() => navigate("/schedule"), 1200);
     } catch (err) {
-      setError(err?.response?.data?.message || t("createModule.errors.submitFailed"));
+      // If the backend also enforces classroom-conflict checks (e.g. HTTP 409),
+      // surface that message specifically rather than the generic submit-failed one.
+      if (err?.response?.status === 409) {
+        setError(err?.response?.data?.message || t("createModule.errors.classroomConflictGeneric") || "This classroom is already booked at the selected time.");
+      } else {
+        setError(err?.response?.data?.message || t("createModule.errors.submitFailed"));
+      }
     } finally { setSaving(false); }
   };
 
@@ -655,7 +774,9 @@ export default function CreateModule() {
                 <ScheduleRow key={idx} entry={entry} days={DAYS} isMobile={isMobile}
                   onChange={updated => setSchedules(prev => prev.map((s, i) => i === idx ? updated : s))}
                   onRemove={() => setSchedules(prev => prev.filter((_, i) => i !== idx))}
-                  usedDays={usedDays} />
+                  usedDays={usedDays}
+                  conflictMessage={classroomConflicts[idx]}
+                  teacherConflictMessage={teacherConflicts[idx]} />
               ))}
             </div>
             {schedules.length < 7 && (
@@ -679,8 +800,8 @@ export default function CreateModule() {
               style={{ flex: isMobile ? "none" : 1, width: isMobile ? "100%" : "auto", padding: "12px", borderRadius: 12, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'Cairo',sans-serif" }}>
               {t("createModule.actions.cancel")}
             </button>
-            <button onClick={handleSubmit} disabled={saving || success}
-              style={{ flex: isMobile ? "none" : 3, width: isMobile ? "100%" : "auto", padding: "12px", borderRadius: 12, border: "none", background: success ? "#10B981" : saving ? "#94A3B8" : P, color: "#fff", fontSize: 14, fontWeight: 700, cursor: saving || success ? "default" : "pointer", fontFamily: "'Cairo',sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "background .3s" }}>
+            <button onClick={handleSubmit} disabled={saving || success || hasAnyScheduleConflict}
+              style={{ flex: isMobile ? "none" : 3, width: isMobile ? "100%" : "auto", padding: "12px", borderRadius: 12, border: "none", background: success ? "#10B981" : (saving || hasAnyScheduleConflict) ? "#94A3B8" : P, color: "#fff", fontSize: 14, fontWeight: 700, cursor: (saving || success || hasAnyScheduleConflict) ? "default" : "pointer", fontFamily: "'Cairo',sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "background .3s" }}>
               {success ? (
                 <><Check size={16} /> {t("createModule.actions.success")}</>
               ) : saving ? (

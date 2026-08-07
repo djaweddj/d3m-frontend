@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Check, X, GraduationCap, RefreshCw, AlertCircle, BookOpen, DollarSign, Mail, Phone, User, Layers, MessageSquare, Search } from "lucide-react";
+import { Check, X, GraduationCap, RefreshCw, AlertCircle, BookOpen, DollarSign, Mail, Phone, User, Layers, MessageSquare, Search, ChevronDown } from "lucide-react";
 import { useAuth } from "../context/authContext";
 import { useLanguage } from "../context/LanguageContext";
 import { LOCALE_MAP } from "../i18n/translations"; // ⚠️ adjust path // ⚠️ adjust to your actual hook/path
@@ -21,10 +21,10 @@ const statusStyle = (status, t) => {
   }
 };
 
-function Spinner({ size = 18 }) {
+function Spinner({ size = 18, color = "#185FA5" }) {
   return (
     <>
-      <div style={{ width: size, height: size, borderRadius: "50%", border: "2px solid #185FA5", borderTopColor: "transparent", animation: "spin 1s linear infinite", flexShrink: 0 }} />
+      <div style={{ width: size, height: size, borderRadius: "50%", border: `2px solid ${color}`, borderTopColor: "transparent", animation: "spin 1s linear infinite", flexShrink: 0 }} />
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </>
   );
@@ -69,7 +69,7 @@ function RejectModal({ enrollment, onClose, onConfirm, t, dir }) {
             {t("requests.rejectModal.cancel")}
           </button>
           <button onClick={handleConfirm} disabled={loading} style={{ flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px", borderRadius: 9, border: "none", background: "#DC2626", color: "#fff", fontSize: 13, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
-            {loading ? <Spinner size={13} /> : <X size={13} />}
+            {loading ? <Spinner size={13} color="#fff" /> : <X size={13} />}
             {loading ? t("requests.rejectModal.confirming") : t("requests.rejectModal.confirm")}
           </button>
         </div>
@@ -90,8 +90,11 @@ function InfoRow({ icon: Icon, label, value, dir }) {
   );
 }
 
-function RequestCard({ enrollment, onApprove, onReject, approving, rejecting, t, lang }) {
-  const name  = enrollment.studentFullName ?? t("requests.studentFallback");
+/* ---------- Expandable list-style request row ---------- */
+function RequestRow({ enrollment, onApprove, onReject, approving, rejecting, t, lang, dir }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const name = enrollment.studentFullName ?? t("requests.studentFallback");
   const initials = name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
   const st = statusStyle(enrollment.status, t);
 
@@ -101,82 +104,166 @@ function RequestCard({ enrollment, onApprove, onReject, approving, rejecting, t,
   const requestedDate = formatDate(enrollment.createdAt);
   const reviewedDate  = formatDate(enrollment.reviewedAt);
 
+  const moduleLabel = enrollment.moduleName ?? (enrollment.moduleId ? `#${enrollment.moduleId}` : null);
+  const contactNumber = enrollment.parentPhone ?? enrollment.studentPhone;
+
+  const toggle = () => setExpanded((v) => !v);
+
   return (
     <div
-      className="req-card"
-      style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #E8EEF6", padding: "1.25rem", display: "flex", flexDirection: "column", gap: 14, transition: "box-shadow .2s" }}
-      onMouseEnter={(e) => (e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,.07)")}
-      onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "none")}
+      className="req-row"
+      style={{
+        background: "#fff",
+        borderRadius: 14,
+        border: expanded ? "1.5px solid #B5D4F4" : "1.5px solid #E8EEF6",
+        boxShadow: expanded ? "0 4px 20px rgba(24,95,165,.08)" : "none",
+        transition: "border-color .15s, box-shadow .15s",
+        overflow: "hidden",
+      }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ width: 48, height: 48, borderRadius: 14, background: "#EBF4FE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 700, color: "#185FA5", flexShrink: 0, border: "2px solid #B5D4F4" }}>
+      {/* ---- Summary bar (always visible, essential data only) ---- */}
+      <button
+        onClick={toggle}
+        aria-expanded={expanded}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          padding: "0.85rem 1rem",
+          background: "transparent",
+          border: "none",
+          cursor: "pointer",
+          fontFamily: "inherit",
+          textAlign: dir === "rtl" ? "right" : "left",
+        }}
+      >
+        <div
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 11,
+            background: "#EBF4FE",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 14,
+            fontWeight: 700,
+            color: "#185FA5",
+            flexShrink: 0,
+            border: "1.5px solid #B5D4F4",
+          }}
+        >
           {initials}
         </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>{name}</div>
-          {enrollment.studentLevel && (
-            <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>📚 {enrollment.studentLevel}</div>
+
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 13.5, fontWeight: 700, color: "#0F172A", whiteSpace: "nowrap" }}>{name}</span>
+            <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2.5px 9px", borderRadius: 20, background: st.bg, color: st.color, flexShrink: 0 }}>
+              {st.label}
+            </span>
+          </div>
+          <div className="req-row-meta" style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 11.5, color: "#64748B", flexWrap: "wrap" }}>
+            {moduleLabel && (
+              <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <BookOpen size={11} color="#94A3B8" /> {moduleLabel}
+              </span>
+            )}
+            {contactNumber && (
+              <span style={{ display: "flex", alignItems: "center", gap: 4, direction: "ltr" }}>
+                <Phone size={11} color="#94A3B8" /> {contactNumber}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {enrollment.status === "PENDING" && !expanded && (
+          <div className="req-row-quick-actions" style={{ display: "flex", gap: 6, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => onApprove(enrollment.id)}
+              disabled={approving}
+              title={t("requests.approve")}
+              style={{ width: 30, height: 30, borderRadius: 9, background: "#059669", border: "none", color: "#fff", cursor: approving ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: approving ? .7 : 1, flexShrink: 0 }}
+            >
+              {approving ? <Spinner size={12} color="#fff" /> : <Check size={14} />}
+            </button>
+            <button
+              onClick={() => onReject(enrollment)}
+              title={t("requests.reject")}
+              style={{ width: 30, height: 30, borderRadius: 9, background: "#FEF2F2", border: "1px solid #FECACA", color: "#DC2626", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
+        <ChevronDown
+          size={16}
+          color="#94A3B8"
+          style={{ flexShrink: 0, transform: expanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform .18s" }}
+        />
+      </button>
+
+      {/* ---- Expanded detail panel ---- */}
+      {expanded && (
+        <div style={{ padding: "0 1rem 1.1rem", display: "flex", flexDirection: "column", gap: 14, borderTop: "1.5px solid #F1F5F9", marginTop: 2, paddingTop: 14 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", letterSpacing: ".02em" }}>{t("requests.sectionStudentInfo")}</div>
+            <InfoRow icon={Mail} label={t("requests.fields.email")} value={enrollment.studentEmail} dir="ltr" />
+            <InfoRow icon={Layers} label={t("requests.fields.level")} value={enrollment.studentLevel} />
+          </div>
+
+          {(enrollment.parentName || enrollment.parentPhone) && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", letterSpacing: ".02em" }}>{t("requests.sectionParentInfo")}</div>
+              <InfoRow icon={User} label={t("requests.fields.parentName")} value={enrollment.parentName} />
+              <InfoRow icon={Phone} label={t("requests.fields.parentPhone")} value={enrollment.parentPhone} dir="ltr" />
+            </div>
           )}
-        </div>
-        <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 10px", borderRadius: 20, background: st.bg, color: st.color, flexShrink: 0 }}>
-          {st.label}
-        </span>
-      </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", letterSpacing: ".02em" }}>{t("requests.sectionStudentInfo")}</div>
-        <InfoRow icon={Mail} label={t("requests.fields.email")} value={enrollment.studentEmail} dir="ltr" />
-        <InfoRow icon={Layers} label={t("requests.fields.level")} value={enrollment.studentLevel} />
-      </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", letterSpacing: ".02em" }}>{t("requests.sectionRequestDetails")}</div>
+            <InfoRow icon={BookOpen} label={t("requests.fields.module")} value={moduleLabel} />
+            <InfoRow icon={GraduationCap} label={t("requests.fields.subject")} value={enrollment.subjectName} />
+            <InfoRow icon={Layers} label={t("requests.fields.moduleLevel")} value={enrollment.level} />
+            <InfoRow icon={DollarSign} label={t("requests.fields.monthlyPrice")} value={enrollment.monthlyPrice != null ? `${enrollment.monthlyPrice} ${t("requests.currency")}` : null} />
+          </div>
 
-      {(enrollment.parentName || enrollment.parentPhone) && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", letterSpacing: ".02em" }}>{t("requests.sectionParentInfo")}</div>
-          <InfoRow icon={User} label={t("requests.fields.parentName")} value={enrollment.parentName} />
-          <InfoRow icon={Phone} label={t("requests.fields.parentPhone")} value={enrollment.parentPhone} dir="ltr" />
-        </div>
-      )}
+          {enrollment.reviewComment && (
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 8, background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 9, padding: "8px 12px" }}>
+              <MessageSquare size={13} color="#DC2626" style={{ flexShrink: 0, marginTop: 2 }} />
+              <span style={{ fontSize: 12, color: "#991B1B", lineHeight: 1.6 }}>{enrollment.reviewComment}</span>
+            </div>
+          )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", letterSpacing: ".02em" }}>{t("requests.sectionRequestDetails")}</div>
-        <InfoRow icon={BookOpen} label={t("requests.fields.module")} value={enrollment.moduleName ?? (enrollment.moduleId ? `#${enrollment.moduleId}` : null)} />
-        <InfoRow icon={GraduationCap} label={t("requests.fields.subject")} value={enrollment.subjectName} />
-        <InfoRow icon={Layers} label={t("requests.fields.moduleLevel")} value={enrollment.level} />
-        <InfoRow icon={DollarSign} label={t("requests.fields.monthlyPrice")} value={enrollment.monthlyPrice != null ? `${enrollment.monthlyPrice} ${t("requests.currency")}` : null} />
-      </div>
+          {(requestedDate || reviewedDate) && (
+            <div style={{ display: "flex", justifyContent: "center", gap: 14, fontSize: 10, color: "#94A3B8", flexWrap: "wrap" }}>
+              {requestedDate && <span>{t("requests.requestedDate")} {requestedDate}</span>}
+              {reviewedDate && <span>{t("requests.reviewedDate")} {reviewedDate}</span>}
+            </div>
+          )}
 
-      {enrollment.reviewComment && (
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 8, background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 9, padding: "8px 12px" }}>
-          <MessageSquare size={13} color="#DC2626" style={{ flexShrink: 0, marginTop: 2 }} />
-          <span style={{ fontSize: 12, color: "#991B1B", lineHeight: 1.6 }}>{enrollment.reviewComment}</span>
-        </div>
-      )}
-
-      {(requestedDate || reviewedDate) && (
-        <div style={{ display: "flex", justifyContent: "center", gap: 14, fontSize: 10, color: "#94A3B8", flexWrap: "wrap" }}>
-          {requestedDate && <span>{t("requests.requestedDate")} {requestedDate}</span>}
-          {reviewedDate && <span>{t("requests.reviewedDate")} {reviewedDate}</span>}
-        </div>
-      )}
-
-      {enrollment.status === "PENDING" && (
-        <div style={{ display: "flex", gap: 10 }}>
-          <button
-            onClick={() => onApprove(enrollment.id)}
-            disabled={approving}
-            style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px", borderRadius: 12, background: "#059669", border: "none", color: "#fff", fontSize: 13, fontWeight: 600, cursor: approving ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: approving ? .7 : 1 }}
-          >
-            {approving ? <Spinner size={13} /> : <Check size={14} />}
-            {t("requests.approve")}
-          </button>
-          <button
-            onClick={() => onReject(enrollment)}
-            disabled={rejecting}
-            style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px", borderRadius: 12, background: "#FEF2F2", border: "1px solid #FECACA", color: "#DC2626", fontSize: 13, fontWeight: 600, cursor: rejecting ? "not-allowed" : "pointer", fontFamily: "inherit" }}
-          >
-            <X size={14} />
-            {t("requests.reject")}
-          </button>
+          {enrollment.status === "PENDING" && (
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                onClick={() => onApprove(enrollment.id)}
+                disabled={approving}
+                style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px", borderRadius: 12, background: "#059669", border: "none", color: "#fff", fontSize: 13, fontWeight: 600, cursor: approving ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: approving ? .7 : 1 }}
+              >
+                {approving ? <Spinner size={13} color="#fff" /> : <Check size={14} />}
+                {t("requests.approve")}
+              </button>
+              <button
+                onClick={() => onReject(enrollment)}
+                disabled={rejecting}
+                style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px", borderRadius: 12, background: "#FEF2F2", border: "1px solid #FECACA", color: "#DC2626", fontSize: 13, fontWeight: 600, cursor: rejecting ? "not-allowed" : "pointer", fontFamily: "inherit" }}
+              >
+                <X size={14} />
+                {t("requests.reject")}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -267,7 +354,7 @@ export default function Requests() {
         .req-search-icon { position:absolute; left:10px; pointer-events:none; }
         [dir="rtl"] .req-search-icon { left:auto; right:10px; }
 
-        .req-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:14px; }
+        .req-list { display:flex; flex-direction:column; gap:10px; }
 
         @media (max-width: 640px) {
           .req-page { padding:0.75rem !important; }
@@ -278,8 +365,8 @@ export default function Requests() {
           .req-filter-btns { display:flex; gap:8px; width:100%; }
           .req-filter-btns button { flex:1; }
           .req-refresh-btn { flex-shrink:0; }
-          .req-grid { grid-template-columns:1fr !important; gap:10px !important; }
-          .req-card { padding:1rem !important; }
+          .req-row-quick-actions { display:none !important; }
+          .req-row-meta { gap:8px !important; }
         }
       `}</style>
 
@@ -346,9 +433,9 @@ export default function Requests() {
           </p>
         </div>
       ) : (
-        <div className="req-grid">
+        <div className="req-list">
           {displayed.map((enr) => (
-            <RequestCard
+            <RequestRow
               key={enr.id}
               enrollment={enr}
               onApprove={handleApprove}
@@ -357,6 +444,7 @@ export default function Requests() {
               rejecting={false}
               t={t}
               lang={lang}
+              dir={dir}
             />
           ))}
         </div>

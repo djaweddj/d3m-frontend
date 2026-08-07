@@ -247,11 +247,31 @@ export default function BrowseSchools() {
           box-shadow: 0 0 0 4px rgba(27,122,97,0.18), 0 20px 40px -12px rgba(10,67,53,0.35);
         }
         .school-card {
-          transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+          transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1), 
+                      box-shadow 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+                      border-color 0.4s ease;
+          border: 1px solid ${COLORS.border};
         }
         .school-card:hover {
-          transform: translateY(-8px) scale(1.02);
-          box-shadow: 0 30px 60px -20px rgba(10, 67, 53, 0.25);
+          transform: translateY(-12px) scale(1.03);
+          box-shadow: 0 32px 64px -16px rgba(15, 90, 70, 0.2), 
+                      0 0 0 1px rgba(27, 122, 97, 0.12),
+                      0 0 40px -10px rgba(27, 122, 97, 0.15);
+          border-color: rgba(27, 122, 97, 0.25);
+        }
+        .school-card:hover .school-logo-wrap {
+          transform: scale(1.15) rotate(8deg);
+          box-shadow: 0 12px 28px -6px rgba(15, 90, 70, 0.25);
+        }
+        .school-logo-wrap {
+          transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), 
+                      box-shadow 0.4s ease;
+        }
+        .school-logo-wrap img {
+          transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .school-card:hover .school-logo-wrap img {
+          transform: scale(1.1) rotate(-5deg);
         }
         .cta-btn {
           transition: background-color 0.25s ease, transform 0.2s ease, box-shadow 0.25s ease;
@@ -278,25 +298,7 @@ export default function BrowseSchools() {
           <div className="absolute bottom-0 right-0 h-96 w-96 rounded-full blur-3xl" style={{ background: COLORS.primaryLight }} />
         </div>
 
-        {/* Logo top-left */}
-        <div className="relative mx-auto max-w-7xl px-6 pt-8 sm:px-8">
-          <div className="flex items-center gap-3">
-            <div
-              className="logo-mark flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-sm sm:h-16 sm:w-16"
-              style={{ border: "1px solid rgba(255,255,255,0.2)" }}
-            >
-              {/* Replace src with your actual logo path/import */}
-              <img src={logo} alt={"Numeria Academy"} className="h-15 w-15 object-contain sm:h-9 sm:w-9" />
-            </div>
-            <span className="text-base font-bold text-white sm:text-lg" style={{ letterSpacing: "-0.01em" }}>
-           Numeria Academy
-            </span>
-          </div>
-        </div>
-
         <div className="relative mx-auto max-w-4xl px-6 py-16 text-center sm:px-8 sm:py-24">
-        
-
           <motion.h1
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
@@ -345,7 +347,6 @@ export default function BrowseSchools() {
         {/* Top */}
         <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
           <div>
-          
             <h2 className="text-2xl font-extrabold sm:text-3xl" style={{ color: COLORS.textDark, letterSpacing: "-0.01em" }}>
               {t("browseSchools.availableTitle")}
             </h2>
@@ -474,14 +475,13 @@ export default function BrowseSchools() {
                   initial={{ opacity: 0, y: 24 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: Math.min(index * 0.05, 0.4), duration: 0.4 }}
-                  className="school-card overflow-hidden rounded-[28px] border bg-white shadow-sm"
-                  style={{ borderColor: COLORS.border }}
+                  className="school-card overflow-hidden rounded-[28px] bg-white shadow-sm"
                 >
                   <div className="p-6">
                     {/* Header: circular logo + status */}
                     <div className="mb-4 flex items-start justify-between">
                       <div
-                        className="flex h-16 w-16 items-center justify-center rounded-full shadow-sm"
+                        className="school-logo-wrap flex h-16 w-16 items-center justify-center rounded-full shadow-sm"
                         style={{ background: "#EEF4F1" }}
                       >
                         {school.logoUrl ? (

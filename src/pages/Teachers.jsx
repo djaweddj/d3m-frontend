@@ -324,7 +324,7 @@ function PayoutInfoCard({
                 <button onClick={onMarkPaid} disabled={markingPaid}
                   style={{ flex: "1 1 auto", display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "6px 10px", borderRadius: 8, border: "1px solid #A7F3D0", background: markingPaid ? "#F0FDF4" : "#ECFDF5", color: "#059669", fontSize: 11, fontWeight: 700, cursor: markingPaid ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
                   {markingPaid ? <Spinner size={11} color="#059669" /> : <CheckCircle2 size={12} />}
-                  {markingPaid ? t("teachers.payoutCard.markingPaid") : t("teachers.payoutCard.markPaid")}
+                  {markingPaid ? t("teachers.payoutCard.markingPaid") : t("teachers.payoutCard.markAsPaid")}
                 </button>
               )}
               {/* Once a payout already exists for this teacher (paid or not),
@@ -781,7 +781,7 @@ function PayoutRow({ payout, teacher, primaryColor, onMarkPaid, markingId }) {
       <button onClick={() => onMarkPaid(payout)} disabled={isMarking}
         style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: 7, border: "1px solid #A7F3D0", background: isMarking ? "#F0FDF4" : "#ECFDF5", color: "#059669", fontSize: 10.5, fontWeight: 700, cursor: isMarking ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
         {isMarking ? <Spinner size={10} color="#059669" /> : <CheckCircle2 size={11} />}
-        {t("teachers.payoutCard.markPaid")}
+        {t("teachers.payoutCard.markAsPaid")}
       </button>
     )
   );

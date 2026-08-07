@@ -2,23 +2,17 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Trash2, ChevronDown, Check, ArrowRight, AlertCircle, Calendar, CreditCard } from "lucide-react";
 import api from "../api";
-// NOTE: adjust this path to wherever your LanguageProvider file actually lives
-// (the same one Students.jsx / Schedule.jsx / Sidebar.jsx already import).
 import { useLanguage } from "../context/LanguageContext";
 
 const getSubjects   = ()  => api.get("/api/subjects").then(r => r.data);
 const getTeachers   = ()  => api.get("/api/teachers").then(r => r.data?.content ?? r.data ?? []);
 const getClassrooms = ()  => api.get("/api/classrooms").then(r => r.data);
 const postModule    = (d) => api.post("/api/modules", d).then(r => r.data);
+const getArchivedModules = () => api.get("/api/modules/archived").then(r => r.data);
+const restoreModule      = (id) => api.patch(`/api/modules/${id}/restore`).then(r => r.data);
 
-// Day order is language-agnostic (backend enum values). Labels come from
-// the existing dashboard.days.* keys so we don't duplicate translations.
 const DAY_VALUES = ["SATURDAY", "SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"];
 
-// Level keys are language-agnostic. IMPORTANT: the value actually stored/submitted
-// stays the ORIGINAL ARABIC string (LEVEL_CANONICAL_AR), same as before this change,
-// so existing data/backend/other pages that compare or display `level` keep working
-// no matter which UI language is active. Only the on-screen *label* is translated.
 const LEVEL_KEYS = [
   "preparatory", "primary1", "primary2", "primary3", "primary4", "primary5",
   "middle1", "middle2", "middle3", "middle4",
@@ -44,7 +38,6 @@ const OTHER_LEVEL_VALUE = LEVEL_CANONICAL_AR.other;
 
 const P = "#185FA5";
 
-// --- simple mobile breakpoint hook (no extra deps) ---
 function useIsMobile(breakpoint = 640) {
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" ? window.innerWidth <= breakpoint : false
@@ -65,8 +58,67 @@ function Label({ children, required }) {
   );
 }
 
-// NOTE: fontSize bumped to 16 to prevent iOS Safari auto-zoom-on-focus
-// (any input/select under 16px triggers zoom on iPhone).
+function TabBar({ active, onChange, tabs }) {
+  return (
+    <div style={{ display: "flex", gap: 6, background: "#EEF2F7", borderRadius: 12, padding: 4, width: "fit-content" }}>
+      {tabs.map(tab => {
+        const isActive = tab.value === active;
+        return (
+          <button key={tab.value} type="button" onClick={() => onChange(tab.value)}
+            style={{
+              padding: "8px 16px", borderRadius: 9, border: "none",
+              background: isActive ? "#fff" : "transparent",
+              color: isActive ? P : "#64748B",
+              fontSize: 13, fontWeight: 700, cursor: "pointer",
+              fontFamily: "'Cairo',sans-serif",
+              boxShadow: isActive ? "0 1px 3px rgba(0,0,0,.08)" : "none",
+              transition: "all .15s",
+            }}>
+            {tab.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ArchivedModuleCard({ module, onRestore, restoring, isMobile }) {
+  const { t } = useLanguage();
+  return (
+    <div style={{
+      background: "#fff", borderRadius: 14, border: "1.5px solid #E2E8F0",
+      padding: isMobile ? "1rem" : "1.1rem 1.25rem",
+      display: "flex", flexDirection: isMobile ? "column" : "row",
+      alignItems: isMobile ? "stretch" : "center", justifyContent: "space-between",
+      gap: 12,
+    }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>{module.name}</div>
+        <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 4 }}>
+          {module.subjectName} · {module.teacherName} · {module.level}
+        </div>
+        <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 2 }}>
+          {module.periodStart} → {module.periodEnd}
+        </div>
+      </div>
+      <button type="button" disabled={restoring} onClick={() => onRestore(module.id)}
+        style={{
+          padding: "9px 16px", borderRadius: 10, border: "none",
+          background: restoring ? "#94A3B8" : P, color: "#fff",
+          fontSize: 13, fontWeight: 700, cursor: restoring ? "default" : "pointer",
+          fontFamily: "'Cairo',sans-serif", flexShrink: 0,
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+        }}>
+        {restoring ? (
+          <div style={{ width: 14, height: 14, borderRadius: "50%", border: "2px solid rgba(255,255,255,.4)", borderTopColor: "#fff", animation: "spin .8s linear infinite" }} />
+        ) : (
+          t("createModule.archived.restore") || "Restore"
+        )}
+      </button>
+    </div>
+  );
+}
+
 function TextInput({ value, onChange, placeholder, type = "text", min, disabled }) {
   return (
     <input
@@ -162,20 +214,12 @@ function SectionCard({ title, subtitle, children, icon: Icon, isMobile }) {
 
 function Row({ children, cols = 2, isMobile }) {
   return (
-    <div style={{
-      display: "grid",
-      gridTemplateColumns: isMobile ? "1fr" : `repeat(${cols}, 1fr)`,
-      gap: 14,
-    }}>
+    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : `repeat(${cols}, 1fr)`, gap: 14 }}>
       {children}
     </div>
   );
 }
 
-// FIX: Field now accepts and merges a `style` prop. Previously it silently
-// dropped any style passed to it, which meant the "span full width on
-// mobile" trick used by ScheduleRow's Day field never actually applied,
-// breaking the mobile grid layout for schedule rows.
 function Field({ children, style }) {
   return <div style={{ display: "flex", flexDirection: "column", ...style }}>{children}</div>;
 }
@@ -276,7 +320,7 @@ export default function CreateModule() {
   const [classroomId,    setClassroomId]    = useState("");
   const [level,          setLevel]          = useState("");
   const [maxStudents,    setMaxStudents]    = useState("");
-  const [cycleNumber,    setCycleNumber]    = useState(""); // NEW: matches CourseModuleRequestDto.cycleNumber
+  const [cycleNumber,    setCycleNumber]    = useState("");
   const [pricingModel,   setPricingModel]   = useState("MONTHLY_FLAT");
   const [monthlyPrice,   setMonthlyPrice]   = useState(null);
   const [pricePerSession,setPricePerSession]= useState("");
@@ -288,14 +332,42 @@ export default function CreateModule() {
   const [success,        setSuccess]        = useState(false);
 
   const [customLevel, setCustomLevel] = useState("");
+  const [activeTab, setActiveTab] = useState("create");
+  const [archivedModules, setArchivedModules] = useState([]);
+  const [archivedLoading, setArchivedLoading] = useState(false);
+  const [archivedError, setArchivedError] = useState(null);
+  const [restoringId, setRestoringId] = useState(null);
+  const [restoreError, setRestoreError] = useState(null);
 
-  // Labels are translated; the stored/submitted value stays the canonical Arabic
-  // string so it matches what's already in your database and other pages.
   const DAYS = DAY_VALUES.map(v => ({ value: v, label: t(`dashboard.days.${v}`) }));
   const levels = LEVEL_KEYS.map(k => ({
     value: LEVEL_CANONICAL_AR[k],
     label: t(`createModule.levels.${k}`),
   }));
+
+  useEffect(() => {
+    if (activeTab !== "archived") return;
+    setArchivedLoading(true);
+    setArchivedError(null);
+    getArchivedModules()
+      .then(setArchivedModules)
+      .catch(() => setArchivedError(t("createModule.archived.loadError") || "Failed to load archived modules"))
+      .finally(() => setArchivedLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  const handleRestore = async (id) => {
+    setRestoreError(null);
+    setRestoringId(id);
+    try {
+      await restoreModule(id);
+      setArchivedModules(prev => prev.filter(m => m.id !== id));
+    } catch (err) {
+      setRestoreError(err?.response?.data?.message || t("createModule.archived.restoreFailed") || "Could not restore this module");
+    } finally {
+      setRestoringId(null);
+    }
+  };
 
   useEffect(() => {
     Promise.all([getSubjects(), getTeachers(), getClassrooms()])
@@ -361,7 +433,7 @@ export default function CreateModule() {
         classroomId:    Number(classroomId),
         level: level === OTHER_LEVEL_VALUE ? customLevel : level,
         maxStudents:    Number(maxStudents),
-        cycleNumber:    cycleNumber !== "" ? Number(cycleNumber) : null, // NEW
+        cycleNumber:    cycleNumber !== "" ? Number(cycleNumber) : null,
         pricingModel,
         monthlyPrice:    pricingModel === "MONTHLY_FLAT" ? Number(monthlyPrice)    : null,
         pricePerSession: pricingModel === "PER_SESSION"  ? Number(pricePerSession) : null,
@@ -416,203 +488,253 @@ export default function CreateModule() {
         </div>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 780, width: "100%", boxSizing: "border-box" }}>
+      <div style={{ marginBottom: 16 }}>
+        <TabBar
+          active={activeTab}
+          onChange={setActiveTab}
+          tabs={[
+            { value: "create",   label: t("createModule.tabs.create")   || "Create" },
+            { value: "archived", label: t("createModule.tabs.archived") || "Archived" },
+          ]}
+        />
+      </div>
 
-        {/* Basic Info */}
-        <SectionCard isMobile={isMobile} title={t("createModule.basicInfo.title")} subtitle={t("createModule.basicInfo.subtitle")}>
-          <Row cols={2} isMobile={isMobile}>
-            <Field>
-              <Label required>{t("createModule.basicInfo.moduleName")}</Label>
-              <TextInput value={name} onChange={setName} placeholder={t("createModule.basicInfo.moduleNamePlaceholder")} />
-            </Field>
-            <Field>
-              <Label required>{t("createModule.basicInfo.level")}</Label>
+      {activeTab === "create" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 780, width: "100%", boxSizing: "border-box" }}>
 
-              <select
-                value={level}
-                onChange={(e) => {
-                  setLevel(e.target.value);
-
-                  // Clear custom value if another option is selected
-                  if (e.target.value !== OTHER_LEVEL_VALUE) {
-                    setCustomLevel("");
-                  }
-                }}
-                style={{
-                  width: "100%", padding: "10px 12px", borderRadius: 10,
-                  border: "1.5px solid #E2E8F0", fontSize: 16, color: "#0F172A",
-                  fontFamily: "'Cairo',sans-serif", background: "#FAFCFF",
-                  outline: "none", boxSizing: "border-box",
-                }}
-              >
-                <option value="">{t("createModule.basicInfo.levelPlaceholder")}</option>
-
-                {levels.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-
-              {level === OTHER_LEVEL_VALUE && (
-                <div style={{ marginTop: 12 }}>
-                  <TextInput
-                    value={customLevel}
-                    onChange={setCustomLevel}
-                    placeholder={t("createModule.basicInfo.customLevelPlaceholder")}
-                  />
-                </div>
-              )}
-            </Field>
-          </Row>
-          <Row cols={2} isMobile={isMobile}>
-            <Field>
-              <Label required>{t("createModule.basicInfo.maxStudents")}</Label>
-              <TextInput type="number" value={maxStudents} onChange={setMaxStudents} placeholder={t("createModule.basicInfo.maxStudentsPlaceholder")} min="1" />
-            </Field>
-            {/* NEW FIELD: cycleNumber (maps to CourseModuleRequestDto.cycleNumber) */}
-            <Field>
-              <Label>{t("createModule.basicInfo.cycleNumber") || "Cycle Number"}</Label>
-              <TextInput
-                type="number"
-                value={cycleNumber}
-                onChange={setCycleNumber}
-                placeholder={t("createModule.basicInfo.cycleNumberPlaceholder") || "e.g. 1"}
-                min="1"
-              />
-            </Field>
-          </Row>
-        </SectionCard>
-
-        {/* Pricing Model */}
-        <SectionCard isMobile={isMobile} title={t("createModule.pricing.title")} subtitle={t("createModule.pricing.subtitle")} icon={CreditCard}>
-          <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 12 }}>
-            <PricingModelCard
-              value="MONTHLY_FLAT" current={pricingModel}
-              onClick={() => setPricingModel("MONTHLY_FLAT")}
-              icon={Calendar}
-              title={t("createModule.pricing.monthlyFlat.title")}
-              desc={t("createModule.pricing.monthlyFlat.desc")}
-              example={t("createModule.pricing.monthlyFlat.example")}
-              isMobile={isMobile}
-            />
-            <PricingModelCard
-              value="PER_SESSION" current={pricingModel}
-              onClick={() => setPricingModel("PER_SESSION")}
-              icon={CreditCard}
-              title={t("createModule.pricing.perSession.title")}
-              desc={t("createModule.pricing.perSession.desc")}
-              example={t("createModule.pricing.perSession.example")}
-              isMobile={isMobile}
-            />
-          </div>
-
-          {pricingModel === "MONTHLY_FLAT" ? (
-            <Field>
-              <Label required>{t("createModule.pricing.monthlyPriceLabel")}</Label>
-              <TextInput type="number" value={monthlyPrice} onChange={setMonthlyPrice} placeholder={t("createModule.pricing.monthlyPricePlaceholder")} min="0" />
-            </Field>
-          ) : (
-            <>
+          {/* Basic Info */}
+          <SectionCard isMobile={isMobile} title={t("createModule.basicInfo.title")} subtitle={t("createModule.basicInfo.subtitle")}>
+            <Row cols={2} isMobile={isMobile}>
               <Field>
-                <Label required>{t("createModule.pricing.perSessionPriceLabel")}</Label>
-                <TextInput type="number" value={pricePerSession} onChange={setPricePerSession} placeholder={t("createModule.pricing.perSessionPricePlaceholder")} min="0" />
+                <Label required>{t("createModule.basicInfo.moduleName")}</Label>
+                <TextInput value={name} onChange={setName} placeholder={t("createModule.basicInfo.moduleNamePlaceholder")} />
               </Field>
-              {estimatedMonthly && (
-                <div style={{ fontSize: 12, color: "#854F0B", background: "#FAEEDA", border: "1px solid #F0C87A", borderRadius: 9, padding: "10px 14px" }}>
-                  {t("createModule.pricing.estimateIntro", { count: weeklySessionCount })}{" "}
-                  <strong>{estimatedMonthly.toLocaleString()} {t("students.print.currency")}</strong> {t("createModule.pricing.estimateSuffix")}
-                  <span style={{ fontSize: 10, opacity: .7 }}> {t("createModule.pricing.estimateNote")}</span>
-                </div>
-              )}
-            </>
-          )}
-        </SectionCard>
+              <Field>
+                <Label required>{t("createModule.basicInfo.level")}</Label>
 
-        {/* Assignment */}
-        <SectionCard isMobile={isMobile} title={t("createModule.assignment.title")} subtitle={t("createModule.assignment.subtitle")}>
-          <Field>
-            <Label required>{t("createModule.assignment.subject")}</Label>
-            <Select value={subjectId} onChange={v => { setSubjectId(v); setTeacherId(""); }}
-              options={subjectOptions} placeholder={t("createModule.assignment.subjectPlaceholder")} />
-          </Field>
-          <Field>
-            <Label required>{t("createModule.assignment.teacher")}</Label>
-            <Select value={teacherId} onChange={setTeacherId} options={teacherOptions} placeholder={t("createModule.assignment.teacherPlaceholder")} />
-          </Field>
-          <Field>
-            <Label required>{t("createModule.assignment.classroom")}</Label>
-            <Select value={classroomId} onChange={setClassroomId} options={classroomOptions} placeholder={t("createModule.assignment.classroomPlaceholder")} />
-          </Field>
-        </SectionCard>
+                <select
+                  value={level}
+                  onChange={(e) => {
+                    setLevel(e.target.value);
+                    if (e.target.value !== OTHER_LEVEL_VALUE) {
+                      setCustomLevel("");
+                    }
+                  }}
+                  style={{
+                    width: "100%", padding: "10px 12px", borderRadius: 10,
+                    border: "1.5px solid #E2E8F0", fontSize: 16, color: "#0F172A",
+                    fontFamily: "'Cairo',sans-serif", background: "#FAFCFF",
+                    outline: "none", boxSizing: "border-box",
+                  }}
+                >
+                  <option value="">{t("createModule.basicInfo.levelPlaceholder")}</option>
 
-        {/* Period */}
-        <SectionCard isMobile={isMobile} title={t("createModule.period.title")} subtitle={t("createModule.period.subtitle")}>
-          <Row cols={2} isMobile={isMobile}>
+                  {levels.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+
+                {level === OTHER_LEVEL_VALUE && (
+                  <div style={{ marginTop: 12 }}>
+                    <TextInput
+                      value={customLevel}
+                      onChange={setCustomLevel}
+                      placeholder={t("createModule.basicInfo.customLevelPlaceholder")}
+                    />
+                  </div>
+                )}
+              </Field>
+            </Row>
+            <Row cols={2} isMobile={isMobile}>
+              <Field>
+                <Label required>{t("createModule.basicInfo.maxStudents")}</Label>
+                <TextInput type="number" value={maxStudents} onChange={setMaxStudents} placeholder={t("createModule.basicInfo.maxStudentsPlaceholder")} min="1" />
+              </Field>
+              <Field>
+                <Label>{t("createModule.basicInfo.cycleNumber") || "Cycle Number"}</Label>
+                <TextInput
+                  type="number"
+                  value={cycleNumber}
+                  onChange={setCycleNumber}
+                  placeholder={t("createModule.basicInfo.cycleNumberPlaceholder") || "e.g. 1"}
+                  min="1"
+                />
+              </Field>
+            </Row>
+          </SectionCard>
+
+          {/* Pricing Model */}
+          <SectionCard isMobile={isMobile} title={t("createModule.pricing.title")} subtitle={t("createModule.pricing.subtitle")} icon={CreditCard}>
+            <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 12 }}>
+              <PricingModelCard
+                value="MONTHLY_FLAT" current={pricingModel}
+                onClick={() => setPricingModel("MONTHLY_FLAT")}
+                icon={Calendar}
+                title={t("createModule.pricing.monthlyFlat.title")}
+                desc={t("createModule.pricing.monthlyFlat.desc")}
+                example={t("createModule.pricing.monthlyFlat.example")}
+                isMobile={isMobile}
+              />
+              <PricingModelCard
+                value="PER_SESSION" current={pricingModel}
+                onClick={() => setPricingModel("PER_SESSION")}
+                icon={CreditCard}
+                title={t("createModule.pricing.perSession.title")}
+                desc={t("createModule.pricing.perSession.desc")}
+                example={t("createModule.pricing.perSession.example")}
+                isMobile={isMobile}
+              />
+            </div>
+
+            {pricingModel === "MONTHLY_FLAT" ? (
+              <Field>
+                <Label required>{t("createModule.pricing.monthlyPriceLabel")}</Label>
+                <TextInput type="number" value={monthlyPrice} onChange={setMonthlyPrice} placeholder={t("createModule.pricing.monthlyPricePlaceholder")} min="0" />
+              </Field>
+            ) : (
+              <>
+                <Field>
+                  <Label required>{t("createModule.pricing.perSessionPriceLabel")}</Label>
+                  <TextInput type="number" value={pricePerSession} onChange={setPricePerSession} placeholder={t("createModule.pricing.perSessionPricePlaceholder")} min="0" />
+                </Field>
+                {estimatedMonthly && (
+                  <div style={{ fontSize: 12, color: "#854F0B", background: "#FAEEDA", border: "1px solid #F0C87A", borderRadius: 9, padding: "10px 14px" }}>
+                    {t("createModule.pricing.estimateIntro", { count: weeklySessionCount })}{" "}
+                    <strong>{estimatedMonthly.toLocaleString()} {t("students.print.currency")}</strong> {t("createModule.pricing.estimateSuffix")}
+                    <span style={{ fontSize: 10, opacity: .7 }}> {t("createModule.pricing.estimateNote")}</span>
+                  </div>
+                )}
+              </>
+            )}
+          </SectionCard>
+
+          {/* Assignment */}
+          <SectionCard isMobile={isMobile} title={t("createModule.assignment.title")} subtitle={t("createModule.assignment.subtitle")}>
             <Field>
-              <Label required>{t("createModule.period.startDate")}</Label>
-              <TextInput type="date" value={periodStart} onChange={setPeriodStart} />
+              <Label required>{t("createModule.assignment.subject")}</Label>
+              <Select value={subjectId} onChange={v => { setSubjectId(v); setTeacherId(""); }}
+                options={subjectOptions} placeholder={t("createModule.assignment.subjectPlaceholder")} />
             </Field>
             <Field>
-              <Label required>{t("createModule.period.endDate")}</Label>
-              <TextInput type="date" value={periodEnd} onChange={setPeriodEnd} min={periodStart} />
+              <Label required>{t("createModule.assignment.teacher")}</Label>
+              <Select value={teacherId} onChange={setTeacherId} options={teacherOptions} placeholder={t("createModule.assignment.teacherPlaceholder")} />
             </Field>
-          </Row>
-          {periodStart && periodEnd && periodStart < periodEnd && (
-            <div style={{ fontSize: 12, color: "#0F6E56", background: "#ECFDF5", border: "1px solid #A7F3D0", borderRadius: 9, padding: "8px 13px" }}>
-              {t("createModule.period.durationText", {
-                weeks: Math.ceil((new Date(periodEnd) - new Date(periodStart)) / (1000 * 60 * 60 * 24 * 7)),
-              })}
+            <Field>
+              <Label required>{t("createModule.assignment.classroom")}</Label>
+              <Select value={classroomId} onChange={setClassroomId} options={classroomOptions} placeholder={t("createModule.assignment.classroomPlaceholder")} />
+            </Field>
+          </SectionCard>
+
+          {/* Period */}
+          <SectionCard isMobile={isMobile} title={t("createModule.period.title")} subtitle={t("createModule.period.subtitle")}>
+            <Row cols={2} isMobile={isMobile}>
+              <Field>
+                <Label required>{t("createModule.period.startDate")}</Label>
+                <TextInput type="date" value={periodStart} onChange={setPeriodStart} />
+              </Field>
+              <Field>
+                <Label required>{t("createModule.period.endDate")}</Label>
+                <TextInput type="date" value={periodEnd} onChange={setPeriodEnd} min={periodStart} />
+              </Field>
+            </Row>
+            {periodStart && periodEnd && periodStart < periodEnd && (
+              <div style={{ fontSize: 12, color: "#0F6E56", background: "#ECFDF5", border: "1px solid #A7F3D0", borderRadius: 9, padding: "8px 13px" }}>
+                {t("createModule.period.durationText", {
+                  weeks: Math.ceil((new Date(periodEnd) - new Date(periodStart)) / (1000 * 60 * 60 * 24 * 7)),
+                })}
+              </div>
+            )}
+          </SectionCard>
+
+          {/* Schedule */}
+          <SectionCard isMobile={isMobile} title={t("createModule.schedule.title")} subtitle={t("createModule.schedule.subtitle")}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {schedules.map((entry, idx) => (
+                <ScheduleRow key={idx} entry={entry} days={DAYS} isMobile={isMobile}
+                  onChange={updated => setSchedules(prev => prev.map((s, i) => i === idx ? updated : s))}
+                  onRemove={() => setSchedules(prev => prev.filter((_, i) => i !== idx))}
+                  usedDays={usedDays} />
+              ))}
+            </div>
+            {schedules.length < 7 && (
+              <button type="button"
+                onClick={() => setSchedules(prev => [...prev, { day: "", startTime: "08:00", endTime: "09:30" }])}
+                style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, border: `1.5px dashed ${P}`, background: "#EBF4FE", color: P, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "'Cairo',sans-serif", width: isMobile ? "100%" : "fit-content", justifyContent: "center" }}>
+                <Plus size={14} /> {t("createModule.schedule.addDay")}
+              </button>
+            )}
+          </SectionCard>
+
+          {error && (
+            <div style={{ fontSize: 13, color: "#DC2626", background: "#FEF2F2", border: "1.5px solid #FECACA", borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 8 }}>
+              <AlertCircle size={16} color="#DC2626" style={{ flexShrink: 0 }} />
+              {error}
             </div>
           )}
-        </SectionCard>
 
-        {/* Schedule */}
-        <SectionCard isMobile={isMobile} title={t("createModule.schedule.title")} subtitle={t("createModule.schedule.subtitle")}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {schedules.map((entry, idx) => (
-              <ScheduleRow key={idx} entry={entry} days={DAYS} isMobile={isMobile}
-                onChange={updated => setSchedules(prev => prev.map((s, i) => i === idx ? updated : s))}
-                onRemove={() => setSchedules(prev => prev.filter((_, i) => i !== idx))}
-                usedDays={usedDays} />
-            ))}
-          </div>
-          {schedules.length < 7 && (
-            <button type="button"
-              onClick={() => setSchedules(prev => [...prev, { day: "", startTime: "08:00", endTime: "09:30" }])}
-              style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, border: `1.5px dashed ${P}`, background: "#EBF4FE", color: P, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "'Cairo',sans-serif", width: isMobile ? "100%" : "fit-content", justifyContent: "center" }}>
-              <Plus size={14} /> {t("createModule.schedule.addDay")}
+          <div style={{ display: "flex", flexDirection: isMobile ? "column-reverse" : "row", gap: 10, paddingBottom: "2rem" }}>
+            <button onClick={() => navigate(-1)}
+              style={{ flex: isMobile ? "none" : 1, width: isMobile ? "100%" : "auto", padding: "12px", borderRadius: 12, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'Cairo',sans-serif" }}>
+              {t("createModule.actions.cancel")}
             </button>
-          )}
-        </SectionCard>
-
-        {error && (
-          <div style={{ fontSize: 13, color: "#DC2626", background: "#FEF2F2", border: "1.5px solid #FECACA", borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 8 }}>
-            <AlertCircle size={16} color="#DC2626" style={{ flexShrink: 0 }} />
-            {error}
+            <button onClick={handleSubmit} disabled={saving || success}
+              style={{ flex: isMobile ? "none" : 3, width: isMobile ? "100%" : "auto", padding: "12px", borderRadius: 12, border: "none", background: success ? "#10B981" : saving ? "#94A3B8" : P, color: "#fff", fontSize: 14, fontWeight: 700, cursor: saving || success ? "default" : "pointer", fontFamily: "'Cairo',sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "background .3s" }}>
+              {success ? (
+                <><Check size={16} /> {t("createModule.actions.success")}</>
+              ) : saving ? (
+                <>
+                  <div style={{ width: 16, height: 16, borderRadius: "50%", border: "2px solid rgba(255,255,255,.4)", borderTopColor: "#fff", animation: "spin .8s linear infinite" }} />
+                  {t("createModule.actions.submitting")}
+                </>
+              ) : (
+                <><Plus size={16} /> {t("createModule.actions.submit")}</>
+              )}
+            </button>
           </div>
-        )}
-
-        <div style={{ display: "flex", flexDirection: isMobile ? "column-reverse" : "row", gap: 10, paddingBottom: "2rem" }}>
-          <button onClick={() => navigate(-1)}
-            style={{ flex: isMobile ? "none" : 1, width: isMobile ? "100%" : "auto", padding: "12px", borderRadius: 12, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'Cairo',sans-serif" }}>
-            {t("createModule.actions.cancel")}
-          </button>
-          <button onClick={handleSubmit} disabled={saving || success}
-            style={{ flex: isMobile ? "none" : 3, width: isMobile ? "100%" : "auto", padding: "12px", borderRadius: 12, border: "none", background: success ? "#10B981" : saving ? "#94A3B8" : P, color: "#fff", fontSize: 14, fontWeight: 700, cursor: saving || success ? "default" : "pointer", fontFamily: "'Cairo',sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "background .3s" }}>
-            {success ? (
-              <><Check size={16} /> {t("createModule.actions.success")}</>
-            ) : saving ? (
-              <>
-                <div style={{ width: 16, height: 16, borderRadius: "50%", border: "2px solid rgba(255,255,255,.4)", borderTopColor: "#fff", animation: "spin .8s linear infinite" }} />
-                {t("createModule.actions.submitting")}
-              </>
-            ) : (
-              <><Plus size={16} /> {t("createModule.actions.submit")}</>
-            )}
-          </button>
         </div>
-      </div>
+      )}
+
+      {activeTab === "archived" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 780, width: "100%", boxSizing: "border-box" }}>
+          {archivedLoading && (
+            <div style={{ textAlign: "center", padding: "2rem", color: "#94A3B8", fontSize: 13 }}>
+              {t("createModule.archived.loading") || "Loading..."}
+            </div>
+          )}
+
+          {archivedError && (
+            <div style={{ fontSize: 13, color: "#DC2626", background: "#FEF2F2", border: "1.5px solid #FECACA", borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 8 }}>
+              <AlertCircle size={16} color="#DC2626" style={{ flexShrink: 0 }} />
+              {archivedError}
+            </div>
+          )}
+
+          {restoreError && (
+            <div style={{ fontSize: 13, color: "#DC2626", background: "#FEF2F2", border: "1.5px solid #FECACA", borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 8 }}>
+              <AlertCircle size={16} color="#DC2626" style={{ flexShrink: 0 }} />
+              {restoreError}
+            </div>
+          )}
+
+          {!archivedLoading && !archivedError && archivedModules.length === 0 && (
+            <div style={{ textAlign: "center", padding: "2.5rem 1rem", color: "#94A3B8", fontSize: 13 }}>
+              {t("createModule.archived.empty") || "No archived modules"}
+            </div>
+          )}
+
+          {archivedModules.map(module => (
+            <ArchivedModuleCard
+              key={module.id}
+              module={module}
+              isMobile={isMobile}
+              restoring={restoringId === module.id}
+              onRestore={handleRestore}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

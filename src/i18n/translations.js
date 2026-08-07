@@ -761,7 +761,8 @@ passwordReset: {
      totalPayouts: "Total Payouts",
     paidThisMonth: "Paid This Month",
      teacherCount: "Number of Payouts",
-     noneForMonth: "None for this month"
+     noneForMonth: "None for this month",
+      markAsPaid:"mark as paid",
 
   },
 
@@ -926,6 +927,8 @@ emptySearch: "No requests match that name",
         customLevelPlaceholder: "Enter the study level",
         maxStudents: "Maximum Students",
         maxStudentsPlaceholder: "e.g. 25",
+        cycleNumber:"Number of sissions",
+        cycleNumberPlaceholder:"ex : 4",
       },
       pricing: {
         title: "Pricing Model",
@@ -2412,7 +2415,8 @@ studentDashboard: {
      totalPayouts: "إجمالي المدفوعات",
     paidThisMonth: "المدفوع هذا الشهر",
     teacherCount: "عدد المدفوعات",
-    noneForMonth: "لا يوجد لهذا الشهر"
+    noneForMonth: "لا يوجد لهذا الشهر",
+    markAsPaid:"دفع",
   },
 
   form: {
@@ -2576,6 +2580,8 @@ emptySearch: "لا توجد طلبات تطابق هذا الاسم",
         customLevelPlaceholder: "أدخل المستوى الدراسي",
         maxStudents: "الحد الأقصى للطلاب",
         maxStudentsPlaceholder: "مثال: 25",
+         cycleNumber:"عدد الحصص في الشهر ",
+         cycleNumberPlaceholder:" مثال : 4",
       },
       pricing: {
         title: "نظام الدفع",
@@ -4063,7 +4069,8 @@ passwordReset: {
     totalPayouts: "Total des paiements",
   paidThisMonth: "Payé ce mois-ci",
  teacherCount: "Nombre de paiements",
- noneForMonth: "Aucun ce mois-ci"
+ noneForMonth: "Aucun ce mois-ci",
+  markAsPaid:"payer",
   },
 
   form: {
@@ -4227,6 +4234,8 @@ emptySearch: "Aucune demande ne correspond à ce nom",
         customLevelPlaceholder: "Saisissez le niveau scolaire",
         maxStudents: "Nombre maximum d'élèves",
         maxStudentsPlaceholder: "ex : 25",
+       cycleNumberPlaceholder:"ex : 4",
+       cycleNumber:"Nombre de sience",
       },
       pricing: {
         title: "Modèle de tarification",

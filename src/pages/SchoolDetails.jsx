@@ -1799,7 +1799,7 @@ export default function SchoolDetails() {
                     { label: t("schoolDetails.info.email"), value: school.email, icon: "📧" },
                     { label: t("schoolDetails.info.phone"), value: school.phone, icon: "📞" },
                     { label: t("schoolDetails.info.address"), value: school.address, icon: "🏠" },
-                    { label: t("schoolDetails.info.subscriptionExpires"), value: school.subscriptionExpiresAt, icon: "📅" },
+             
                     { label: t("schoolDetails.info.wilaya"), value: `${school.wilaya} — ${school.commune}`, icon: "📍" },
                   ].map(({ label, value, icon }, i) => (
                     <motion.div

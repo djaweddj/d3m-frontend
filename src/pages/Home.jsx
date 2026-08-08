@@ -7,7 +7,8 @@ import {
   GraduationCap, School, Users, BookOpen, Star,
   MapPin, ArrowLeft, ArrowRight, Sparkles, Shield,
   TrendingUp, Clock, UserCircle2, PresentationIcon,
-  ChevronDown, CheckCircle2, Search, X, Zap, Award, Heart
+  ChevronDown, CheckCircle2, Search, X, Zap, Award, Heart,Mail,Phone
+  
 } from "lucide-react";
 
 import { useAuth } from "../context/authContext";
@@ -959,12 +960,26 @@ export default function Home() {
               <div>
                 <p className="font-bold text-slate-900">Numeria Academy</p>
                 <p className="text-xs text-slate-400">{t("home.footer.rights")}</p>
+                
               </div>
             </div>
+                          <div className="flex flex-col items-center gap-2 text-sm text-slate-500 md:items-start">
+  <a href="mailto:contact@numeria-academy.com" className="flex items-center gap-2 hover:text-[#0F5A46] transition-colors font-medium">
+    <Mail className="h-4 w-4 text-[#C8A24B]" />
+    numeria.ac4demy@gmail.com
+  </a>
+  <a href="tel:+213000000000" className="flex items-center gap-2 hover:text-[#0F5A46] transition-colors font-medium">
+    <Phone className="h-4 w-4 text-[#C8A24B]" />
+    0669210305  </a>
+  <a href="tel:+213000000000" className="flex items-center gap-2 hover:text-[#0F5A46] transition-colors font-medium">
+    <Phone className="h-4 w-4 text-[#C8A24B]" />
+    0554050620  </a>
+</div>
             <nav className="flex flex-wrap justify-center gap-6 text-sm text-slate-500">
               <Link to="/" className="hover:text-[#0F5A46] transition-colors font-medium">{t("home.footer.nav.home")}</Link>
               <Link to="/schools" className="hover:text-[#0F5A46] transition-colors font-medium">{t("home.footer.nav.schools")}</Link>
               <Link to="/login" className="hover:text-[#0F5A46] transition-colors font-medium">{t("home.footer.nav.login")}</Link>
+
             </nav>
           </div>
         </div>

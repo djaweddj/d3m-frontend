@@ -964,14 +964,14 @@ export default function Home() {
               </div>
             </div>
                           <div className="flex flex-col items-center gap-2 text-sm text-slate-500 md:items-start">
-  <a href="mailto:contact@numeria-academy.com" className="flex items-center gap-2 hover:text-[#0F5A46] transition-colors font-medium">
+  <a href="mailto:numeria.ac4demy@gmail.com" className="flex items-center gap-2 hover:text-[#0F5A46] transition-colors font-medium">
     <Mail className="h-4 w-4 text-[#C8A24B]" />
     numeria.ac4demy@gmail.com
   </a>
-  <a href="tel:+213000000000" className="flex items-center gap-2 hover:text-[#0F5A46] transition-colors font-medium">
+  <a href="tel:+213669210305" className="flex items-center gap-2 hover:text-[#0F5A46] transition-colors font-medium">
     <Phone className="h-4 w-4 text-[#C8A24B]" />
     0669210305  </a>
-  <a href="tel:+213000000000" className="flex items-center gap-2 hover:text-[#0F5A46] transition-colors font-medium">
+  <a href="tel:+213554050620" className="flex items-center gap-2 hover:text-[#0F5A46] transition-colors font-medium">
     <Phone className="h-4 w-4 text-[#C8A24B]" />
     0554050620  </a>
 </div>

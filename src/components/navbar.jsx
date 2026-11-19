@@ -1,18 +1,11 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { GraduationCap, LayoutDashboard, LogOut, Globe } from "lucide-react";
+import { LayoutDashboard, LogOut } from "lucide-react";
 import { useAuth } from "../context/authContext";
 import { useLanguage } from "../context/LanguageContext";
-import "../Css/Navbar.css";
 import logo from "../assets/num3.png";
 
-import {
-  Menu,
-  MenuItem,
-  ListItemIcon,
-  ListItemText,
-  IconButton,
-} from "@mui/material";
+import { Menu, MenuItem, ListItemIcon, ListItemText, IconButton } from "@mui/material";
 import ReactCountryFlag from "react-country-flag";
 
 const LANGUAGES = [
@@ -20,6 +13,24 @@ const LANGUAGES = [
   { code: "en", label: "English", country: "GB" },
   { code: "fr", label: "Français", country: "FR" },
 ];
+
+// ─── shared styles ────────────────────────────────────────
+const btn = "inline-flex h-11 items-center justify-center gap-2 rounded-sm px-5 text-sm font-bold transition-colors";
+const ghost = `${btn} border border-gold/40 text-ivory hover:border-gold hover:text-gold`;
+const solid = `${btn} bg-gold text-green-deep hover:bg-gold-deep hover:text-ivory`;
+const gold = "rgba(200,162,74,.4)";
+
+function UserPill({ initials, name, onClick, className = "" }) {
+  return (
+    <div
+      onClick={onClick}
+      className={`flex cursor-pointer items-center gap-2.5 border border-gold/30 px-3 py-1.5 transition-colors hover:border-gold ${className}`}
+    >
+      <span className="grid size-8 place-items-center rounded-sm bg-gold text-xs font-bold text-green-deep">{initials}</span>
+      <span className="max-w-40 truncate text-sm text-ivory">{name}</span>
+    </div>
+  );
+}
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -109,73 +120,59 @@ export default function Navbar() {
     return () => window.removeEventListener("resize", handleResize);
   }, [isOpen]);
 
+  const line = "block h-0.5 w-6 bg-ivory transition-all duration-300";
+
   return (
-    <header dir={dir} className="navbar">
-      {/* Logo */}
-      <Link to="/" className="navbar__logo" onClick={closeMenu}>
-        <img
-          src={logo}
-          alt="Numeria Academy"
-          className="navbar__logo-image"
-        />
-
-        <div className="navbar__brand">
-          <span className="navbar__logo-text">
-            Numeria Academy
+    <header dir={dir} className="sticky top-0 z-50 border-b border-gold/20 bg-green-deep/95 font-body backdrop-blur">
+      <div className="container mx-auto flex h-20 items-center justify-between px-4 sm:px-6 lg:px-8">
+        {/* Logo */}
+        <Link to="/" className="flex items-center gap-3" onClick={closeMenu}>
+          <span className="grid size-12 place-items-center rounded-sm bg-ivory">
+            <img src={logo} alt="Numeria Academy" className="size-10 object-contain" />
           </span>
-        </div>
-      </Link>
+          <span className="nm-latin text-xs font-semibold uppercase text-gold sm:text-sm">Numeria Academy</span>
+        </Link>
 
-      {/* Desktop nav */}
-      <nav className="navbar__nav navbar__nav--desktop">
-        {isLoggedIn ? (
-          <>
-            <button className="nav-btn nav-btn--dashboard" onClick={() => navigate(dashboardPath)}>
-              <LayoutDashboard size={14} />
-              {t("navbar.dashboard")}
-            </button>
+        {/* Desktop nav */}
+        <nav className="hidden items-center gap-3 md:flex">
+          {isLoggedIn ? (
+            <>
+              <button className={solid} onClick={() => navigate(dashboardPath)}>
+                <LayoutDashboard size={14} />
+                {t("navbar.dashboard")}
+              </button>
 
-            <div className="navbar__user" onClick={() => navigate(dashboardPath)}>
-              <div className="navbar__avatar">{initials}</div>
-              <span className="navbar__user-name">{user.fullName}</span>
-            </div>
+              <UserPill initials={initials} name={user.fullName} onClick={() => navigate(dashboardPath)} />
 
-            <button
-              className="nav-icon-btn"
-              onClick={logout}
-              title={t("navbar.logout")}
-              aria-label={t("navbar.logout")}
-            >
-              <LogOut size={14} />
-            </button>
-          </>
-        ) : (
-          <>
-            <Link to="/login" className="nav-btn nav-btn--ghost">{t("navbar.login")}</Link>
-            <Link to="/signup" className="nav-btn nav-btn--solid">{t("navbar.register")}</Link>
-          </>
-        )}
+              <button
+                className="grid size-11 place-items-center rounded-sm border border-gold/40 text-ivory transition-colors hover:border-gold hover:text-gold"
+                onClick={logout}
+                title={t("navbar.logout")}
+                aria-label={t("navbar.logout")}
+              >
+                <LogOut size={14} />
+              </button>
+            </>
+          ) : (
+            <>
+              <Link to="/login" className={ghost}>{t("navbar.login")}</Link>
+              <Link to="/signup" className={solid}>{t("navbar.register")}</Link>
+            </>
+          )}
 
-        {/* Language switcher */}
-        <div className="navbar__lang">
+          {/* Language switcher */}
           <IconButton
             onClick={handleOpen}
             sx={{
-              borderRadius: 3,
-              border: "1 solid ",
-              width: "50px",
-              height: "60px",
+              borderRadius: "2px",
+              border: `1px solid ${gold}`,
+              width: 44,
+              height: 44,
               p: 0.8,
+              "&:hover": { borderColor: "#C8A24A", bgcolor: "rgba(200,162,74,.08)" },
             }}
           >
-            <ReactCountryFlag
-              countryCode={currentLanguage.country}
-              svg
-              style={{
-                width: "1.8em",
-                height: "1.8em",
-              }}
-            />
+            <ReactCountryFlag countryCode={currentLanguage.country} svg style={{ width: "1.6em", height: "1.6em" }} />
           </IconButton>
 
           <Menu
@@ -185,124 +182,82 @@ export default function Navbar() {
             PaperProps={{
               sx: {
                 mt: 1,
-                borderRadius: 3,
+                borderRadius: "2px",
                 minWidth: 190,
+                border: `1px solid ${gold}`,
+                "& .MuiMenuItem-root, & .MuiTypography-root": { fontFamily: "Cairo, sans-serif" },
+                "& .Mui-selected": { bgcolor: "rgba(200,162,74,.15) !important" },
               },
             }}
           >
             {LANGUAGES.map((lang) => (
-              <MenuItem
-                key={lang.code}
-                selected={lang.code === language}
-                onClick={() => changeLanguage(lang.code)}
-              >
+              <MenuItem key={lang.code} selected={lang.code === language} onClick={() => changeLanguage(lang.code)}>
                 <ListItemIcon>
-                  <ReactCountryFlag
-                    countryCode={lang.country}
-                    svg
-                    style={{
-                      width: "1.6em",
-                      height: "1.6em",
-                    }}
-                  />
+                  <ReactCountryFlag countryCode={lang.country} svg style={{ width: "1.6em", height: "1.6em" }} />
                 </ListItemIcon>
-
                 <ListItemText>{lang.label}</ListItemText>
               </MenuItem>
             ))}
           </Menu>
-        </div>
-      </nav>
 
-      {/* Teacher-only nav */}
-      <nav
-        className="navbar__nav navbar__nav--desktop"
-        style={{ display: user?.role !== "TEACHER" ? "none" : "flex" }}
-      >
-        {user?.role === "TEACHER" ? (
-          <>
-            <button
-              className="nav-btn nav-btn--dashboard"
-              onClick={() => navigate("/teacherDashboard")}
-            >
-              <LayoutDashboard size={14} />
-              لوحتي
-            </button>
+          {/* Teacher-only */}
+          {user?.role === "TEACHER" && (
+            <>
+              <button className={solid} onClick={() => navigate("/teacherDashboard")}>
+                <LayoutDashboard size={14} />
+                لوحتي
+              </button>
+              <UserPill initials={initials} name={user.fullName} onClick={() => navigate("/teacherDashboard")} />
+            </>
+          )}
+        </nav>
 
-            <div
-              className="navbar__user"
-              onClick={() => navigate("/teacherDashboard")}
-            >
-              <div className="navbar__avatar">{initials}</div>
-              <span className="navbar__user-name">{user.fullName}</span>
-            </div>
-          </>
-        ) : null}
-      </nav>
-
-      {/* Mobile hamburger */}
-      <button
-        ref={burgerRef}
-        className={`navbar__burger${isOpen ? " is-open" : ""}`}
-        onClick={() => setIsOpen((v) => !v)}
-        aria-label={t("navbar.menuOpenAria")}
-        aria-expanded={isOpen}
-      >
-        <span className="navbar__burger-line" />
-        <span className="navbar__burger-line" />
-        <span className="navbar__burger-line" />
-      </button>
+        {/* Mobile hamburger */}
+        <button
+          ref={burgerRef}
+          className="flex size-11 flex-col items-center justify-center gap-1.5 border border-gold/40 md:hidden"
+          onClick={() => setIsOpen((v) => !v)}
+          aria-label={t("navbar.menuOpenAria")}
+          aria-expanded={isOpen}
+        >
+          <span className={`${line} ${isOpen ? "translate-y-2 rotate-45" : ""}`} />
+          <span className={`${line} ${isOpen ? "opacity-0" : ""}`} />
+          <span className={`${line} ${isOpen ? "-translate-y-2 -rotate-45" : ""}`} />
+        </button>
+      </div>
 
       {/* Mobile dropdown panel */}
       {isOpen && (
-        <div ref={panelRef} className="navbar__mobile-panel">
+        <div ref={panelRef} className="absolute inset-x-0 top-full flex flex-col gap-3 border-b border-gold/20 bg-green-deep p-5 md:hidden">
           {isLoggedIn ? (
             <>
-              <div className="navbar__mobile-user" onClick={() => goTo(dashboardPath)}>
-                <div className="navbar__avatar">{initials}</div>
-                <span className="navbar__user-name">{user.fullName}</span>
-              </div>
+              <UserPill initials={initials} name={user.fullName} onClick={() => goTo(dashboardPath)} />
 
-              <button className="nav-btn nav-btn--dashboard" onClick={() => goTo(dashboardPath)}>
+              <button className={solid} onClick={() => goTo(dashboardPath)}>
                 <LayoutDashboard size={14} />
                 {t("navbar.dashboard")}
               </button>
 
-              <button
-                className="nav-btn nav-btn--ghost"
-                onClick={() => { closeMenu(); logout(); }}
-              >
+              <button className={ghost} onClick={() => { closeMenu(); logout(); }}>
                 <LogOut size={14} />
                 {t("navbar.logout")}
               </button>
             </>
           ) : (
             <>
-              <Link to="/login" className="nav-btn nav-btn--ghost" onClick={closeMenu}>
-                {t("navbar.login")}
-              </Link>
-              <Link to="/signup" className="nav-btn nav-btn--solid" onClick={closeMenu}>
-                {t("navbar.register")}
-              </Link>
+              <Link to="/login" className={ghost} onClick={closeMenu}>{t("navbar.login")}</Link>
+              <Link to="/signup" className={solid} onClick={closeMenu}>{t("navbar.register")}</Link>
             </>
           )}
 
-          <div className="navbar__mobile-lang">
+          <div className="grid gap-2 border-t border-ivory/10 pt-3">
             {LANGUAGES.map((l) => (
               <button
                 key={l.code}
-                className={`nav-btn nav-btn--ghost${language === l.code ? " is-active" : ""}`}
+                className={`${ghost} ${language === l.code ? "!border-gold !text-gold" : ""}`}
                 onClick={() => changeLanguage(l.code)}
               >
-                <ReactCountryFlag
-                  countryCode={l.country}
-                  svg
-                  style={{
-                    width: "1.4em",
-                    height: "1.4em",
-                    marginInlineEnd: "8px",
-                  }}
-                />
+                <ReactCountryFlag countryCode={l.country} svg style={{ width: "1.4em", height: "1.4em" }} />
                 {l.label}
               </button>
             ))}

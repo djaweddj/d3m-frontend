@@ -1,221 +1,116 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import {
-  GraduationCap,
-  X,
-  CheckCircle2,
-  MapPin,
-  Phone,
-  Mail,
-  Lock,
-  Eye,
-  EyeOff,
-  Info,
-  Send,
-  Home,
-  Building2,
-  ShieldCheck,
-  User,
-  Loader2,
+  X, CheckCircle2, MapPin, Phone, Mail, Lock, Eye, EyeOff,
+  Info, Send, Home, Building2, ShieldCheck, User, Loader2,
 } from "lucide-react";
+
 import { useLanguage } from "../context/LanguageContext";
-
-// ─── Algerian wilayas ─────────────────────────────────────────────────────────
-// Kept as official Arabic place names regardless of interface language.
-const WILAYAS = [
-  "01 - أدرار",
-  "02 - الشلف",
-  "03 - الأغواط",
-  "04 - أم البواقي",
-  "05 - باتنة",
-  "06 - بجاية",
-  "07 - بسكرة",
-  "08 - بشار",
-  "09 - البليدة",
-  "10 - البويرة",
-  "11 - تمنراست",
-  "12 - تبسة",
-  "13 - تلمسان",
-  "14 - تيارت",
-  "15 - تيزي وزو",
-  "16 - الجزائر",
-  "17 - الجلفة",
-  "18 - جيجل",
-  "19 - سطيف",
-  "20 - سعيدة",
-  "21 - سكيكدة",
-  "22 - سيدي بلعباس",
-  "23 - عنابة",
-  "24 - قالمة",
-  "25 - قسنطينة",
-  "26 - المدية",
-  "27 - مستغانم",
-  "28 - المسيلة",
-  "29 - معسكر",
-  "30 - ورقلة",
-  "31 - وهران",
-  "32 - البيض",
-  "33 - إليزي",
-  "34 - برج بوعريريج",
-  "35 - بومرداس",
-  "36 - الطارف",
-  "37 - تندوف",
-  "38 - تيسمسيلت",
-  "39 - الوادي",
-  "40 - خنشلة",
-  "41 - سوق أهراس",
-  "42 - تيبازة",
-  "43 - ميلة",
-  "44 - عين الدفلى",
-  "45 - النعامة",
-  "46 - عين تموشنت",
-  "47 - غرداية",
-  "48 - غليزان",
-  "49 - تيميمون",
-  "50 - برج باجي مختار",
-  "51 - أولاد جلال",
-  "52 - بني عباس",
-  "53 - عين صالح",
-  "54 - عين قزام",
-  "55 - توقرت",
-  "56 - جانت",
-  "57 - المغير",
-  "58 - المنيعة",
-  "59 - آفلو",
-  "60 - بريكة",
-  "61 - القنطرة",
-  "62 - بئر العاتر",
-  "63 - العريشة",
-  "64 - قصر الشلالة",
-  "65 - عين وسارة",
-  "66 - مسعد",
-  "67 - قصر البخاري",
-  "68 - بوسعادة",
-  "69 - الأبيض سيدي الشيخ",
-];
 import logo from "../assets/num3.png";
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-const Field = ({ label, req, error, children }) => (
-  <div className="flex flex-col gap-1.5">
-    <label className="text-[13px] font-semibold text-gray-800">
-      {label}
-      {req && <span className="text-[#C53030] mx-1">*</span>}
-    </label>
-    {children}
-    {error && (
-      <p className="text-[11px] text-[#C53030] flex items-center gap-1">
-        <span>⚠</span> {error}
-      </p>
-    )}
-  </div>
-);
 
-const InputIcon = ({ icon: Icon, children }) => (
-  <div className="relative">
-    {children}
-    <Icon className="absolute end-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-  </div>
-);
+import Navbar from "../components/navbar";
+import Footer from "../components/home/Footer";
+import NButton from "../components/home/NButton";
+import Reveal from "../components/home/Reveal";
+import { Diamond, ColumnMark } from "../components/home/Marks";
+import PageHero from "../components/BrowseSchools/PageHero";
+import FormSection from "../components/SchoolRegister/FromSection";
+import { Field, InputIcon, inputCls } from "../components/SchoolRegister/FormField";
 
-const SectionHeader = ({ icon: Icon, label, sub }) => (
-  <div className="flex items-center gap-3 px-4 sm:px-6 py-4 bg-gray-50 border-b border-gray-100">
-    <div className="w-8 h-8 rounded-lg bg-[#E4F0EC] flex items-center justify-center flex-shrink-0">
-      <Icon className="h-4 w-4 text-[#0F5A46]" />
-    </div>
-    <div>
-      <p className="text-sm font-semibold text-gray-800">{label}</p>
-      <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
-    </div>
-  </div>
-);
+// Official Arabic place names, whatever the interface language.
+const WILAYAS = [
+  "أدرار", "الشلف", "الأغواط", "أم البواقي", "باتنة", "بجاية", "بسكرة", "بشار", "البليدة", "البويرة",
+  "تمنراست", "تبسة", "تلمسان", "تيارت", "تيزي وزو", "الجزائر", "الجلفة", "جيجل", "سطيف", "سعيدة",
+  "سكيكدة", "سيدي بلعباس", "عنابة", "قالمة", "قسنطينة", "المدية", "مستغانم", "المسيلة", "معسكر", "ورقلة",
+  "وهران", "البيض", "إليزي", "برج بوعريريج", "بومرداس", "الطارف", "تندوف", "تيسمسيلت", "الوادي", "خنشلة",
+  "سوق أهراس", "تيبازة", "ميلة", "عين الدفلى", "النعامة", "عين تموشنت", "غرداية", "غليزان", "تيميمون",
+  "برج باجي مختار", "أولاد جلال", "بني عباس", "عين صالح", "عين قزام", "توقرت", "جانت", "المغير", "المنيعة",
+  "آفلو", "بريكة", "القنطرة", "بئر العاتر", "العريشة", "قصر الشلالة", "عين وسارة", "مسعد", "قصر البخاري",
+  "بوسعادة", "الأبيض سيدي الشيخ",
+].map((name, i) => `${String(i + 1).padStart(2, "0")} - ${name}`);
 
-const inputCls =
-  "w-full font-cairo text-sm px-3.5 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#0F5A46] focus:ring-2 focus:ring-[#0F5A46]/10 transition";
-
-// ─── Success screen ───────────────────────────────────────────────────────────
-function SuccessScreen({ t, dir }) {
+// Navbar + Footer shell shared by the form and the success screen
+function PageShell({ dir, t, children }) {
+  const footerLinks = [
+    { to: "/", label: t("schoolRegister.success.home") },
+    { to: "/schools", label: t("schoolRegister.browseSchools") },
+  ];
   return (
-    <div
-      className="min-h-screen bg-[#FAFAF7] font-cairo"
-      dir={dir}
-      style={{ fontFamily: "'Cairo', sans-serif" }}
-    >
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&family=Tajawal:wght@400;500;700&display=swap');`}</style>
-
-      <header className="border-b bg-white h-16 flex items-center px-4 sm:px-6 justify-between sticky top-0 z-10">
-        <Link to="/" className="flex items-center gap-2 min-w-0">
-          <img src={logo} alt="Numeria Academy" className="w-14 h-14 sm:w-[105px] sm:h-[105px] object-contain flex-shrink-0" />
-          <span
-            className="text-sm sm:text-lg font-bold truncate"
-            style={{ fontFamily: "'Tajawal', sans-serif" }}
-          >
-            Numeria academy
-          </span>
-        </Link>
-      </header>
-
-      <div className="max-w-lg mx-auto px-4 py-10 sm:py-16 text-center">
-        <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#E4F0EC] border-2 border-[#0F5A46]/30 flex items-center justify-center mx-auto mb-6">
-          <CheckCircle2 className="h-8 w-8 sm:h-10 sm:w-10 text-[#0F5A46]" />
-        </div>
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2" style={{ fontFamily: "'Tajawal', sans-serif" }}>
-          {t("schoolRegister.success.title")}
-        </h1>
-        <p className="text-sm text-gray-500 mb-8">{t("schoolRegister.success.subtitle")}</p>
-
-        <div className="bg-white border border-gray-100 rounded-2xl p-4 sm:p-5 text-start mb-8">
-          <p className="text-sm font-semibold text-gray-800 mb-3">
-            {t("schoolRegister.success.nextStepsTitle")}
-          </p>
-          {t("schoolRegister.success.steps").map((step) => (
-            <div key={step} className="flex items-center gap-2 mb-2.5 last:mb-0">
-              <CheckCircle2 className="h-4 w-4 text-[#0F5A46] flex-shrink-0" />
-              <span className="text-sm text-gray-600">{step}</span>
-            </div>
-          ))}
-        </div>
-
-        <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Link to="/schools" className="w-full sm:w-auto">
-            <button className="w-full px-6 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition">
-              {t("schoolRegister.success.browseSchools")}
-            </button>
-          </Link>
-          <Link to="/" className="w-full sm:w-auto">
-            <button className="w-full px-6 py-2.5 rounded-lg bg-[#0F5A46] text-white text-sm font-bold hover:bg-[#0A4335] transition flex items-center justify-center gap-2">
-              <Home className="h-4 w-4" />
-              {t("schoolRegister.success.home")}
-            </button>
-          </Link>
-        </div>
-      </div>
+    <div dir={dir} className="min-h-screen bg-ivory font-body">
+      <Navbar />
+      {children}
+      <Footer
+        logo={logo}
+        name="Numeria Academy"
+        rights={`© ${new Date().getFullYear()} Numeria Academy`}
+        links={footerLinks}
+      />
     </div>
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ─── Success screen ──────────────────────────────────────────────────────────
+function SuccessScreen({ t, dir }) {
+  const steps = t("schoolRegister.success.steps");
+  return (
+    <PageShell dir={dir} t={t}>
+      <PageHero title={t("schoolRegister.success.title")} subtitle={t("schoolRegister.success.subtitle")} />
+
+      <div className="container relative mx-auto -mt-10 max-w-2xl px-4 pb-20 sm:px-6">
+        <Reveal>
+          <div className="border border-gold/25 bg-white p-6 text-center sm:p-10">
+            <span className="mx-auto mb-6 grid size-16 place-items-center rounded-sm bg-green-deep text-gold">
+              <CheckCircle2 className="size-8" strokeWidth={1.5} />
+            </span>
+
+            <div className="border border-gold/25 bg-ivory p-5 text-start">
+              <p className="mb-4 font-display text-lg text-green-deep">
+                {t("schoolRegister.success.nextStepsTitle")}
+              </p>
+              <ul className="space-y-3">
+                {steps.map((step) => (
+                  <li key={step} className="flex items-start gap-3 text-sm leading-7 text-green-deep/70">
+                    <Diamond className="mt-2.5 size-2 shrink-0 text-gold" />
+                    {step}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+              <NButton to="/schools" variant="outline" className="w-full sm:w-auto">
+                {t("schoolRegister.success.browseSchools")}
+              </NButton>
+              <NButton to="/" variant="green" className="w-full sm:w-auto">
+                <Home className="size-4" />
+                {t("schoolRegister.success.home")}
+              </NButton>
+            </div>
+          </div>
+        </Reveal>
+      </div>
+    </PageShell>
+  );
+}
+
+// ─── Main component ──────────────────────────────────────────────────────────
 export default function SchoolRegister() {
   const { t, dir } = useLanguage();
-  const navigate = useNavigate();
+  const navigate = useNavigate(); // kept from the original, not used yet
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState(null);
   const API_URL = import.meta.env.VITE_API_URL;
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm();
+  const { register, handleSubmit, formState: { errors } } = useForm();
 
   const onSubmit = async (data) => {
     setIsLoading(true);
     setServerError(null);
 
-    // Map form fields → backend DTO
     const payload = {
       schoolName: data.schoolName,
       ownerFullName: data.ownerFullName,
@@ -236,7 +131,6 @@ export default function SchoolRegister() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
-
         const message =
           errorData?.message || errorData?.error || `${t("schoolRegister.errors.serverErrorTitle")} (${response.status})`;
         throw new Error(message);
@@ -256,280 +150,270 @@ export default function SchoolRegister() {
   if (isSubmitted) return <SuccessScreen t={t} dir={dir} />;
 
   const stepLabels = t("schoolRegister.steps");
+  const invalid = (name) => (errors[name] ? true : undefined);
+  const describedBy = (name) => (errors[name] ? `${name}-error` : undefined);
 
   return (
-    <div className="min-h-screen bg-[#FAFAF7]" dir={dir} style={{ fontFamily: "'Cairo', sans-serif" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&family=Tajawal:wght@400;500;700&display=swap');`}</style>
-
-      {/* ── Header ── */}
-      <header className="bg-white border-b border-gray-100 h-16 flex items-center px-4 sm:px-6 justify-between sticky top-0 z-10">
-        <Link to="/" className="flex items-center gap-2 min-w-0">
-          <img src={logo} alt="Numeria Academy" className="w-14 h-14 sm:w-[105px] sm:h-[105px] object-contain flex-shrink-0" />
-          <span
-            className="text-sm sm:text-lg font-bold text-gray-900 truncate"
-            style={{ fontFamily: "'Tajawal', sans-serif", color: "#0F5A46" }}
-          >
-            Numeria academy
-          </span>
-        </Link>
-        <Link to="/schools" className="flex-shrink-0">
-          <button className="text-sm font-medium text-gray-500 border border-gray-200 px-2.5 sm:px-4 py-2 rounded-lg hover:bg-gray-50 hover:text-gray-800 transition flex items-center gap-1.5">
-            <Building2 className="h-4 w-4" />
-            <span className="hidden sm:inline">{t("schoolRegister.browseSchools")}</span>
-          </button>
-        </Link>
-      </header>
-
-      {/* ── Hero strip ── */}
-      <div
-        className="relative overflow-hidden text-center px-4 py-8 sm:py-10"
-        style={{ background: "linear-gradient(135deg, #0A4335 0%, #0F5A46 55%, #1C8A6C 100%)" }}
-      >
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            backgroundImage:
-              "repeating-linear-gradient(-45deg, transparent, transparent 20px, rgba(255,255,255,0.03) 20px, rgba(255,255,255,0.03) 40px)",
-          }}
-        />
-        <h1 className="text-xl sm:text-2xl font-bold text-white relative" style={{ fontFamily: "'Tajawal', sans-serif" }}>
-          {t("schoolRegister.hero.title")}
-        </h1>
-        <p className="text-xs sm:text-sm text-white/80 mt-1 relative px-2">{t("schoolRegister.hero.subtitle")}</p>
-
-        {/* Step pills */}
-        <div className="flex flex-wrap justify-center gap-y-1.5 mt-6 relative">
+    <PageShell dir={dir} t={t}>
+      <PageHero title={t("schoolRegister.hero.title")} subtitle={t("schoolRegister.hero.subtitle")}>
+        <ol className="flex flex-wrap items-center justify-center gap-2">
           {stepLabels.map((label, i) => (
-            <div
+            <li
               key={label}
-              className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 text-[11px] sm:text-xs font-medium border transition rounded-full mx-0.5
-                ${i === 0 ? "bg-white/20 text-white border-white/40" : "bg-white/10 text-white/60 border-white/15"}`}
+              aria-current={i === 0 ? "step" : undefined}
+              className={`inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs ${
+                i === 0
+                  ? "border-gold/40 bg-gold/10 text-gold"
+                  : "border-ivory/15 text-ivory/60"
+              }`}
             >
               <span
-                className={`w-5 h-5 rounded-full border text-[10px] flex items-center justify-center flex-shrink-0
-                  ${i === 0 ? "bg-white text-[#0F5A46] border-white font-bold" : "border-current"}`}
+                className={`grid size-5 place-items-center rounded-full text-[10px] font-bold tabular-nums ${
+                  i === 0 ? "bg-gold text-green-deep" : "border border-current"
+                }`}
               >
                 {i + 1}
               </span>
               {label}
-            </div>
+            </li>
           ))}
-        </div>
-      </div>
+        </ol>
+      </PageHero>
 
-      {/* ── Form card ── */}
-      <div className="max-w-2xl mx-auto px-3 sm:px-4 -mt-5 pb-12 relative">
-        <form onSubmit={handleSubmit(onSubmit)}>
-          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-            {/* Server error banner */}
-            {serverError && (
-              <div className="mx-4 sm:mx-6 mt-6 bg-[#FBE4E4] border border-[#C53030]/30 rounded-xl p-4 flex gap-3 items-start">
-                <X className="h-5 w-5 text-[#C53030] flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-semibold text-[#8A2424]">
-                    {t("schoolRegister.errors.serverErrorTitle")}
-                  </p>
-                  <p className="text-xs text-[#C53030] mt-0.5">{serverError}</p>
-                </div>
-              </div>
-            )}
-
-            {/* ── Section 1: School info ── */}
-            <SectionHeader
-              icon={Info}
-              label={t("schoolRegister.sections.schoolInfo.label")}
-              sub={t("schoolRegister.sections.schoolInfo.sub")}
-            />
-
-            <div className="p-4 sm:p-6 space-y-4">
-              <Field label={t("schoolRegister.fields.schoolName")} req error={errors.schoolName?.message}>
-                <input
-                  className={inputCls}
-                  placeholder={t("schoolRegister.fields.schoolNamePlaceholder")}
-                  {...register("schoolName", { required: t("schoolRegister.errors.schoolName") })}
-                />
-              </Field>
-
-              {/* Wilaya + Commune */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label={t("schoolRegister.fields.wilaya")} req error={errors.wilaya?.message}>
-                  <InputIcon icon={MapPin}>
-                    <select
-                      className={`${inputCls} pe-9 appearance-none cursor-pointer`}
-                      defaultValue=""
-                      {...register("wilaya", { required: t("schoolRegister.errors.wilaya") })}
-                    >
-                      <option value="" disabled>
-                        {t("schoolRegister.fields.selectWilaya")}
-                      </option>
-                      {WILAYAS.map((w) => (
-                        <option key={w} value={w}>
-                          {w}
-                        </option>
-                      ))}
-                    </select>
-                  </InputIcon>
-                </Field>
-
-                <Field label={t("schoolRegister.fields.commune")} req error={errors.commune?.message}>
-                  <input
-                    className={inputCls}
-                    placeholder={t("schoolRegister.fields.communePlaceholder")}
-                    {...register("commune", { required: t("schoolRegister.errors.commune") })}
-                  />
-                </Field>
-              </div>
-
-              <Field label={t("schoolRegister.fields.address")} req error={errors.address?.message}>
-                <InputIcon icon={MapPin}>
-                  <input
-                    className={`${inputCls} pe-9`}
-                    placeholder={t("schoolRegister.fields.addressPlaceholder")}
-                    {...register("address", { required: t("schoolRegister.errors.address") })}
-                  />
-                </InputIcon>
-              </Field>
-            </div>
-
-            <div className="border-t border-gray-100 mx-4 sm:mx-6" />
-
-            {/* ── Section 2: Owner info ── */}
-            <SectionHeader
-              icon={User}
-              label={t("schoolRegister.sections.ownerInfo.label")}
-              sub={t("schoolRegister.sections.ownerInfo.sub")}
-            />
-
-            <div className="p-4 sm:p-6 space-y-4">
-              <Field label={t("schoolRegister.fields.ownerFullName")} req error={errors.ownerFullName?.message}>
-                <InputIcon icon={User}>
-                  <input
-                    className={`${inputCls} pe-9`}
-                    placeholder={t("schoolRegister.fields.ownerFullNamePlaceholder")}
-                    {...register("ownerFullName", { required: t("schoolRegister.errors.ownerFullName") })}
-                  />
-                </InputIcon>
-              </Field>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label={t("schoolRegister.fields.phone")} req error={errors.phone?.message}>
-                  <InputIcon icon={Phone}>
-                    <input
-                      className={`${inputCls} pe-9`}
-                      placeholder="0612345678"
-                      dir="ltr"
-                      style={{ textAlign: "start" }}
-                      {...register("phone", {
-                        required: t("schoolRegister.errors.phone"),
-                        pattern: {
-                          value: /^0[5-7][0-9]{8}$/,
-                          message: t("schoolRegister.errors.phoneInvalid"),
-                        },
-                      })}
-                    />
-                  </InputIcon>
-                </Field>
-
-                <Field label={t("schoolRegister.fields.email")} req error={errors.email?.message}>
-                  <InputIcon icon={Mail}>
-                    <input
-                      type="email"
-                      className={`${inputCls} pe-9`}
-                      placeholder="example@email.com"
-                      dir="ltr"
-                      style={{ textAlign: "start" }}
-                      {...register("email", {
-                        required: t("schoolRegister.errors.email"),
-                        pattern: {
-                          value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                          message: t("schoolRegister.errors.emailInvalid"),
-                        },
-                      })}
-                    />
-                  </InputIcon>
-                </Field>
-              </div>
-            </div>
-
-            <div className="border-t border-gray-100 mx-4 sm:mx-6" />
-
-            {/* ── Section 3: Account security ── */}
-            <SectionHeader
-              icon={Lock}
-              label={t("schoolRegister.sections.security.label")}
-              sub={t("schoolRegister.sections.security.sub")}
-            />
-
-            <div className="p-4 sm:p-6">
-              <Field label={t("schoolRegister.fields.password")} req error={errors.password?.message}>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    className={`${inputCls} pe-9`}
-                    placeholder={t("schoolRegister.fields.passwordPlaceholder")}
-                    {...register("password", {
-                      required: t("schoolRegister.errors.password"),
-                      minLength: { value: 8, message: t("schoolRegister.errors.passwordLength") },
-                    })}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute end-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-              </Field>
-            </div>
-
-            {/* ── Notice box ── */}
-            <div className="mx-4 sm:mx-6 mb-6 bg-[#E4F0EC] border border-[#0F5A46]/20 rounded-xl p-4 flex gap-3">
-              <ShieldCheck className="h-5 w-5 text-[#0F5A46] flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-semibold text-[#0A4335] mb-1">{t("schoolRegister.notice.title")}</p>
-                <ul className="space-y-1">
-                  {t("schoolRegister.notice.items").map((note) => (
-                    <li key={note} className="flex items-center gap-2 text-xs text-[#3F4A45]">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-[#0F5A46] flex-shrink-0" />
-                      {note}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-
-            {/* ── Footer ── */}
-            <div className="border-t border-gray-100 bg-gray-50 px-4 sm:px-6 py-4 flex flex-col-reverse sm:flex-row gap-3">
-              <Link to="/" className="w-full sm:w-auto">
-                <button
-                  type="button"
-                  className="w-full sm:w-auto px-6 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-500 hover:bg-white hover:text-gray-800 transition"
+      <div className="container relative mx-auto -mt-10 max-w-3xl px-4 pb-20 sm:px-6 sm:pb-28">
+        <Reveal>
+          <form onSubmit={handleSubmit(onSubmit)} noValidate>
+            <div className="border border-gold/25 bg-white shadow-[0_30px_60px_-40px_rgba(0,0,0,.5)]">
+              {/* Server error */}
+              {serverError && (
+                <div
+                  role="alert"
+                  className="mx-5 mt-8 flex items-start gap-3 border border-algeria-red/40 bg-algeria-red/10 p-4 sm:mx-8"
                 >
-                  {t("schoolRegister.cancel")}
-                </button>
-              </Link>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full sm:flex-1 py-2.5 rounded-lg bg-[#0F5A46] hover:bg-[#0A4335] disabled:bg-[#0F5A46]/50 disabled:cursor-not-allowed text-white text-sm font-bold transition flex items-center justify-center gap-2"
+                  <span className="grid size-8 shrink-0 place-items-center rounded-sm bg-algeria-red text-ivory">
+                    <X className="size-4" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold text-algeria-red">{t("schoolRegister.errors.serverErrorTitle")}</p>
+                    <p className="mt-0.5 text-xs leading-6 text-green-deep/70">{serverError}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* 1 · School info */}
+              <FormSection
+                icon={Info}
+                label={t("schoolRegister.sections.schoolInfo.label")}
+                sub={t("schoolRegister.sections.schoolInfo.sub")}
               >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    {t("schoolRegister.submitting")}
-                  </>
-                ) : (
-                  <>
-                    <Send className="h-4 w-4" />
-                    {t("schoolRegister.submit")}
-                  </>
-                )}
-              </button>
+                <Field id="schoolName" label={t("schoolRegister.fields.schoolName")} req error={errors.schoolName?.message}>
+                  <input
+                    id="schoolName"
+                    aria-invalid={invalid("schoolName")}
+                    aria-describedby={describedBy("schoolName")}
+                    className={inputCls}
+                    placeholder={t("schoolRegister.fields.schoolNamePlaceholder")}
+                    {...register("schoolName", { required: t("schoolRegister.errors.schoolName") })}
+                  />
+                </Field>
+
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                  <Field id="wilaya" label={t("schoolRegister.fields.wilaya")} req error={errors.wilaya?.message}>
+                    <InputIcon icon={MapPin}>
+                      <select
+                        id="wilaya"
+                        defaultValue=""
+                        aria-invalid={invalid("wilaya")}
+                        aria-describedby={describedBy("wilaya")}
+                        className={`${inputCls} cursor-pointer appearance-none pe-11`}
+                        {...register("wilaya", { required: t("schoolRegister.errors.wilaya") })}
+                      >
+                        <option value="" disabled>{t("schoolRegister.fields.selectWilaya")}</option>
+                        {WILAYAS.map((w) => (
+                          <option key={w} value={w}>{w}</option>
+                        ))}
+                      </select>
+                    </InputIcon>
+                  </Field>
+
+                  <Field id="commune" label={t("schoolRegister.fields.commune")} req error={errors.commune?.message}>
+                    <input
+                      id="commune"
+                      aria-invalid={invalid("commune")}
+                      aria-describedby={describedBy("commune")}
+                      className={inputCls}
+                      placeholder={t("schoolRegister.fields.communePlaceholder")}
+                      {...register("commune", { required: t("schoolRegister.errors.commune") })}
+                    />
+                  </Field>
+                </div>
+
+                <Field id="address" label={t("schoolRegister.fields.address")} req error={errors.address?.message}>
+                  <InputIcon icon={MapPin}>
+                    <input
+                      id="address"
+                      aria-invalid={invalid("address")}
+                      aria-describedby={describedBy("address")}
+                      className={`${inputCls} pe-11`}
+                      placeholder={t("schoolRegister.fields.addressPlaceholder")}
+                      {...register("address", { required: t("schoolRegister.errors.address") })}
+                    />
+                  </InputIcon>
+                </Field>
+              </FormSection>
+
+              {/* 2 · Owner info */}
+              <FormSection
+                divider
+                icon={User}
+                label={t("schoolRegister.sections.ownerInfo.label")}
+                sub={t("schoolRegister.sections.ownerInfo.sub")}
+              >
+                <Field id="ownerFullName" label={t("schoolRegister.fields.ownerFullName")} req error={errors.ownerFullName?.message}>
+                  <InputIcon icon={User}>
+                    <input
+                      id="ownerFullName"
+                      aria-invalid={invalid("ownerFullName")}
+                      aria-describedby={describedBy("ownerFullName")}
+                      className={`${inputCls} pe-11`}
+                      placeholder={t("schoolRegister.fields.ownerFullNamePlaceholder")}
+                      {...register("ownerFullName", { required: t("schoolRegister.errors.ownerFullName") })}
+                    />
+                  </InputIcon>
+                </Field>
+
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                  <Field id="phone" label={t("schoolRegister.fields.phone")} req error={errors.phone?.message}>
+                    <InputIcon icon={Phone} ltr>
+                      <input
+                        id="phone"
+                        type="tel"
+                        inputMode="tel"
+                        aria-invalid={invalid("phone")}
+                        aria-describedby={describedBy("phone")}
+                        className={`${inputCls} pe-11 text-start`}
+                        placeholder="0612345678"
+                        {...register("phone", {
+                          required: t("schoolRegister.errors.phone"),
+                          pattern: { value: /^0[5-7][0-9]{8}$/, message: t("schoolRegister.errors.phoneInvalid") },
+                        })}
+                      />
+                    </InputIcon>
+                  </Field>
+
+                  <Field id="email" label={t("schoolRegister.fields.email")} req error={errors.email?.message}>
+                    <InputIcon icon={Mail} ltr>
+                      <input
+                        id="email"
+                        type="email"
+                        aria-invalid={invalid("email")}
+                        aria-describedby={describedBy("email")}
+                        className={`${inputCls} pe-11 text-start`}
+                        placeholder="example@email.com"
+                        {...register("email", {
+                          required: t("schoolRegister.errors.email"),
+                          pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: t("schoolRegister.errors.emailInvalid") },
+                        })}
+                      />
+                    </InputIcon>
+                  </Field>
+                </div>
+              </FormSection>
+
+              {/* 3 · Security */}
+              <FormSection
+                divider
+                icon={Lock}
+                label={t("schoolRegister.sections.security.label")}
+                sub={t("schoolRegister.sections.security.sub")}
+              >
+                <Field id="password" label={t("schoolRegister.fields.password")} req error={errors.password?.message}>
+                  <div className="relative">
+                    <input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      aria-invalid={invalid("password")}
+                      aria-describedby={describedBy("password")}
+                      className={`${inputCls} pe-11`}
+                      placeholder={t("schoolRegister.fields.passwordPlaceholder")}
+                      {...register("password", {
+                        required: t("schoolRegister.errors.password"),
+                        minLength: { value: 8, message: t("schoolRegister.errors.passwordLength") },
+                      })}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      aria-pressed={showPassword}
+                      aria-label={t("schoolRegister.fields.togglePassword") || "Show / hide password"}
+                      className="absolute end-3 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-sm text-gold-deep transition-colors hover:bg-gold/15"
+                    >
+                      {showPassword ? <EyeOff className="size-4" strokeWidth={1.5} /> : <Eye className="size-4" strokeWidth={1.5} />}
+                    </button>
+                  </div>
+                </Field>
+              </FormSection>
+
+              {/* Notice */}
+              <div className="relative mx-5 mb-8 overflow-hidden bg-green-deep p-6 sm:mx-8">
+                <div className="nm-pattern pointer-events-none absolute inset-0 opacity-[0.08]" />
+                <ColumnMark className="pointer-events-none absolute -bottom-3 end-3 h-28 text-gold/10" />
+                <div className="relative flex gap-4">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-sm bg-gold text-green-deep">
+                    <ShieldCheck className="size-5" strokeWidth={1.5} />
+                  </span>
+                  <div>
+                    <p className="mb-3 font-display text-ivory">{t("schoolRegister.notice.title")}</p>
+                    <ul className="space-y-2">
+                      {t("schoolRegister.notice.items").map((note) => (
+                        <li key={note} className="flex items-start gap-2 text-xs leading-6 text-ivory/70">
+                          <CheckCircle2 className="mt-1 size-3.5 shrink-0 text-gold" />
+                          {note}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex flex-col-reverse gap-3 border-t border-gold/25 bg-ivory px-5 py-5 sm:flex-row sm:px-8">
+                <NButton to="/" variant="outline" className="w-full sm:w-auto">
+                  {t("schoolRegister.cancel")}
+                </NButton>
+                <NButton
+                  type="submit"
+                  variant="gold"
+                  disabled={isLoading}
+                  className="w-full disabled:cursor-not-allowed disabled:opacity-60 sm:flex-1"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      {t("schoolRegister.submitting")}
+                    </>
+                  ) : (
+                    <>
+                      <Send className="size-4 rtl:-scale-x-100" />
+                      {t("schoolRegister.submit")}
+                    </>
+                  )}
+                </NButton>
+              </div>
             </div>
-          </div>
-        </form>
+          </form>
+        </Reveal>
+
+        <p className="mt-8 text-center">
+          <Link
+            to="/schools"
+            className="inline-flex items-center gap-2 text-sm font-bold text-gold-deep transition-colors hover:text-green-deep"
+          >
+            <Building2 className="size-4" />
+            {t("schoolRegister.browseSchools")}
+          </Link>
+        </p>
       </div>
-    </div>
+    </PageShell>
   );
 }

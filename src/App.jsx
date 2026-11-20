@@ -44,6 +44,15 @@ import TeacherAttendance from "./pages/TeacherAttendance";
 import TeacherPayouts from "./pages/TeacherPayouts";
 
 
+// studendashboard
+import StudentLayout from "./components/studentdash/StudentLayout"
+import SessionsPage from "./pages/SessionsPage";
+import SchedulePage from "./pages/SchedulePage";
+import SchoolsPage from "./pages/SchoolsPage";
+import ProfilePage from "./pages/ProfilePage";
+import CoursesPage from "./pages/CoursesPage";
+import StudentPage from "./pages/StudentPage";
+
 import ProtectedRoute from "./auth/ProtectedRoutes";
 import CreateModule from "./pages/CreateModule";
 
@@ -119,9 +128,16 @@ export default function App() {
   </Route>
 
   {/* STUDENT */}
-  <Route element={<ProtectedRoute role="STUDENT" />}>
-    <Route path="/studentdashboard" element={<StudentDashboard />} />
+<Route element={<ProtectedRoute role="STUDENT" />}>
+  <Route element={<StudentLayout />}>
+    <Route path="/studentdashboard" element={<Navigate to="/studentsessions" replace />} />
+    <Route path="/studentsessions" element={<StudentPage id="sessions" />} />
+    <Route path="/studentschedule" element={<StudentPage id="schedule" />} />
+    <Route path="/studentschools" element={<StudentPage id="schools" />} />
+    <Route path="/studentprofile" element={<StudentPage id="profile" />} />
+    <Route path="/studentcourses" element={<StudentPage id="courses" />} />
   </Route>
+</Route>
 
   {/* TEACHER */}
   <Route element={<ProtectedRoute role="TEACHER" />}>

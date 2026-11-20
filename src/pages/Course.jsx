@@ -1,259 +1,112 @@
 import { useState, useEffect, useCallback } from "react";
 import {
-  Plus, X, Users, Check, XCircle, RefreshCw, AlertCircle,
-  BookOpen, ChevronLeft, ChevronRight, Search,
-  Wallet, ReceiptText, Inbox, GraduationCap, Phone, User as UserIcon,
-  CircleDollarSign, CalendarClock, Archive, MessageSquareText, Percent,
+  Plus, Users, Check, XCircle, RefreshCw, AlertCircle, BookOpen,
+  ChevronLeft, ChevronRight, Search, Wallet, ReceiptText, Inbox,
+  GraduationCap, Phone, User as UserIcon, CircleDollarSign, CalendarClock,
+  Archive, MessageSquareText, Percent, X, Clock, Layers,
 } from "lucide-react";
 import api from "../api";
 import { useLanguage } from "../context/LanguageContext";
 
+import Reveal from "../components/home/Reveal";
+import AnimatedText from "../components/home/AnimatedText";
+import NButton from "../components/home/NButton";
+import { Field } from "../components/SchoolRegister/FormField";
+import FormSection from "../components/SchoolRegister/FromSection";
+import { Diamond, ColumnMark } from "../components/home/Marks";
+import {
+  CARD_SHADOW, fieldCls, Spinner, TextInput, TextArea, SelectInput, ErrorNote,
+  Pill, Avatar, IconTile, ProgressBar, EmptyState, PillTabs, SoftStat,
+  Modal, ModalHeader, ModalBody, ModalFooter,
+} from "../components/home/ui";
+
 // ══════════════════════════════════════════════════════════════════
-//  API — SchoolAdmin course endpoints only (student-facing endpoints
-//  such as /browse, /enroll-request, /mine are intentionally excluded)
+//  API — SchoolAdmin course endpoints only (unchanged)
 // ══════════════════════════════════════════════════════════════════
 const courseApi = {
-  // Courses
-  getSchoolCourses:   ()               => api.get("/api/courses"),
-  getCourseById:      (id)             => api.get(`/api/courses/${id}`),
-  createCourse:       (data)           => api.post("/api/courses", data),
-  archiveCourse:      (id)             => api.patch(`/api/courses/${id}/archive`),
+  getSchoolCourses:    ()                   => api.get("/api/courses"),
+  getCourseById:       (id)                 => api.get(`/api/courses/${id}`),
+  createCourse:        (data)               => api.post("/api/courses", data),
+  archiveCourse:       (id)                 => api.patch(`/api/courses/${id}/archive`),
+  getTeachers:         ()                   => api.get("/api/teachers"),
 
-  // Teachers (reused from the school's teacher list, same as SubjectsAndClassrooms page)
-  getTeachers:        ()               => api.get("/api/teachers"),
-
-  // Enrollment requests
-  getSchoolRequests:  (status, page, size) =>
+  getSchoolRequests:   (status, page, size) =>
     api.get("/api/courses/requests", { params: { status: status || undefined, page, size } }),
-  getRequestsByCourse: (courseId, status) =>
+  getRequestsByCourse: (courseId, status)   =>
     api.get(`/api/courses/${courseId}/requests`, { params: { status: status || undefined } }),
-  countPending:       ()               => api.get("/api/courses/requests/count"),
-  approveEnrollment:  (id)             => api.post(`/api/courses/enrollments/${id}/approve`),
-  rejectEnrollment:   (id, comment)    => api.post(`/api/courses/enrollments/${id}/reject`, null, { params: { comment: comment || undefined } }),
+  countPending:        ()                   => api.get("/api/courses/requests/count"),
+  approveEnrollment:   (id)                 => api.post(`/api/courses/enrollments/${id}/approve`),
+  rejectEnrollment:    (id, comment)        => api.post(`/api/courses/enrollments/${id}/reject`, null, { params: { comment: comment || undefined } }),
 
-  // Attendance
   markAttendance:      (sessionId, entries) => api.post(`/api/courses/sessions/${sessionId}/attendance`, entries),
   getAttendanceSheet:  (sessionId)          => api.get(`/api/courses/sessions/${sessionId}/attendance-sheet`),
 
-  // Payouts
-  calculatePayout:    (courseId)       => api.post(`/api/courses/${courseId}/calculate-payout`),
-  markPayoutPaid:     (id)             => api.post(`/api/courses/payouts/${id}/pay`),
-  getPayoutSummary:   ()               => api.get("/api/courses/payouts/summary"),
+  calculatePayout:     (courseId)           => api.post(`/api/courses/${courseId}/calculate-payout`),
+  markPayoutPaid:      (id)                 => api.post(`/api/courses/payouts/${id}/pay`),
+  getPayoutSummary:    ()                   => api.get("/api/courses/payouts/summary"),
 
-  // Invoices & revenue
-  markInvoicePaid:    (id)             => api.post(`/api/courses/invoices/${id}/pay`),
-  getInvoicesByCourse:(courseId)       => api.get(`/api/courses/${courseId}/invoices`),
-  getRevenue:         ()               => api.get("/api/courses/revenue"),
-  createManualInvoice:(data)           => api.post("/api/courses/invoices/manual", data),
+  markInvoicePaid:     (id)                 => api.post(`/api/courses/invoices/${id}/pay`),
+  getInvoicesByCourse: (courseId)           => api.get(`/api/courses/${courseId}/invoices`),
+  getRevenue:          ()                   => api.get("/api/courses/revenue"),
+  createManualInvoice: (data)               => api.post("/api/courses/invoices/manual", data),
 };
 
 // ══════════════════════════════════════════════════════════════════
-//  CONSTANTS
+//  CONSTANTS & HELPERS
 // ══════════════════════════════════════════════════════════════════
-const P = "#185FA5";
-const P_DARK = "#134d8a";
-const GREEN = "#0F6E56";
-
-// Canonical (untranslated) level keys, used as values sent to the API.
-// Display labels come from t(`courses.levels.${key}`).
 const LEVEL_KEYS = [
   "primary1", "primary2", "primary3", "primary4", "primary5",
   "middle1", "middle2", "middle3", "middle4",
   "secondary1", "secondary2", "secondary3", "bac",
 ];
 
-const DAY_KEYS = ["SATURDAY", "SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"];
-
-const inp = {
-  padding: "9px 12px", borderRadius: 9, border: "1.5px solid #E2E8F0",
-  fontSize: 13, fontFamily: "'Cairo',sans-serif", color: "#0F172A",
-  background: "#FAFCFF", outline: "none", width: "100%", boxSizing: "border-box",
-};
-
-const fmtDate  = (d, locale) => d ? new Date(d).toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" }) : "—";
-const fmtDateTime = (d, locale) => d ? new Date(d).toLocaleDateString(locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
-
-// Simple {token} interpolation helper for places where we build a
-// string outside of t() (e.g. combining several t() calls).
+const fmtDate = (d, locale) =>
+  d ? new Date(d).toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" }) : "—";
+const fmtDateTime = (d, locale) =>
+  d ? new Date(d).toLocaleDateString(locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
+const fmtTime = (v) => (v ? String(v).slice(0, 5) : "—");
 const interp = (str, vars = {}) =>
   Object.keys(vars).reduce((acc, k) => acc.replaceAll(`{${k}}`, vars[k]), str);
 
-// ══════════════════════════════════════════════════════════════════
-//  MOBILE RESPONSIVE STYLES
-//  Uses !important on the mobile breakpoint only, since this file
-//  relies on inline styles everywhere (which normally beat external
-//  CSS). Keeping this scoped to one shared block avoids duplicating
-//  <style> tags across every component instance.
-// ══════════════════════════════════════════════════════════════════
-function ResponsiveStyles() {
-  return (
-    <style>{`
-      @media (max-width: 640px) {
-        .sac-root { padding: 0.85rem !important; }
-        .sac-search-box { max-width: none !important; width: 100% !important; }
-        .sac-filter-select { width: 100% !important; }
-        .sac-action-buttons { width: 100% !important; }
-        .sac-action-buttons button { flex: 1 1 auto !important; justify-content: center !important; }
-        .sac-courses-grid { grid-template-columns: 1fr !important; }
-        .sac-payout-course-cards { grid-template-columns: 1fr !important; }
-        .sac-form-grid-2 { grid-template-columns: 1fr !important; }
-        .sac-tab-bar button { padding: 8px 12px !important; font-size: 11.5px !important; }
-      }
-      @media (max-width: 420px) {
-        .sac-request-row, .sac-invoice-row { gap: 10px !important; padding: 10px !important; }
-      }
-    `}</style>
-  );
+const REQUEST_TONE = { PENDING: "gold", ACCEPTED: "green", REJECTED: "red" };
+const PAYOUT_TONE  = { PENDING: "gold", PAID: "green" };
+const INVOICE_TONE = { PENDING: "gold", PAID: "green", OVERDUE: "red" };
+
+const rowCls = `bg-white p-4 ${CARD_SHADOW}`;
+const centered = "flex justify-center py-16 text-gold-deep";
+
+function RefreshButton({ onClick, label }) {
+  return <NButton variant="soft" size="sm" icon={RefreshCw} onClick={onClick}>{label}</NButton>;
 }
 
-// ══════════════════════════════════════════════════════════════════
-//  SHARED PRIMITIVES (matching Schedule.jsx conventions)
-// ══════════════════════════════════════════════════════════════════
-function Spinner({ size = 18, color = P }) {
+function SectionTitle({ icon, children, action }) {
   return (
-    <>
-      <div style={{ width: size, height: size, borderRadius: "50%", border: `2px solid ${color}`, borderTopColor: "transparent", animation: "spin 0.8s linear infinite", flexShrink: 0 }} />
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-    </>
-  );
-}
-
-function ModalWrap({ onClose, children, maxWidth = 440, dir }) {
-  return (
-    <div onClick={(e) => e.target === e.currentTarget && onClose()}
-      style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 300, padding: "1rem", backdropFilter: "blur(2px)" }}>
-      <div dir={dir} style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth, border: "1.5px solid #E2E8F0", overflow: "hidden", fontFamily: "'Cairo',sans-serif", maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,.18)" }}>
-        {children}
+    <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <div className="flex items-center gap-3">
+        <IconTile icon={icon} className="size-9" />
+        <h3 className="font-display text-lg text-green-deep">{children}</h3>
       </div>
+      {action}
     </div>
   );
 }
 
-function ModalHeader({ title, subtitle, onClose }) {
+function PagerButton({ onClick, disabled, children }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.25rem", borderBottom: "1.5px solid #F1F5F9", background: "#FAFCFF", flexShrink: 0 }}>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>{title}</div>
-        {subtitle && <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{subtitle}</div>}
-      </div>
-      <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginInlineStart: 10 }}>
-        <X size={14} color="#64748B" />
-      </button>
-    </div>
-  );
-}
-
-function ModalFooter({ children }) {
-  return (
-    <div style={{ display: "flex", gap: 8, padding: "1rem 1.25rem", borderTop: "1.5px solid #F1F5F9", background: "#FAFCFF", flexShrink: 0 }}>
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="grid size-10 place-items-center rounded-sm bg-white text-green-deep shadow-sm transition-colors hover:bg-gold disabled:opacity-40 disabled:hover:bg-white"
+    >
       {children}
-    </div>
-  );
-}
-
-function BtnPrimary({ onClick, disabled, loading, icon: Icon, label, danger, color }) {
-  return (
-    <button onClick={onClick} disabled={disabled || loading}
-      style={{ flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "9px", borderRadius: 10, border: "none", background: disabled || loading ? "#CBD5E1" : danger ? "#E24B4A" : (color || P), color: "#fff", fontSize: 13, fontWeight: 600, cursor: disabled || loading ? "not-allowed" : "pointer", fontFamily: "'Cairo',sans-serif", transition: "background .15s" }}>
-      {loading ? <Spinner size={14} color="#fff" /> : Icon ? <Icon size={14} /> : null}
-      {label}
     </button>
-  );
-}
-
-function BtnGhost({ onClick, label, flex = 1 }) {
-  return (
-    <button onClick={onClick} style={{ flex, padding: "9px", borderRadius: 10, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 13, cursor: "pointer", fontFamily: "'Cairo',sans-serif" }}>
-      {label}
-    </button>
-  );
-}
-
-function ErrorBox({ msg }) {
-  return msg ? (
-    <div style={{ fontSize: 12, color: "#DC2626", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 9, padding: "8px 13px", display: "flex", alignItems: "center", gap: 6 }}>
-      <AlertCircle size={13} style={{ flexShrink: 0 }} /> {msg}
-    </div>
-  ) : null;
-}
-
-function Field({ label, children, required }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-      {label && <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B" }}>{label}{required && <span style={{ color: "#DC2626" }}> *</span>}</label>}
-      {children}
-    </div>
-  );
-}
-
-function Input({ value, onChange, type = "text", placeholder = "", ...rest }) {
-  return <input style={inp} type={type} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} {...rest} />;
-}
-
-function Textarea({ value, onChange, placeholder = "", rows = 3 }) {
-  return <textarea style={{ ...inp, resize: "none" }} rows={rows} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />;
-}
-
-function Select({ value, onChange, options, placeholder }) {
-  return (
-    <select style={{ ...inp, cursor: "pointer" }} value={value} onChange={(e) => onChange(e.target.value)}>
-      <option value="">{placeholder}</option>
-      {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-    </select>
-  );
-}
-
-function Badge({ label, bg, color, border }) {
-  return (
-    <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: bg, color, border: `1px solid ${border}`, whiteSpace: "nowrap" }}>
-      {label}
-    </span>
-  );
-}
-
-function EmptyState({ icon: Icon = Inbox, title, subtitle }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "3.5rem 1rem", color: "#94A3B8", textAlign: "center" }}>
-      <Icon size={36} color="#E2E8F0" style={{ marginBottom: 12 }} />
-      <div style={{ fontSize: 13, fontWeight: 600, color: "#64748B" }}>{title}</div>
-      {subtitle && <div style={{ fontSize: 12, marginTop: 4, maxWidth: 320 }}>{subtitle}</div>}
-    </div>
-  );
-}
-
-function TabBar({ active, onChange, tabs }) {
-  return (
-    <div className="sac-tab-bar" style={{ display: "flex", gap: 6, padding: 4, borderRadius: 12, background: "#fff", border: "1.5px solid #E2E8F0", overflowX: "auto" }}>
-      {tabs.map((t) => (
-        <button key={t.key} onClick={() => onChange(t.key)}
-          style={{
-            display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", borderRadius: 9, border: "none",
-            cursor: "pointer", fontSize: 12.5, fontWeight: 700, fontFamily: "inherit", whiteSpace: "nowrap",
-            background: active === t.key ? P : "transparent", color: active === t.key ? "#fff" : "#64748B",
-            transition: "background .15s, color .15s", position: "relative", flexShrink: 0,
-          }}>
-          <t.icon size={14} />
-          {t.label}
-          {t.badge > 0 && (
-            <span style={{
-              display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 17, height: 17, padding: "0 4px",
-              borderRadius: 20, fontSize: 9.5, fontWeight: 800,
-              background: active === t.key ? "rgba(255,255,255,.25)" : "#E24B4A",
-              color: "#fff",
-            }}>
-              {t.badge}
-            </span>
-          )}
-        </button>
-      ))}
-    </div>
   );
 }
 
 // ══════════════════════════════════════════════════════════════════
 //  COURSES TAB
 // ══════════════════════════════════════════════════════════════════
-const EMPTY_SESSION = { day: "", startTime: "08:00", endTime: "09:30" };
+const EMPTY_SESSION = { date: "", startTime: "08:00", endTime: "09:30" };
 const EMPTY_COURSE = {
   name: "", subjectName: "", description: "",
   teacherId: "", externalTeacherName: "", externalTeacherPhone: "",
@@ -261,89 +114,85 @@ const EMPTY_COURSE = {
   sessions: [],
 };
 
-function CourseCard({ course, onArchive, onOpenPayout, t, fmtMoney }) {
+function CourseCard({ course, onArchive, onOpenPayout, t, fmtMoney, index }) {
   const pct = course.enrolledCount != null && course.maxStudents
     ? Math.min(100, Math.round((course.enrolledCount / course.maxStudents) * 100))
     : 0;
+  const levelLabel = course.level ? (t(`courses.levels.${course.level}`) || course.level) : null;
 
   return (
-    <div style={{ background: "#fff", borderRadius: 14, border: "1.5px solid #E2E8F0", padding: "1.1rem", boxShadow: "0 1px 4px rgba(0,0,0,.03)" }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
-        <div style={{ display: "flex", gap: 11, minWidth: 0 }}>
-          <div style={{ width: 42, height: 42, borderRadius: 12, background: "#EBF4FE", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <BookOpen size={19} color={P} />
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>{course.name}</div>
-            <div style={{ fontSize: 11.5, color: "#94A3B8", marginTop: 2 }}>{course.subjectName}</div>
-            {course.description && (
-              <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 4, maxWidth: 340, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {course.description}
-              </div>
-            )}
-          </div>
+    <Reveal delay={Math.min(index, 6) * 0.06} className="h-full">
+      <article className={`group flex h-full flex-col bg-white p-7 transition duration-500 hover:-translate-y-1 ${CARD_SHADOW} hover:shadow-[0_28px_50px_-26px_rgba(10,40,25,.55)]`}>
+        <div className="flex items-start justify-between gap-3">
+          <span className="grid size-12 shrink-0 place-items-center rounded-sm bg-green-deep text-gold transition-colors group-hover:bg-gold group-hover:text-green-deep">
+            <BookOpen className="size-6" strokeWidth={1.5} />
+          </span>
+          <button
+            onClick={() => onArchive(course)}
+            title={t("courses.coursesTab.archivedBadge")}
+            className="grid size-9 place-items-center rounded-sm bg-algeria-red/10 text-algeria-red transition-colors hover:bg-algeria-red hover:text-white"
+          >
+            <Archive className="size-4" />
+          </button>
         </div>
-        <button onClick={() => onArchive(course)} title={t("courses.coursesTab.archivedBadge")}
-          style={{ width: 30, height: 30, borderRadius: 8, border: "1.5px solid #FECACA", background: "#FEF2F2", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <Archive size={13} color="#DC2626" />
-        </button>
-      </div>
 
-      <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginTop: 12 }}>
-        <Badge label={course.level } bg="#F1F5F9" color="#475569" border="#E2E8F0" />
-        <Badge
-          label={course.externalTeacher ? `👤 ${course.teacherName || t("courses.coursesTab.externalTeacherFallback")}` : `👨‍🏫 ${course.teacherName || "—"}`}
-          bg={course.externalTeacher ? "#F3E8FF" : "#EBF4FE"}
-          color={course.externalTeacher ? "#6B21A8" : P}
-          border={course.externalTeacher ? "#E9D5FF" : "#B5D4F4"}
-        />
-        {course.archived && <Badge label={t("courses.coursesTab.archivedBadge")} bg="#F1F5F9" color="#94A3B8" border="#E2E8F0" />}
-      </div>
+        <h4 className="mt-6 font-display text-xl text-green-deep">{course.name}</h4>
+        <p className="mt-1 text-sm text-gold-deep">{course.subjectName}</p>
+        {course.description && (
+          <p className="mt-3 line-clamp-2 text-sm leading-7 text-green-deep/60">{course.description}</p>
+        )}
 
-      <div style={{ marginTop: 12 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#64748B", marginBottom: 4 }}>
-          <span>{course.enrolledCount ?? 0} / {course.maxStudents ?? "∞"} {t("courses.coursesTab.studentsSuffix")}</span>
-          <span>{pct}%</span>
+        <div className="mt-5 flex flex-wrap gap-2">
+          {levelLabel && <Pill tone="sand">{levelLabel}</Pill>}
+          <Pill tone={course.externalTeacher ? "gold" : "green"}>
+            {course.externalTeacher ? <UserIcon className="size-3" /> : <GraduationCap className="size-3" />}
+            {course.teacherName || (course.externalTeacher ? t("courses.coursesTab.externalTeacherFallback") : "—")}
+          </Pill>
+          {course.archived && <Pill tone="sand">{t("courses.coursesTab.archivedBadge")}</Pill>}
         </div>
-        <div style={{ height: 6, borderRadius: 20, background: "#F1F5F9", overflow: "hidden" }}>
-          <div style={{ height: "100%", width: `${pct}%`, background: pct >= 100 ? "#DC2626" : P, borderRadius: 20, transition: "width .3s" }} />
-        </div>
-      </div>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 13, paddingTop: 12, borderTop: "1px solid #F1F5F9", flexWrap: "wrap", gap: 10 }}>
-        <div style={{ display: "flex", gap: 14 }}>
-          <div>
-            <div style={{ fontSize: 9.5, color: "#94A3B8" }}>{t("courses.coursesTab.totalPriceLabel")}</div>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>{fmtMoney(course.totalPrice)}</div>
+        <div className="mt-6">
+          <div className="mb-2 flex justify-between text-xs text-green-deep/60">
+            <span>{course.enrolledCount ?? 0} / {course.maxStudents ?? "∞"} {t("courses.coursesTab.studentsSuffix")}</span>
+            <span className="tabular-nums">{pct}%</span>
           </div>
-          <div>
-            <div style={{ fontSize: 9.5, color: "#94A3B8" }}>{t("courses.coursesTab.teacherPercentageLabel")}</div>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>{course.teacherPercentage != null ? `${course.teacherPercentage}%` : "—"}</div>
-          </div>
+          <ProgressBar pct={pct} />
         </div>
-        <button onClick={() => onOpenPayout(course)}
-          style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 9, border: "none", background: GREEN, color: "#fff", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-          <Wallet size={12} /> {t("courses.coursesTab.teacherSharePayoutButton")}
-        </button>
-      </div>
-    </div>
+
+        <div className="mt-7 flex flex-wrap items-end justify-between gap-4 bg-ivory p-4 lg:mt-auto">
+          <div className="flex gap-6">
+            <div>
+              <p className="text-[11px] text-green-deep/50">{t("courses.coursesTab.totalPriceLabel")}</p>
+              <p className="mt-0.5 font-display text-base text-green-deep">{fmtMoney(course.totalPrice)}</p>
+            </div>
+            <div>
+              <p className="text-[11px] text-green-deep/50">{t("courses.coursesTab.teacherPercentageLabel")}</p>
+              <p className="mt-0.5 font-display text-base text-green-deep">
+                {course.teacherPercentage != null ? `${course.teacherPercentage}%` : "—"}
+              </p>
+            </div>
+          </div>
+          <NButton variant="green" size="sm" icon={Wallet} onClick={() => onOpenPayout(course)}>
+            {t("courses.coursesTab.teacherSharePayoutButton")}
+          </NButton>
+        </div>
+      </article>
+    </Reveal>
   );
 }
 
 function SessionRow({ session, onChange, onRemove }) {
   return (
-    <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
-      <div style={{ flex: "2 1 150px" }}>
-        <input type="date" style={inp} value={session.date} onChange={(e)=>{onChange({...session,date:e.target.value})}} />
-      </div>
-      <div style={{ flex: "1 1 100px" }}>
-        <input style={inp} type="time" value={session.startTime} onChange={(e) => onChange({ ...session, startTime: e.target.value })} />
-      </div>
-      <div style={{ flex: "1 1 100px" }}>
-        <input style={inp} type="time" value={session.endTime} onChange={(e) => onChange({ ...session, endTime: e.target.value })} />
-      </div>
-      <button onClick={onRemove} style={{ width: 34, height: 34, borderRadius: 9, border: "1.5px solid #FECACA", background: "#FEF2F2", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-        <X size={13} color="#DC2626" />
+    <div className="flex flex-wrap items-center gap-2">
+      <input type="date" className={`${fieldCls} flex-[2_1_150px]`} value={session.date}
+        onChange={(e) => onChange({ ...session, date: e.target.value })} />
+      <input type="time" className={`${fieldCls} flex-[1_1_100px]`} value={session.startTime}
+        onChange={(e) => onChange({ ...session, startTime: e.target.value })} />
+      <input type="time" className={`${fieldCls} flex-[1_1_100px]`} value={session.endTime}
+        onChange={(e) => onChange({ ...session, endTime: e.target.value })} />
+      <button onClick={onRemove}
+        className="grid size-11 shrink-0 place-items-center rounded-sm bg-algeria-red/10 text-algeria-red transition-colors hover:bg-algeria-red hover:text-white">
+        <X className="size-4" />
       </button>
     </div>
   );
@@ -351,15 +200,16 @@ function SessionRow({ session, onChange, onRemove }) {
 
 function CreateCourseModal({ teachers, onClose, onCreated, t, dir }) {
   const [form, setForm] = useState(EMPTY_COURSE);
-  const [teacherMode, setTeacherMode] = useState("internal"); // "internal" | "external"
+  const [teacherMode, setTeacherMode] = useState("internal");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const teacherOptions = teachers.map((t2) => ({ value: String(t2.id), label: `${t2.fullName}${t2.specialization ? " — " + t2.specialization : ""}` }));
+  const set = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));
+  const teacherOptions = teachers.map((x) => ({ value: String(x.id), label: `${x.fullName}${x.specialization ? " — " + x.specialization : ""}` }));
   const levelOptions = LEVEL_KEYS.map((k) => ({ value: k, label: t(`courses.levels.${k}`) }));
 
   const addSession = () => setForm((f) => ({ ...f, sessions: [...f.sessions, { ...EMPTY_SESSION }] }));
-  const updateSession = (i, sess) => setForm((f) => ({ ...f, sessions: f.sessions.map((s, idx) => idx === i ? sess : s) }));
+  const updateSession = (i, s) => setForm((f) => ({ ...f, sessions: f.sessions.map((x, idx) => (idx === i ? s : x)) }));
   const removeSession = (i) => setForm((f) => ({ ...f, sessions: f.sessions.filter((_, idx) => idx !== i) }));
 
   const handleSave = async () => {
@@ -367,8 +217,8 @@ function CreateCourseModal({ teachers, onClose, onCreated, t, dir }) {
     if (!form.subjectName.trim()) return setError(t("courses.createCourse.errors.subject"));
     if (teacherMode === "internal" && !form.teacherId) return setError(t("courses.createCourse.errors.teacher"));
     if (teacherMode === "external" && !form.externalTeacherName.trim()) return setError(t("courses.createCourse.errors.externalTeacherName"));
-    if (!form.maxStudents)  return setError(t("courses.createCourse.errors.maxStudents"));
-    if (!form.totalPrice)   return setError(t("courses.createCourse.errors.totalPrice"));
+    if (!form.maxStudents) return setError(t("courses.createCourse.errors.maxStudents"));
+    if (!form.totalPrice)  return setError(t("courses.createCourse.errors.totalPrice"));
     if (form.sessions.length === 0) return setError(t("courses.createCourse.errors.atLeastOneSession"));
     if (form.sessions.some((s) => !s.date || !s.startTime || !s.endTime)) return setError(t("courses.createCourse.errors.completeSessionFields"));
     if (form.sessions.some((s) => s.startTime >= s.endTime)) return setError(t("courses.createCourse.errors.sessionTimeOrder"));
@@ -397,82 +247,88 @@ function CreateCourseModal({ teachers, onClose, onCreated, t, dir }) {
   };
 
   return (
-    <ModalWrap onClose={onClose} maxWidth={560} dir={dir}>
+    <Modal onClose={onClose} maxWidth="max-w-2xl" dir={dir}>
       <ModalHeader title={t("courses.createCourse.title")} subtitle={t("courses.createCourse.subtitle")} onClose={onClose} />
-      <div style={{ padding: "1.1rem 1.25rem", display: "flex", flexDirection: "column", gap: 14, overflowY: "auto" }}>
-
-        <div className="sac-form-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Field label={t("courses.createCourse.nameLabel")} required>
-            <Input value={form.name} onChange={(v) => setForm((f) => ({ ...f, name: v }))} placeholder={t("courses.createCourse.namePlaceholder")} />
+      <ModalBody flush>
+        <FormSection icon={BookOpen} label={t("courses.createCourse.nameLabel")} sub={t("courses.createCourse.subjectLabel")}>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field id="c-name" label={t("courses.createCourse.nameLabel")} req>
+              <TextInput id="c-name" value={form.name} onChange={set("name")} placeholder={t("courses.createCourse.namePlaceholder")} />
+            </Field>
+            <Field id="c-subject" label={t("courses.createCourse.subjectLabel")} req>
+              <TextInput id="c-subject" value={form.subjectName} onChange={set("subjectName")} placeholder={t("courses.createCourse.subjectPlaceholder")} />
+            </Field>
+          </div>
+          <Field id="c-desc" label={t("courses.createCourse.descriptionLabel")}>
+            <TextArea id="c-desc" value={form.description} onChange={set("description")} placeholder={t("courses.createCourse.descriptionPlaceholder")} />
           </Field>
-          <Field label={t("courses.createCourse.subjectLabel")} required>
-            <Input value={form.subjectName} onChange={(v) => setForm((f) => ({ ...f, subjectName: v }))} placeholder={t("courses.createCourse.subjectPlaceholder")} />
-          </Field>
-        </div>
+        </FormSection>
 
-        <Field label={t("courses.createCourse.descriptionLabel")}>
-          <Textarea value={form.description} onChange={(v) => setForm((f) => ({ ...f, description: v }))} placeholder={t("courses.createCourse.descriptionPlaceholder")} />
-        </Field>
-
-        <Field label={t("courses.createCourse.teacherLabel")} required>
-          <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+        <FormSection icon={GraduationCap} label={t("courses.createCourse.teacherLabel")} sub={t("courses.createCourse.teacherModeInternal") + " / " + t("courses.createCourse.teacherModeExternal")}>
+          <div className="flex gap-2 rounded-sm bg-sand/60 p-1.5">
             {[
               { key: "internal", label: t("courses.createCourse.teacherModeInternal") },
               { key: "external", label: t("courses.createCourse.teacherModeExternal") },
             ].map((m) => (
               <button key={m.key} onClick={() => setTeacherMode(m.key)}
-                style={{ flex: 1, padding: "7px", borderRadius: 8, border: `1.5px solid ${teacherMode === m.key ? P : "#E2E8F0"}`, background: teacherMode === m.key ? "#EBF4FE" : "#fff", color: teacherMode === m.key ? P : "#64748B", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                className={`h-10 flex-1 rounded-sm text-sm font-bold transition-colors ${teacherMode === m.key ? "bg-green-deep text-gold" : "text-green-deep/60 hover:bg-white"}`}>
                 {m.label}
               </button>
             ))}
           </div>
           {teacherMode === "internal" ? (
-            <Select value={form.teacherId} onChange={(v) => setForm((f) => ({ ...f, teacherId: v }))} options={teacherOptions} placeholder={t("courses.createCourse.teacherSelectPlaceholder")} />
+            <Field id="c-teacher" label={t("courses.createCourse.teacherLabel")} req>
+              <SelectInput value={form.teacherId} onChange={set("teacherId")} options={teacherOptions} placeholder={t("courses.createCourse.teacherSelectPlaceholder")} />
+            </Field>
           ) : (
-            <div className="sac-form-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <Input value={form.externalTeacherName} onChange={(v) => setForm((f) => ({ ...f, externalTeacherName: v }))} placeholder={t("courses.createCourse.externalNamePlaceholder")} />
-              <Input value={form.externalTeacherPhone} onChange={(v) => setForm((f) => ({ ...f, externalTeacherPhone: v }))} placeholder={t("courses.createCourse.externalPhonePlaceholder")} />
+            <div className="grid gap-5 sm:grid-cols-2">
+              <Field id="c-ext-name" label={t("courses.createCourse.externalNamePlaceholder")} req>
+                <TextInput id="c-ext-name" value={form.externalTeacherName} onChange={set("externalTeacherName")} placeholder={t("courses.createCourse.externalNamePlaceholder")} />
+              </Field>
+              <Field id="c-ext-phone" label={t("courses.createCourse.externalPhonePlaceholder")}>
+                <TextInput id="c-ext-phone" dir="ltr" value={form.externalTeacherPhone} onChange={set("externalTeacherPhone")} placeholder={t("courses.createCourse.externalPhonePlaceholder")} />
+              </Field>
             </div>
           )}
-        </Field>
+        </FormSection>
 
-        <div className="sac-form-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Field label={t("courses.createCourse.levelLabel")}>
-            <Select value={form.level} onChange={(v) => setForm((f) => ({ ...f, level: v }))} options={levelOptions} placeholder={t("courses.levels.allLevels")} />
-          </Field>
-          <Field label={t("courses.createCourse.maxStudentsLabel")} required>
-            <Input type="number" value={form.maxStudents} onChange={(v) => setForm((f) => ({ ...f, maxStudents: v }))} placeholder={t("courses.createCourse.maxStudentsPlaceholder")} />
-          </Field>
-        </div>
+        <FormSection icon={CircleDollarSign} label={t("courses.createCourse.totalPriceLabel")} sub={t("courses.createCourse.teacherPercentageLabel")}>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field id="c-level" label={t("courses.createCourse.levelLabel")}>
+              <SelectInput value={form.level} onChange={set("level")} options={levelOptions} placeholder={t("courses.levels.allLevels")} />
+            </Field>
+            <Field id="c-max" label={t("courses.createCourse.maxStudentsLabel")} req>
+              <TextInput id="c-max" type="number" value={form.maxStudents} onChange={set("maxStudents")} placeholder={t("courses.createCourse.maxStudentsPlaceholder")} />
+            </Field>
+            <Field id="c-price" label={t("courses.createCourse.totalPriceLabel")} req>
+              <TextInput id="c-price" type="number" value={form.totalPrice} onChange={set("totalPrice")} placeholder={t("courses.createCourse.totalPricePlaceholder")} />
+            </Field>
+            <Field id="c-pct" label={t("courses.createCourse.teacherPercentageLabel")}>
+              <TextInput id="c-pct" type="number" value={form.teacherPercentage} onChange={set("teacherPercentage")} placeholder={t("courses.createCourse.teacherPercentagePlaceholder")} />
+            </Field>
+          </div>
+        </FormSection>
 
-        <div className="sac-form-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Field label={t("courses.createCourse.totalPriceLabel")} required>
-            <Input type="number" value={form.totalPrice} onChange={(v) => setForm((f) => ({ ...f, totalPrice: v }))} placeholder={t("courses.createCourse.totalPricePlaceholder")} />
-          </Field>
-          <Field label={t("courses.createCourse.teacherPercentageLabel")}>
-            <Input type="number" value={form.teacherPercentage} onChange={(v) => setForm((f) => ({ ...f, teacherPercentage: v }))} placeholder={t("courses.createCourse.teacherPercentagePlaceholder")} />
-          </Field>
-        </div>
-
-        <Field label={t("courses.createCourse.sessionsLabel")} required>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <FormSection icon={CalendarClock} label={t("courses.createCourse.sessionsLabel")} sub={t("courses.createCourse.addSession")}>
+          <div className="space-y-3">
             {form.sessions.map((s, i) => (
-              <SessionRow key={i} session={s} onChange={(sess) => updateSession(i, sess)} onRemove={() => removeSession(i)} />
+              <SessionRow key={i} session={s} onChange={(x) => updateSession(i, x)} onRemove={() => removeSession(i)} />
             ))}
             <button onClick={addSession}
-              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px", borderRadius: 9, border: "1.5px dashed #CBD5E1", background: "transparent", color: "#64748B", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-              <Plus size={13} /> {t("courses.createCourse.addSession")}
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-sm bg-gold/15 text-sm font-bold text-gold-deep transition-colors hover:bg-gold hover:text-green-deep">
+              <Plus className="size-4" /> {t("courses.createCourse.addSession")}
             </button>
           </div>
-        </Field>
-
-        <ErrorBox msg={error} />
-      </div>
+          <ErrorNote msg={error} />
+        </FormSection>
+      </ModalBody>
       <ModalFooter>
-        <BtnGhost onClick={onClose} label={t("courses.createCourse.cancel")} />
-        <BtnPrimary onClick={handleSave} loading={saving} icon={Plus} label={saving ? t("courses.createCourse.submitting") : t("courses.createCourse.submit")} />
+        <NButton variant="ghost" onClick={onClose} className="flex-1">{t("courses.createCourse.cancel")}</NButton>
+        <NButton variant="gold" icon={Plus} loading={saving} onClick={handleSave} className="flex-[2]">
+          {saving ? t("courses.createCourse.submitting") : t("courses.createCourse.submit")}
+        </NButton>
       </ModalFooter>
-    </ModalWrap>
+    </Modal>
   );
 }
 
@@ -492,24 +348,26 @@ function ArchiveCourseModal({ course, onClose, onConfirm, t, dir }) {
   };
 
   return (
-    <ModalWrap onClose={onClose} maxWidth={360} dir={dir}>
+    <Modal onClose={onClose} maxWidth="max-w-sm" dir={dir}>
       <ModalHeader title={t("courses.archiveCourse.title")} onClose={onClose} />
-      <div style={{ padding: "1.5rem 1.25rem", display: "flex", flexDirection: "column", alignItems: "center", gap: 14, textAlign: "center" }}>
-        <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#FEF2F2", border: "2px solid #FECACA", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Archive size={22} color="#DC2626" />
-        </div>
-        <p style={{ fontSize: 13, color: "#475569", lineHeight: 1.7, margin: 0 }}>
+      <ModalBody className="text-center">
+        <span className="mx-auto grid size-16 place-items-center rounded-full bg-algeria-red/10 text-algeria-red">
+          <Archive className="size-7" strokeWidth={1.5} />
+        </span>
+        <p className="text-sm leading-8 text-green-deep">
           {interp(t("courses.archiveCourse.confirmText"), { name: course.name })}
           <br />
-          <span style={{ fontSize: 11, color: "#94A3B8" }}>{t("courses.archiveCourse.confirmNote")}</span>
+          <span className="text-xs text-green-deep/55">{t("courses.archiveCourse.confirmNote")}</span>
         </p>
-        <ErrorBox msg={error} />
-      </div>
+        <ErrorNote msg={error} />
+      </ModalBody>
       <ModalFooter>
-        <BtnGhost onClick={onClose} label={t("courses.archiveCourse.cancel")} />
-        <BtnPrimary onClick={handleConfirm} loading={saving} icon={Archive} label={saving ? t("courses.archiveCourse.archiving") : t("courses.archiveCourse.confirm")} danger />
+        <NButton variant="ghost" onClick={onClose} className="flex-1">{t("courses.archiveCourse.cancel")}</NButton>
+        <NButton variant="danger" icon={Archive} loading={saving} onClick={handleConfirm} className="flex-[2]">
+          {saving ? t("courses.archiveCourse.archiving") : t("courses.archiveCourse.confirm")}
+        </NButton>
       </ModalFooter>
-    </ModalWrap>
+    </Modal>
   );
 }
 
@@ -520,7 +378,6 @@ function CoursesTab({ courses, teachers, loading, error, onReload, onOpenPayout,
   const [levelFilter, setLevelFilter] = useState("");
 
   const levelOptions = LEVEL_KEYS.map((k) => ({ value: k, label: t(`courses.levels.${k}`) }));
-
   const filtered = courses.filter((c) => {
     if (levelFilter && c.level !== levelFilter) return false;
     if (search && !`${c.name} ${c.subjectName} ${c.teacherName || ""}`.toLowerCase().includes(search.toLowerCase())) return false;
@@ -529,51 +386,42 @@ function CoursesTab({ courses, teachers, loading, error, onReload, onOpenPayout,
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
-        <div style={{ display: "flex", gap: 8, flex: 1, minWidth: 240, flexWrap: "wrap" }}>
-          <div className="sac-search-box" style={{ position: "relative", flex: 1, maxWidth: 280, minWidth: 160 }}>
-            <Search size={14} color="#94A3B8" style={{ position: "absolute", insetInlineEnd: 11, top: "50%", transform: "translateY(-50%)" }} />
-            <input style={{ ...inp, paddingInlineEnd: 32 }} value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("courses.coursesTab.searchPlaceholder")} />
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-1 flex-wrap gap-3">
+          <div className="relative min-w-48 max-w-xs flex-1">
+            <Search className="pointer-events-none absolute end-4 top-1/2 size-4 -translate-y-1/2 text-gold-deep" strokeWidth={1.5} />
+            <input className={`${fieldCls} bg-white pe-11 shadow-sm`} value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("courses.coursesTab.searchPlaceholder")} />
           </div>
-          <div className="sac-filter-select" style={{ width: 160 }}>
-            <Select value={levelFilter} onChange={setLevelFilter} options={levelOptions} placeholder={t("courses.levels.allLevels")} />
+          <div className="w-44">
+            <SelectInput className="bg-white shadow-sm" value={levelFilter} onChange={setLevelFilter} options={levelOptions} placeholder={t("courses.levels.allLevels")} />
           </div>
         </div>
-        <div className="sac-action-buttons" style={{ display: "flex", gap: 8 }}>
-          <button onClick={onReload} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 14px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-            <RefreshCw size={13} /> {t("courses.coursesTab.refresh")}
-          </button>
-          <button onClick={() => setCreateOpen(true)}
-            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "9px 16px", borderRadius: 9, border: "none", background: P, color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-            <Plus size={14} /> {t("courses.coursesTab.addCourse")}
-          </button>
+        <div className="flex gap-2">
+          <RefreshButton onClick={onReload} label={t("courses.coursesTab.refresh")} />
+          <NButton variant="gold" size="sm" icon={Plus} onClick={() => setCreateOpen(true)}>{t("courses.coursesTab.addCourse")}</NButton>
         </div>
       </div>
 
       {loading ? (
-        <div style={{ display: "flex", justifyContent: "center", padding: "3.5rem" }}><Spinner size={28} /></div>
+        <div className={centered}><Spinner className="size-8" /></div>
       ) : error ? (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "2.5rem" }}>
-          <AlertCircle size={32} color="#E2A84B" />
-          <p style={{ color: "#64748B", fontSize: 13, margin: 0 }}>{error}</p>
-        </div>
+        <EmptyState icon={AlertCircle} title={error} />
       ) : filtered.length === 0 ? (
         <EmptyState icon={BookOpen}
           title={courses.length === 0 ? t("courses.coursesTab.emptyNoCourses") : t("courses.coursesTab.emptyNoResults")}
           subtitle={courses.length === 0 ? t("courses.coursesTab.emptyNoCoursesSub") : t("courses.coursesTab.emptyNoResultsSub")} />
       ) : (
-        <div className="sac-courses-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14 }}>
-          {filtered.map((c) => (
-            <CourseCard key={c.id} course={c} onArchive={setArchiveTarget} onOpenPayout={onOpenPayout} t={t} fmtMoney={fmtMoney} />
+        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+          {filtered.map((c, i) => (
+            <CourseCard key={c.id} index={i} course={c} onArchive={setArchiveTarget} onOpenPayout={onOpenPayout} t={t} fmtMoney={fmtMoney} />
           ))}
         </div>
       )}
 
-      {createOpen && (
-        <CreateCourseModal teachers={teachers} onClose={() => setCreateOpen(false)} onCreated={() => { onReload(); }} t={t} dir={dir} />
-      )}
+      {createOpen && <CreateCourseModal teachers={teachers} onClose={() => setCreateOpen(false)} onCreated={onReload} t={t} dir={dir} />}
       {archiveTarget && (
-        <ArchiveCourseModal course={archiveTarget} onClose={() => setArchiveTarget(null)} onConfirm={() => { setArchiveTarget(null); onReload(); }} t={t} dir={dir} />
+        <ArchiveCourseModal course={archiveTarget} onClose={() => setArchiveTarget(null)}
+          onConfirm={() => { setArchiveTarget(null); onReload(); }} t={t} dir={dir} />
       )}
     </div>
   );
@@ -599,76 +447,68 @@ function RejectModal({ request, onClose, onRejected, t, dir }) {
   };
 
   return (
-    <ModalWrap onClose={onClose} maxWidth={400} dir={dir}>
+    <Modal onClose={onClose} maxWidth="max-w-md" dir={dir}>
       <ModalHeader title={t("courses.rejectModal.title")} subtitle={request.studentName} onClose={onClose} />
-      <div style={{ padding: "1.1rem 1.25rem", display: "flex", flexDirection: "column", gap: 12 }}>
-        <Field label={t("courses.rejectModal.commentLabel")}>
-          <Textarea value={comment} onChange={setComment} placeholder={t("courses.rejectModal.commentPlaceholder")} />
+      <ModalBody>
+        <Field id="r-comment" label={t("courses.rejectModal.commentLabel")}>
+          <TextArea id="r-comment" rows={4} value={comment} onChange={setComment} placeholder={t("courses.rejectModal.commentPlaceholder")} />
         </Field>
-        <ErrorBox msg={error} />
-      </div>
+        <ErrorNote msg={error} />
+      </ModalBody>
       <ModalFooter>
-        <BtnGhost onClick={onClose} label={t("courses.rejectModal.cancel")} />
-        <BtnPrimary onClick={handleReject} loading={saving} icon={XCircle} label={saving ? t("courses.rejectModal.confirming") : t("courses.rejectModal.confirm")} danger />
+        <NButton variant="ghost" onClick={onClose} className="flex-1">{t("courses.rejectModal.cancel")}</NButton>
+        <NButton variant="danger" icon={XCircle} loading={saving} onClick={handleReject} className="flex-[2]">
+          {saving ? t("courses.rejectModal.confirming") : t("courses.rejectModal.confirm")}
+        </NButton>
       </ModalFooter>
-    </ModalWrap>
+    </Modal>
   );
 }
 
 function RequestRow({ request, onApprove, onReject, approving, t, fmtMoney, locale }) {
-  const stMap = {
-    PENDING:  { bg: "#FEF3C7", color: "#92400E", border: "#FDE68A" },
-    ACCEPTED: { bg: "#E1F5EE", color: "#0F6E56", border: "#A7F3D0" },
-    REJECTED: { bg: "#FEE2E2", color: "#DC2626", border: "#FECACA" },
-  };
-  const st = stMap[request.status] || stMap.PENDING;
+  const tone = REQUEST_TONE[request.status] || "gold";
   const stLabel = t(`courses.enrollmentStatus.${request.status}`) || t("courses.enrollmentStatus.PENDING");
 
   return (
-    <div className="sac-request-row" style={{ background: "#fff", borderRadius: 12, border: "1.5px solid #E2E8F0", padding: "12px 14px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-      <div style={{ width: 38, height: 38, borderRadius: "50%", background: "#EBF4FE", border: "2px solid #B5D4F4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#0C447C", flexShrink: 0 }}>
-        {request.studentName?.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?"}
-      </div>
+    <div className={`flex flex-wrap items-center gap-5 ${rowCls}`}>
+      <Avatar name={request.studentName} className="size-11" />
 
-      <div style={{ flex: 1, minWidth: 180 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>{request.studentName}</span>
-          {request.studentLevel && <Badge label={t(`courses.levels.${request.studentLevel}`) || request.studentLevel} bg="#F1F5F9" color="#475569" border="#E2E8F0" />}
+      <div className="min-w-48 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-display text-base text-green-deep">{request.studentName}</span>
+          {request.studentLevel && <Pill tone="sand">{t(`courses.levels.${request.studentLevel}`) || request.studentLevel}</Pill>}
         </div>
-        <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 3, display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <span>📘 {request.courseName}{request.subjectName ? ` — ${request.subjectName}` : ""}</span>
-          {request.parentName && <span><UserIcon size={10} style={{ display: "inline", verticalAlign: -1 }} /> {request.parentName}</span>}
-          {request.parentPhone && <span><Phone size={10} style={{ display: "inline", verticalAlign: -1 }} /> {request.parentPhone}</span>}
+        <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-green-deep/60">
+          <span className="flex items-center gap-1.5"><BookOpen className="size-3 text-gold-deep" />{request.courseName}{request.subjectName ? ` — ${request.subjectName}` : ""}</span>
+          {request.parentName && <span className="flex items-center gap-1.5"><UserIcon className="size-3 text-gold-deep" />{request.parentName}</span>}
+          {request.parentPhone && <span dir="ltr" className="flex items-center gap-1.5"><Phone className="size-3 text-gold-deep" />{request.parentPhone}</span>}
         </div>
       </div>
 
-      <div style={{ textAlign: "center", flexShrink: 0 }}>
-        <div style={{ fontSize: 9.5, color: "#94A3B8" }}>{t("courses.requestRow.priceLabel")}</div>
-        <div style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>{fmtMoney(request.totalPrice)}</div>
+      <div className="text-center">
+        <p className="text-[11px] text-green-deep/50">{t("courses.requestRow.priceLabel")}</p>
+        <p className="font-display text-sm text-green-deep">{fmtMoney(request.totalPrice)}</p>
+      </div>
+      <div className="min-w-24 text-center">
+        <p className="text-[11px] text-green-deep/50">{t("courses.requestRow.requestDateLabel")}</p>
+        <p className="text-xs text-green-deep/80">{fmtDateTime(request.createdAt, locale)}</p>
       </div>
 
-      <div style={{ textAlign: "center", flexShrink: 0, minWidth: 90 }}>
-        <div style={{ fontSize: 9.5, color: "#94A3B8" }}>{t("courses.requestRow.requestDateLabel")}</div>
-        <div style={{ fontSize: 11, color: "#475569" }}>{fmtDateTime(request.createdAt, locale)}</div>
-      </div>
-
-      <Badge label={stLabel} bg={st.bg} color={st.color} border={st.border} />
+      <Pill tone={tone}>{stLabel}</Pill>
 
       {request.status === "PENDING" ? (
-        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-          <button onClick={() => onApprove(request)} disabled={approving}
-            style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 13px", borderRadius: 8, border: "none", background: GREEN, color: "#fff", fontSize: 11.5, fontWeight: 600, cursor: approving ? "default" : "pointer", fontFamily: "inherit", opacity: approving ? .6 : 1 }}>
-            {approving ? <Spinner size={12} color="#fff" /> : <Check size={12} />} {t("courses.requestsTab.approve")}
-          </button>
-          <button onClick={() => onReject(request)}
-            style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 13px", borderRadius: 8, border: "1.5px solid #FECACA", background: "#FEF2F2", color: "#DC2626", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-            <XCircle size={12} /> {t("courses.requestsTab.reject")}
-          </button>
+        <div className="flex gap-2">
+          <NButton variant="green" size="sm" icon={Check} loading={approving} onClick={() => onApprove(request)}>
+            {t("courses.requestsTab.approve")}
+          </NButton>
+          <NButton variant="danger" size="sm" icon={XCircle} onClick={() => onReject(request)}>
+            {t("courses.requestsTab.reject")}
+          </NButton>
         </div>
       ) : request.reviewComment ? (
-        <div style={{ fontSize: 10.5, color: "#94A3B8", display: "flex", alignItems: "center", gap: 4, maxWidth: 160 }}>
-          <MessageSquareText size={11} /> {request.reviewComment}
-        </div>
+        <p className="flex max-w-40 items-center gap-1.5 text-xs text-green-deep/55">
+          <MessageSquareText className="size-3.5 shrink-0" /> {request.reviewComment}
+        </p>
       ) : null}
     </div>
   );
@@ -721,7 +561,7 @@ function RequestsTab({ courses, onPendingCountChange, t, dir, fmtMoney, locale }
     setApprovingId(request.id);
     try {
       await courseApi.approveEnrollment(request.id);
-      setRequests((prev) => prev.map((r) => r.id === request.id ? { ...r, status: "ACCEPTED", reviewedAt: new Date().toISOString() } : r));
+      setRequests((prev) => prev.map((r) => (r.id === request.id ? { ...r, status: "ACCEPTED", reviewedAt: new Date().toISOString() } : r)));
       refreshPendingBadge();
     } catch (err) {
       alert(err?.response?.data?.message || t("courses.requestsTab.approveFailed"));
@@ -729,69 +569,60 @@ function RequestsTab({ courses, onPendingCountChange, t, dir, fmtMoney, locale }
   };
 
   const handleRejected = (request) => {
-    setRequests((prev) => prev.map((r) => r.id === request.id ? { ...r, status: "REJECTED" } : r));
+    setRequests((prev) => prev.map((r) => (r.id === request.id ? { ...r, status: "REJECTED" } : r)));
     setRejectTarget(null);
     refreshPendingBadge();
   };
 
   const courseOptions = courses.map((c) => ({ value: String(c.id), label: c.name }));
+  const Prev = dir === "rtl" ? ChevronRight : ChevronLeft;
+  const Next = dir === "rtl" ? ChevronLeft : ChevronRight;
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <div className="sac-filter-select" style={{ width: 170 }}>
-            <Select value={statusFilter} onChange={setStatusFilter}
-              options={[
-                { value: "PENDING", label: t("courses.enrollmentStatus.PENDING") },
-                { value: "ACCEPTED", label: t("courses.enrollmentStatus.ACCEPTED") },
-                { value: "REJECTED", label: t("courses.enrollmentStatus.REJECTED") },
-              ]}
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap gap-3">
+          <div className="w-44">
+            <SelectInput className="bg-white shadow-sm" value={statusFilter} onChange={setStatusFilter}
+              options={["PENDING", "ACCEPTED", "REJECTED"].map((s) => ({ value: s, label: t(`courses.enrollmentStatus.${s}`) }))}
               placeholder={t("courses.requestsTab.statusAll")} />
           </div>
-          <div className="sac-filter-select" style={{ width: 200 }}>
-            <Select value={courseFilter} onChange={setCourseFilter} options={courseOptions} placeholder={t("courses.requestsTab.allCourses")} />
+          <div className="w-52">
+            <SelectInput className="bg-white shadow-sm" value={courseFilter} onChange={setCourseFilter} options={courseOptions} placeholder={t("courses.requestsTab.allCourses")} />
           </div>
         </div>
-        <button onClick={load} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 9, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-          <RefreshCw size={13} /> {t("courses.requestsTab.refresh")}
-        </button>
+        <RefreshButton onClick={load} label={t("courses.requestsTab.refresh")} />
       </div>
 
       {loading ? (
-        <div style={{ display: "flex", justifyContent: "center", padding: "3.5rem" }}><Spinner size={28} /></div>
+        <div className={centered}><Spinner className="size-8" /></div>
       ) : error ? (
-        <div style={{ textAlign: "center", padding: "2.5rem", color: "#DC2626", fontSize: 13 }}>{error}</div>
+        <EmptyState icon={AlertCircle} title={error} />
       ) : requests.length === 0 ? (
         <EmptyState icon={Inbox} title={t("courses.requestsTab.emptyTitle")} subtitle={t("courses.requestsTab.emptySubtitle")} />
       ) : (
         <>
-          <div style={{ fontSize: 11.5, color: "#94A3B8", marginBottom: 10 }}>{totalElements} {t("courses.requestsTab.countSuffix")}</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <p className="mb-4 flex items-center gap-2 text-xs text-green-deep/60">
+            <Diamond className="size-2 text-gold" /> {totalElements} {t("courses.requestsTab.countSuffix")}
+          </p>
+          <div className="space-y-3">
             {requests.map((r) => (
-              <RequestRow key={r.id} request={r} approving={approvingId === r.id} onApprove={handleApprove} onReject={setRejectTarget} t={t} fmtMoney={fmtMoney} locale={locale} />
+              <RequestRow key={r.id} request={r} approving={approvingId === r.id}
+                onApprove={handleApprove} onReject={setRejectTarget} t={t} fmtMoney={fmtMoney} locale={locale} />
             ))}
           </div>
 
           {!courseFilter && totalPages > 1 && (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 18 }}>
-              <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}
-                style={{ width: 32, height: 32, borderRadius: 8, border: "1.5px solid #E2E8F0", background: "#fff", cursor: page === 0 ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: page === 0 ? .4 : 1 }}>
-                {dir === "rtl" ? <ChevronRight size={14} color="#64748B" /> : <ChevronLeft size={14} color="#64748B" />}
-              </button>
-              <span style={{ fontSize: 12, color: "#64748B" }}>{page + 1} / {totalPages}</span>
-              <button onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
-                style={{ width: 32, height: 32, borderRadius: 8, border: "1.5px solid #E2E8F0", background: "#fff", cursor: page >= totalPages - 1 ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: page >= totalPages - 1 ? .4 : 1 }}>
-                {dir === "rtl" ? <ChevronLeft size={14} color="#64748B" /> : <ChevronRight size={14} color="#64748B" />}
-              </button>
+            <div className="mt-8 flex items-center justify-center gap-4">
+              <PagerButton onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}><Prev className="size-4" /></PagerButton>
+              <span className="font-display text-sm tabular-nums text-green-deep">{page + 1} / {totalPages}</span>
+              <PagerButton onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}><Next className="size-4" /></PagerButton>
             </div>
           )}
         </>
       )}
 
-      {rejectTarget && (
-        <RejectModal request={rejectTarget} onClose={() => setRejectTarget(null)} onRejected={handleRejected} t={t} dir={dir} />
-      )}
+      {rejectTarget && <RejectModal request={rejectTarget} onClose={() => setRejectTarget(null)} onRejected={handleRejected} t={t} dir={dir} />}
     </div>
   );
 }
@@ -799,28 +630,39 @@ function RequestsTab({ courses, onPendingCountChange, t, dir, fmtMoney, locale }
 // ══════════════════════════════════════════════════════════════════
 //  ATTENDANCE TAB
 // ══════════════════════════════════════════════════════════════════
-function SessionPickerCard({ course, session, onClick, t, dir }) {
+function SessionPickerCard({ course, session, onClick, t, dir, locale }) {
+  const Chevron = dir === "rtl" ? ChevronLeft : ChevronRight;
+  const d = session.date ? new Date(session.date) : null;
+  const dayLabel = t(`courses.days.${session.day}`) || session.day || "";
+
   return (
     <button onClick={onClick}
-      style={{ textAlign: dir === "rtl" ? "right" : "left", display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, border: "1.5px solid #E2E8F0", background: "#fff", cursor: "pointer", fontFamily: "inherit", width: "100%" }}>
-      <div style={{ width: 44, textAlign: "center", flexShrink: 0, padding: "6px 4px", borderRadius: 9, background: "#EBF4FE" }}>
-     
+      className={`group flex w-full items-center gap-4 bg-white p-4 text-start transition duration-300 hover:-translate-y-0.5 ${CARD_SHADOW}`}>
+      <span className="grid size-14 shrink-0 place-items-center rounded-sm bg-green-deep text-gold transition-colors group-hover:bg-gold group-hover:text-green-deep">
+        {d ? (
+          <span className="text-center leading-tight">
+            <span className="block font-display text-xl tabular-nums">{d.getDate()}</span>
+            <span className="block text-[10px]">{d.toLocaleDateString(locale, { month: "short" })}</span>
+          </span>
+        ) : (
+          <span className="px-1 text-center text-[11px] font-bold">{String(dayLabel).slice(0, 6)}</span>
+        )}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="font-display text-base text-green-deep">{course.name}</p>
+        <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-green-deep/60">
+          <span>{course.subjectName}</span>
+          <span className="flex items-center gap-1.5"><Clock className="size-3 text-gold-deep" />{fmtTime(session.startTime)} – {fmtTime(session.endTime)}</span>
+          <span className="flex items-center gap-1.5"><GraduationCap className="size-3 text-gold-deep" />{course.teacherName}</span>
+        </p>
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>{course.name}</div>
-        <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
-          {course.subjectName} · 🕐 {fmtTime(session.startTime)} – {fmtTime(session.endTime)} · 👨‍🏫 {course.teacherName}
-        </div>
-      </div>
-      {dir === "rtl" ? <ChevronLeft size={16} color="#94A3B8" style={{ flexShrink: 0 }} /> : <ChevronRight size={16} color="#94A3B8" style={{ flexShrink: 0 }} />}
+      <Chevron className="size-5 shrink-0 text-gold-deep" />
     </button>
   );
 }
 
-function fmtTime(t) { return t ? String(t).slice(0, 5) : "—"; }
-
 function AttendanceModal({ course, session, onClose, t, dir, locale }) {
-  const [sheet, setSheet] = useState(null);     // AttendanceSheetDto | null (not loaded yet)
+  const [sheet, setSheet] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [marks, setMarks] = useState({});
   const [saving, setSaving] = useState(false);
@@ -833,7 +675,6 @@ function AttendanceModal({ course, session, onClose, t, dir, locale }) {
       const res = await courseApi.getAttendanceSheet(session.id);
       const data = res.data;
       setSheet(data);
-      // Pre-fill marks from any existing attendance records
       const initial = {};
       (data.students ?? []).forEach((s) => { if (s.status) initial[s.studentId] = s.status; });
       setMarks(initial);
@@ -859,9 +700,7 @@ function AttendanceModal({ course, session, onClose, t, dir, locale }) {
   const handleSave = async () => {
     setSaving(true); setError("");
     try {
-      const entries = list
-        .filter((s) => marks[s.studentId])
-        .map((s) => ({ studentId: s.studentId, status: marks[s.studentId] }));
+      const entries = list.filter((s) => marks[s.studentId]).map((s) => ({ studentId: s.studentId, status: marks[s.studentId] }));
       if (entries.length === 0) { setError(t("courses.attendanceModal.atLeastOneRequired")); setSaving(false); return; }
       await courseApi.markAttendance(session.id, entries);
       setSubmitted(true);
@@ -872,126 +711,109 @@ function AttendanceModal({ course, session, onClose, t, dir, locale }) {
   };
 
   const STATUS_BTNS = [
-    { key: "PRESENT", Icon: Check,   activeColor: GREEN, activeBg: "#E1F5EE", title: t("courses.attendanceStatus.PRESENT") },
-    { key: "ABSENT",  Icon: XCircle, activeColor: "#DC2626", activeBg: "#FEE2E2", title: t("courses.attendanceStatus.ABSENT") },
+    { key: "PRESENT", Icon: Check,   on: "bg-green-deep text-gold",    title: t("courses.attendanceStatus.PRESENT") },
+    { key: "ABSENT",  Icon: XCircle, on: "bg-algeria-red text-white", title: t("courses.attendanceStatus.ABSENT") },
   ];
 
-  return (
-    <ModalWrap onClose={onClose} maxWidth={560} dir={dir}>
-      <div style={{ padding: "1.1rem 1.25rem", background: "#EBF4FE", borderBottom: "1.5px solid #B5D4F4", flexShrink: 0 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: P }}>{sheet?.moduleName || course.name}</div>
-            <div style={{ fontSize: 11, color: P, opacity: .8, marginTop: 3, display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <span>👨‍🏫 {sheet?.teacherName || course.teacherName}</span>
-              <span>🕐 {fmtTime(sheet?.startTime || session.startTime)} – {fmtTime(sheet?.endTime || session.endTime)}</span>
-              <span>📅 {sheet?.date ? fmtDate(sheet.date, locale) : (t(`courses.days.${session.day}`) || session.day)}</span>
-            </div>
-          </div>
-          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid #B5D4F4", background: "rgba(255,255,255,.6)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <X size={14} color={P} />
-          </button>
-        </div>
+  const dateLabel = sheet?.date ? fmtDate(sheet.date, locale) : (t(`courses.days.${session.day}`) || session.day || "");
 
+  return (
+    <Modal onClose={onClose} maxWidth="max-w-xl" dir={dir}>
+      <ModalHeader
+        title={sheet?.moduleName || course.name}
+        subtitle={`${sheet?.teacherName || course.teacherName || ""} · ${fmtTime(sheet?.startTime || session.startTime)} – ${fmtTime(sheet?.endTime || session.endTime)} · ${dateLabel}`}
+        onClose={onClose}
+      >
         {list.length > 0 && (
-          <div style={{ display: "flex", gap: 7, marginTop: 10, flexWrap: "wrap" }}>
-            <Badge label={`👥 ${sheet?.totalEnrolled ?? list.length} ${t("courses.attendanceModal.totalEnrolledSuffix")}`} bg="rgba(255,255,255,.6)" color={P} border="#B5D4F4" />
-            <Badge label={`✓ ${presentCount} ${t("courses.attendanceModal.presentSuffix")}`} bg="rgba(16,185,129,.15)" color={GREEN} border="#A7F3D0" />
-            <Badge label={`✗ ${absentCount} ${t("courses.attendanceModal.absentSuffix")}`} bg="rgba(239,68,68,.15)" color="#DC2626" border="#FECACA" />
-            <button onClick={() => markAll("PRESENT")} style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "#E1F5EE", color: GREEN, border: "1px solid #A7F3D0", cursor: "pointer", fontFamily: "inherit" }}>{t("courses.attendanceModal.markAllPresent")}</button>
-            <button onClick={() => markAll("ABSENT")} style={{ fontSize: 10, fontWeight: 600, padding: "3px 11px", borderRadius: 20, background: "#FEE2E2", color: "#DC2626", border: "1px solid #FECACA", cursor: "pointer", fontFamily: "inherit" }}>{t("courses.attendanceModal.markAllAbsent")}</button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Pill tone="dark" className="!bg-ivory/10 !text-ivory"><Users className="size-3" />{sheet?.totalEnrolled ?? list.length} {t("courses.attendanceModal.totalEnrolledSuffix")}</Pill>
+            <Pill tone="gold"><Check className="size-3" />{presentCount} {t("courses.attendanceModal.presentSuffix")}</Pill>
+            <Pill tone="red" className="!bg-algeria-red !text-white"><X className="size-3" />{absentCount} {t("courses.attendanceModal.absentSuffix")}</Pill>
+            <button onClick={() => markAll("PRESENT")} className="rounded-full bg-gold px-3 py-1 text-[11px] font-bold text-green-deep transition-colors hover:bg-gold-deep hover:text-ivory">{t("courses.attendanceModal.markAllPresent")}</button>
+            <button onClick={() => markAll("ABSENT")} className="rounded-full bg-ivory/15 px-3 py-1 text-[11px] font-bold text-ivory transition-colors hover:bg-algeria-red">{t("courses.attendanceModal.markAllAbsent")}</button>
           </div>
         )}
-      </div>
+      </ModalHeader>
 
-      <div style={{ overflowY: "auto", flex: 1 }}>
+      <ModalBody flush className="px-4 py-4">
         {sheet === null && !loadError ? (
-          <div style={{ display: "flex", justifyContent: "center", padding: "2.5rem" }}><Spinner size={26} /></div>
+          <div className={centered}><Spinner className="size-7" /></div>
         ) : loadError ? (
-          <div style={{ padding: "2.5rem", textAlign: "center", color: "#DC2626", fontSize: 13 }}>
-            <AlertCircle size={28} style={{ marginBottom: 8 }} />
-            <div>{loadError}</div>
-          </div>
+          <div className="flex flex-col items-center gap-3 py-12 text-sm text-algeria-red"><AlertCircle className="size-7" />{loadError}</div>
         ) : list.length === 0 ? (
-          <div style={{ padding: "2.5rem", textAlign: "center", color: "#94A3B8", fontSize: 13 }}>
-            <Users size={32} color="#E2E8F0" style={{ marginBottom: 8 }} />
-            <div>{t("courses.attendanceModal.emptyStudents")}</div>
+          <EmptyState icon={Users} title={t("courses.attendanceModal.emptyStudents")} />
+        ) : (
+          <div className="space-y-2">
+            {list.map((s) => {
+              const status = marks[s.studentId];
+              const tint = status === "PRESENT" ? "bg-green-deep/10" : status === "ABSENT" ? "bg-algeria-red/10" : "bg-white";
+              return (
+                <div key={s.studentId} className={`flex items-center gap-3 rounded-sm px-4 py-3 transition-colors ${tint}`}>
+                  <Avatar name={s.fullName} className="size-10" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold text-green-deep">{s.fullName}</p>
+                    <p className="text-[11px] text-green-deep/50">{s.level ? (t(`courses.levels.${s.level}`) || s.level) : s.parentPhone ?? ""}</p>
+                  </div>
+                  <div className="flex gap-1.5">
+                    {STATUS_BTNS.map(({ key, Icon, on, title }) => (
+                      <button key={key} title={title} onClick={() => mark(s.studentId, key)}
+                        className={`grid size-10 place-items-center rounded-sm transition-colors ${status === key ? on : "bg-sand text-green-deep/35 hover:bg-gold/30"}`}>
+                        <Icon className="size-4" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        ) : list.map((s, i) => {
-          const id = s.studentId;
-          const status = marks[id];
-          const rowBg = status === "PRESENT" ? "rgba(225,245,238,.55)" : status === "ABSENT" ? "rgba(254,226,226,.45)" : "#fff";
-          return (
-            <div key={id} style={{ padding: "10px 1.25rem", borderBottom: i < list.length - 1 ? "1px solid #F8FAFC" : "none", background: rowBg, transition: "background .2s" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#EBF4FE", border: "2px solid #B5D4F4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#0C447C", flexShrink: 0 }}>
-                  {s.fullName?.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?"}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.fullName}</div>
-                  <div style={{ fontSize: 10, color: "#94A3B8", marginTop: 1 }}>{s.level ?? s.parentPhone ?? ""}</div>
-                </div>
-                <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
-                  {STATUS_BTNS.map(({ key, Icon, activeColor, activeBg, title }) => (
-                    <button key={key} title={title} onClick={() => mark(id, key)}
-                      style={{ width: 30, height: 30, borderRadius: 8, cursor: "pointer", border: `1.5px solid ${status === key ? activeColor : "#E2E8F0"}`, background: status === key ? activeBg : "#fff", color: status === key ? activeColor : "#CBD5E1", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s" }}>
-                      <Icon size={13} />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+        )}
+      </ModalBody>
 
-      {error && <div style={{ padding: "0 1.25rem", paddingTop: 10 }}><ErrorBox msg={error} /></div>}
+      {error && <div className="px-6 pb-3"><ErrorNote msg={error} /></div>}
 
-      <div style={{ padding: ".85rem 1.25rem", borderTop: "1.5px solid #F1F5F9", background: "#FAFCFF", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0, gap: 10 }}>
-        <span style={{ fontSize: 11, color: "#94A3B8" }}>{markedCount} / {list.length} {t("courses.attendanceModal.markedCountSuffix")}</span>
-        <button onClick={handleSave} disabled={submitted || saving || list.length === 0}
-          style={{ padding: "8px 20px", borderRadius: 9, border: "none", background: submitted ? GREEN : P, color: "#fff", fontSize: 13, fontWeight: 600, cursor: submitted ? "default" : "pointer", fontFamily: "'Cairo',sans-serif", display: "flex", alignItems: "center", gap: 6, transition: "background .3s", flexShrink: 0 }}>
-          {saving ? <Spinner size={14} color="#fff" /> : submitted ? <><Check size={14} /> {t("courses.attendanceModal.saved")}</> : t("courses.attendanceModal.save")}
-        </button>
-      </div>
-    </ModalWrap>
+      <ModalFooter>
+        <span className="flex-1 text-xs text-green-deep/60">{markedCount} / {list.length} {t("courses.attendanceModal.markedCountSuffix")}</span>
+        <NButton variant={submitted ? "green" : "gold"} icon={submitted ? Check : undefined} loading={saving}
+          disabled={submitted || list.length === 0} onClick={handleSave}>
+          {submitted ? t("courses.attendanceModal.saved") : t("courses.attendanceModal.save")}
+        </NButton>
+      </ModalFooter>
+    </Modal>
   );
 }
 
 function AttendanceTab({ courses, t, dir, locale }) {
   const [courseFilter, setCourseFilter] = useState("");
-  const [target, setTarget] = useState(null); // { course, session }
+  const [target, setTarget] = useState(null);
 
   const rows = [];
   courses.forEach((c) => {
     if (courseFilter && String(c.id) !== courseFilter) return;
     (c.sessions ?? []).forEach((s) => rows.push({ course: c, session: s }));
   });
-
   const courseOptions = courses.map((c) => ({ value: String(c.id), label: c.name }));
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
-        <div className="sac-filter-select" style={{ width: 220 }}>
-          <Select value={courseFilter} onChange={setCourseFilter} options={courseOptions} placeholder={t("courses.attendanceTab.allCourses")} />
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+        <div className="w-60">
+          <SelectInput className="bg-white shadow-sm" value={courseFilter} onChange={setCourseFilter} options={courseOptions} placeholder={t("courses.attendanceTab.allCourses")} />
         </div>
-        <div style={{ fontSize: 11.5, color: "#94A3B8" }}>{t("courses.attendanceTab.hint")}</div>
+        <p className="flex items-center gap-2 text-xs text-green-deep/60"><Diamond className="size-2 text-gold" />{t("courses.attendanceTab.hint")}</p>
       </div>
 
       {rows.length === 0 ? (
         <EmptyState icon={CalendarClock} title={t("courses.attendanceTab.emptyTitle")} subtitle={t("courses.attendanceTab.emptySubtitle")} />
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div className="space-y-3">
           {rows.map(({ course, session }) => (
-            <SessionPickerCard key={`${course.id}_${session.id ?? session.day + session.startTime}`} course={course} session={session} onClick={() => setTarget({ course, session })} t={t} dir={dir} />
+            <SessionPickerCard key={`${course.id}_${session.id ?? session.day + session.startTime}`}
+              course={course} session={session} onClick={() => setTarget({ course, session })} t={t} dir={dir} locale={locale} />
           ))}
         </div>
       )}
 
-      {target && (
-        <AttendanceModal course={target.course} session={target.session} onClose={() => setTarget(null)} t={t} dir={dir} locale={locale} />
-      )}
+      {target && <AttendanceModal course={target.course} session={target.session} onClose={() => setTarget(null)} t={t} dir={dir} locale={locale} />}
     </div>
   );
 }
@@ -1026,90 +848,64 @@ function PayoutPanel({ course, onClose, t, dir, fmtMoney, locale }) {
     } finally { setPaying(false); }
   };
 
-  const stMap = {
-    PENDING: { bg: "#FEF3C7", color: "#92400E", border: "#FDE68A" },
-    PAID:    { bg: "#E1F5EE", color: "#0F6E56", border: "#A7F3D0" },
-  };
-  const st = payout ? (stMap[payout.status] || stMap.PENDING) : null;
   const stLabel = payout ? (t(`courses.payoutStatus.${payout.status}`) || t("courses.payoutStatus.PENDING")) : "";
 
   return (
-    <ModalWrap onClose={onClose} maxWidth={440} dir={dir}>
+    <Modal onClose={onClose} maxWidth="max-w-md" dir={dir}>
       <ModalHeader title={t("courses.payoutPanel.title")} subtitle={course.name} onClose={onClose} />
-      <div style={{ padding: "1.1rem 1.25rem", display: "flex", flexDirection: "column", gap: 14 }}>
-
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <div style={{ flex: "1 1 120px", background: "#F8FAFC", borderRadius: 10, padding: "10px 14px" }}>
-            <div style={{ fontSize: 10, color: "#94A3B8" }}>{t("courses.payoutPanel.teacherLabel")}</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", marginTop: 2 }}>{course.teacherName || "—"}</div>
+      <ModalBody>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-white p-4">
+            <p className="text-[11px] text-green-deep/50">{t("courses.payoutPanel.teacherLabel")}</p>
+            <p className="mt-1 truncate font-display text-base text-green-deep">{course.teacherName || "—"}</p>
           </div>
-          <div style={{ flex: "1 1 120px", background: "#F8FAFC", borderRadius: 10, padding: "10px 14px" }}>
-            <div style={{ fontSize: 10, color: "#94A3B8" }}>{t("courses.payoutPanel.teacherPercentageLabel")}</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", marginTop: 2 }}>
-              <Percent size={11} style={{ display: "inline", verticalAlign: -1 }} /> {course.teacherPercentage ?? "—"}
-            </div>
+          <div className="bg-white p-4">
+            <p className="text-[11px] text-green-deep/50">{t("courses.payoutPanel.teacherPercentageLabel")}</p>
+            <p className="mt-1 flex items-center gap-1 font-display text-base text-green-deep"><Percent className="size-3.5 text-gold-deep" />{course.teacherPercentage ?? "—"}</p>
           </div>
         </div>
 
         {!payout ? (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "1.5rem 0" }}>
-            <CircleDollarSign size={32} color="#CBD5E1" />
-            <p style={{ fontSize: 12, color: "#94A3B8", textAlign: "center", margin: 0 }}>{t("courses.payoutPanel.calculateHint")}</p>
-            <ErrorBox msg={error} />
+          <div className="flex flex-col items-center gap-4 py-6 text-center">
+            <span className="grid size-16 place-items-center rounded-full bg-sand text-gold-deep"><CircleDollarSign className="size-7" strokeWidth={1.5} /></span>
+            <p className="max-w-xs text-sm leading-7 text-green-deep/60">{t("courses.payoutPanel.calculateHint")}</p>
           </div>
         ) : (
-          <div style={{ border: `1.5px solid ${st.border}`, borderRadius: 12, overflow: "hidden" }}>
-            <div style={{ background: st.bg, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: st.color }}>{t("courses.payoutPanel.paymentStatusLabel")}</span>
-              <Badge label={stLabel} bg="rgba(255,255,255,.6)" color={st.color} border={st.border} />
+          <div className="overflow-hidden bg-white">
+            <div className="flex items-center justify-between bg-green-deep px-5 py-3 text-ivory">
+              <span className="text-xs font-bold">{t("courses.payoutPanel.paymentStatusLabel")}</span>
+              <Pill tone={PAYOUT_TONE[payout.status] || "gold"}>{stLabel}</Pill>
             </div>
-            <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 9, background: "#fff" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5 }}>
-                <span style={{ color: "#64748B" }}>{t("courses.payoutPanel.totalCourseRevenue")}</span>
-                <span style={{ fontWeight: 700, color: "#0F172A" }}>{fmtMoney(payout.totalCourseRevenue)}</span>
+            <div className="space-y-3 p-5 text-sm">
+              <div className="flex justify-between"><span className="text-green-deep/60">{t("courses.payoutPanel.totalCourseRevenue")}</span><span className="font-bold text-green-deep">{fmtMoney(payout.totalCourseRevenue)}</span></div>
+              <div className="flex justify-between"><span className="text-green-deep/60">{t("courses.payoutPanel.percentageLabel")}</span><span className="font-bold text-green-deep">{payout.percentage}%</span></div>
+              <div className="flex items-center justify-between bg-gold/15 px-4 py-3">
+                <span className="font-bold text-green-deep">{t("courses.payoutPanel.payoutAmountLabel")}</span>
+                <span className="font-display text-xl text-gold-deep">{fmtMoney(payout.payoutAmount)}</span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5 }}>
-                <span style={{ color: "#64748B" }}>{t("courses.payoutPanel.percentageLabel")}</span>
-                <span style={{ fontWeight: 700, color: "#0F172A" }}>{payout.percentage}%</span>
-              </div>
-              <div style={{ height: 1, background: "#F1F5F9" }} />
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
-                <span style={{ fontWeight: 700, color: "#0F172A" }}>{t("courses.payoutPanel.payoutAmountLabel")}</span>
-                <span style={{ fontWeight: 800, color: P }}>{fmtMoney(payout.payoutAmount)}</span>
-              </div>
-              {payout.paidAt && (
-                <div style={{ fontSize: 10.5, color: "#94A3B8" }}>{interp(t("courses.payoutPanel.paidAtLabel"), { date: fmtDateTime(payout.paidAt, locale) })}</div>
-              )}
+              {payout.paidAt && <p className="text-xs text-green-deep/50">{interp(t("courses.payoutPanel.paidAtLabel"), { date: fmtDateTime(payout.paidAt, locale) })}</p>}
             </div>
           </div>
         )}
-        <ErrorBox msg={error} />
-      </div>
+        <ErrorNote msg={error} />
+      </ModalBody>
       <ModalFooter>
-        <BtnGhost onClick={onClose} label={t("courses.payoutPanel.close")} />
+        <NButton variant="ghost" onClick={onClose} className="flex-1">{t("courses.payoutPanel.close")}</NButton>
         {!payout ? (
-          <BtnPrimary onClick={handleCalculate} loading={loading} icon={CircleDollarSign} label={loading ? t("courses.payoutPanel.calculating") : t("courses.payoutPanel.calculate")} />
+          <NButton variant="gold" icon={CircleDollarSign} loading={loading} onClick={handleCalculate} className="flex-[2]">
+            {loading ? t("courses.payoutPanel.calculating") : t("courses.payoutPanel.calculate")}
+          </NButton>
         ) : payout.status !== "PAID" ? (
-          <BtnPrimary onClick={handleMarkPaid} loading={paying} icon={Check} label={paying ? t("courses.payoutPanel.confirming") : t("courses.payoutPanel.confirmPayment")} color={GREEN} />
+          <NButton variant="green" icon={Check} loading={paying} onClick={handleMarkPaid} className="flex-[2]">
+            {paying ? t("courses.payoutPanel.confirming") : t("courses.payoutPanel.confirmPayment")}
+          </NButton>
         ) : (
-          <BtnPrimary onClick={handleCalculate} loading={loading} icon={RefreshCw} label={loading ? "..." : t("courses.payoutPanel.recalculate")} />
+          <NButton variant="gold" icon={RefreshCw} loading={loading} onClick={handleCalculate} className="flex-[2]">
+            {t("courses.payoutPanel.recalculate")}
+          </NButton>
         )}
       </ModalFooter>
-    </ModalWrap>
-  );
-}
-
-function StatCard({ icon: Icon, label, value, color = P, bg = "#EBF4FE" }) {
-  return (
-    <div style={{ flex: 1, minWidth: 140, background: "#fff", borderRadius: 12, border: "1.5px solid #E2E8F0", padding: "12px 14px", display: "flex", alignItems: "center", gap: 11 }}>
-      <div style={{ width: 36, height: 36, borderRadius: 10, background: bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-        <Icon size={16} color={color} />
-      </div>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 9.5, color: "#94A3B8" }}>{label}</div>
-        <div style={{ fontSize: 14, fontWeight: 800, color: "#0F172A", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -1117,12 +913,6 @@ function InvoiceRow({ invoice, onPaid, t, fmtMoney, locale }) {
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState("");
   const status = invoice.status || "PENDING";
-  const stMap = {
-    PENDING: { bg: "#FEF3C7", color: "#92400E", border: "#FDE68A" },
-    PAID:    { bg: "#E1F5EE", color: "#0F6E56", border: "#A7F3D0" },
-    OVERDUE: { bg: "#FEE2E2", color: "#DC2626", border: "#FECACA" },
-  };
-  const st = stMap[status] || stMap.PENDING;
   const stLabel = t(`courses.invoiceStatus.${status}`) || t("courses.invoiceStatus.PENDING");
 
   const handlePay = async () => {
@@ -1136,32 +926,27 @@ function InvoiceRow({ invoice, onPaid, t, fmtMoney, locale }) {
   };
 
   return (
-    <div className="sac-invoice-row" style={{ background: "#fff", borderRadius: 12, border: "1.5px solid #E2E8F0", padding: "12px 14px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-      <div style={{ width: 36, height: 36, borderRadius: 10, background: "#FAEEDA", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-        <ReceiptText size={16} color="#854F0B" />
-      </div>
-      <div style={{ flex: 1, minWidth: 160 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>{invoice.studentName}</div>
-        <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>{invoice.courseName}</div>
+    <div className={`flex flex-wrap items-center gap-5 ${rowCls}`}>
+      <IconTile icon={ReceiptText} tone="gold" />
+      <div className="min-w-40 flex-1">
+        <p className="font-display text-base text-green-deep">{invoice.studentName}</p>
+        <p className="mt-0.5 text-xs text-green-deep/60">{invoice.courseName}</p>
       </div>
       {invoice.dueDate && (
-        <div style={{ textAlign: "center", flexShrink: 0 }}>
-          <div style={{ fontSize: 9.5, color: "#94A3B8" }}>{t("courses.payoutsTab.dueDateLabel")}</div>
-          <div style={{ fontSize: 11, color: "#475569" }}>{fmtDate(invoice.dueDate, locale)}</div>
+        <div className="text-center">
+          <p className="text-[11px] text-green-deep/50">{t("courses.payoutsTab.dueDateLabel")}</p>
+          <p className="text-xs text-green-deep/80">{fmtDate(invoice.dueDate, locale)}</p>
         </div>
       )}
-      <div style={{ textAlign: "center", flexShrink: 0 }}>
-        <div style={{ fontSize: 9.5, color: "#94A3B8" }}>{t("courses.payoutsTab.amountLabel")}</div>
-        <div style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>{fmtMoney(invoice.amount)}</div>
+      <div className="text-center">
+        <p className="text-[11px] text-green-deep/50">{t("courses.payoutsTab.amountLabel")}</p>
+        <p className="font-display text-sm text-green-deep">{fmtMoney(invoice.amount)}</p>
       </div>
-      <Badge label={stLabel} bg={st.bg} color={st.color} border={st.border} />
+      <Pill tone={INVOICE_TONE[status] || "gold"}>{stLabel}</Pill>
       {status !== "PAID" && (
-        <button onClick={handlePay} disabled={paying}
-          style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 13px", borderRadius: 8, border: "none", background: GREEN, color: "#fff", fontSize: 11.5, fontWeight: 600, cursor: paying ? "default" : "pointer", fontFamily: "inherit", opacity: paying ? .6 : 1 }}>
-          {paying ? <Spinner size={12} color="#fff" /> : <Check size={12} />} {t("courses.payoutsTab.confirmPayment")}
-        </button>
+        <NButton variant="green" size="sm" icon={Check} loading={paying} onClick={handlePay}>{t("courses.payoutsTab.confirmPayment")}</NButton>
       )}
-      {error && <div style={{ width: "100%" }}><ErrorBox msg={error} /></div>}
+      {error && <div className="w-full"><ErrorNote msg={error} /></div>}
     </div>
   );
 }
@@ -1193,12 +978,11 @@ function ManualInvoiceModal({ courses, onClose, onCreated, t, dir, fmtMoney }) {
     if (!enrollmentId) return setError(t("courses.manualInvoiceModal.selectStudentRequired"));
     setSaving(true); setError("");
     try {
-      const payload = {
+      const res = await courseApi.createManualInvoice({
         enrollmentId: Number(enrollmentId),
         amount: amount ? Number(amount) : undefined,
         dueDate: dueDate || undefined,
-      };
-      const res = await courseApi.createManualInvoice(payload);
+      });
       onCreated(res.data);
       onClose();
     } catch (err) {
@@ -1207,35 +991,40 @@ function ManualInvoiceModal({ courses, onClose, onCreated, t, dir, fmtMoney }) {
   };
 
   return (
-    <ModalWrap onClose={onClose} maxWidth={440} dir={dir}>
+    <Modal onClose={onClose} maxWidth="max-w-md" dir={dir}>
       <ModalHeader title={t("courses.manualInvoiceModal.title")} subtitle={t("courses.manualInvoiceModal.subtitle")} onClose={onClose} />
-      <div style={{ padding: "1.1rem 1.25rem", display: "flex", flexDirection: "column", gap: 12 }}>
-        <Field label={t("courses.manualInvoiceModal.courseLabel")} required>
-          <Select value={courseId} onChange={setCourseId} options={courseOptions} placeholder={t("courses.manualInvoiceModal.coursePlaceholder")} />
+      <ModalBody>
+        <Field id="m-course" label={t("courses.manualInvoiceModal.courseLabel")} req>
+          <SelectInput value={courseId} onChange={setCourseId} options={courseOptions} placeholder={t("courses.manualInvoiceModal.coursePlaceholder")} />
         </Field>
-        <Field label={t("courses.manualInvoiceModal.studentLabel")} required>
+        <Field id="m-student" label={t("courses.manualInvoiceModal.studentLabel")} req>
           {loadingReq ? (
-            <div style={{ display: "flex", padding: "8px 0" }}><Spinner size={16} /></div>
+            <div className="flex h-11 items-center text-gold-deep"><Spinner /></div>
           ) : (
-            <Select value={enrollmentId} onChange={setEnrollmentId} options={requestOptions}
-              placeholder={courseId ? (requests.length === 0 ? t("courses.manualInvoiceModal.studentPlaceholderNoStudents") : t("courses.manualInvoiceModal.studentPlaceholder")) : t("courses.manualInvoiceModal.studentPlaceholderNoCourse")} />
+            <SelectInput value={enrollmentId} onChange={setEnrollmentId} options={requestOptions}
+              placeholder={courseId
+                ? (requests.length === 0 ? t("courses.manualInvoiceModal.studentPlaceholderNoStudents") : t("courses.manualInvoiceModal.studentPlaceholder"))
+                : t("courses.manualInvoiceModal.studentPlaceholderNoCourse")} />
           )}
         </Field>
-        <div className="sac-form-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Field label={t("courses.manualInvoiceModal.amountLabel")}>
-            <Input type="number" value={amount} onChange={setAmount} placeholder={selectedRequest ? String(selectedRequest.totalPrice) : t("courses.manualInvoiceModal.amountDefaultHint")} />
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Field id="m-amount" label={t("courses.manualInvoiceModal.amountLabel")}>
+            <TextInput id="m-amount" type="number" value={amount} onChange={setAmount}
+              placeholder={selectedRequest ? String(selectedRequest.totalPrice) : t("courses.manualInvoiceModal.amountDefaultHint")} />
           </Field>
-          <Field label={t("courses.manualInvoiceModal.dueDateLabel")}>
-            <input type="date" style={inp} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          <Field id="m-due" label={t("courses.manualInvoiceModal.dueDateLabel")}>
+            <input id="m-due" type="date" className={fieldCls} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
           </Field>
         </div>
-        <ErrorBox msg={error} />
-      </div>
+        <ErrorNote msg={error} />
+      </ModalBody>
       <ModalFooter>
-        <BtnGhost onClick={onClose} label={t("courses.manualInvoiceModal.cancel")} />
-        <BtnPrimary onClick={handleSave} loading={saving} icon={ReceiptText} label={saving ? t("courses.manualInvoiceModal.submitting") : t("courses.manualInvoiceModal.submit")} />
+        <NButton variant="ghost" onClick={onClose} className="flex-1">{t("courses.manualInvoiceModal.cancel")}</NButton>
+        <NButton variant="gold" icon={ReceiptText} loading={saving} onClick={handleSave} className="flex-[2]">
+          {saving ? t("courses.manualInvoiceModal.submitting") : t("courses.manualInvoiceModal.submit")}
+        </NButton>
       </ModalFooter>
-    </ModalWrap>
+    </Modal>
   );
 }
 
@@ -1243,199 +1032,149 @@ function PayoutsTab({ courses, initialCourse, onConsumeInitial, t, dir, fmtMoney
   const [payoutCourse, setPayoutCourse] = useState(null);
   const [invoiceCourse, setInvoiceCourse] = useState("");
   const [manualInvoiceOpen, setManualInvoiceOpen] = useState(false);
+  const Chevron = dir === "rtl" ? ChevronLeft : ChevronRight;
 
   useEffect(() => {
-    if (initialCourse) {
-      setPayoutCourse(initialCourse);
-      onConsumeInitial();
-    }
+    if (initialCourse) { setPayoutCourse(initialCourse); onConsumeInitial(); }
   }, [initialCourse, onConsumeInitial]);
 
-  // ── School-wide payout summary ──────────────────────────────────
   const [payoutSummary, setPayoutSummary] = useState(null);
   const [loadingSummary, setLoadingSummary] = useState(true);
   const [errorSummary, setErrorSummary] = useState(null);
-
   const loadPayoutSummary = useCallback(async () => {
     setLoadingSummary(true); setErrorSummary(null);
-    try {
-      const res = await courseApi.getPayoutSummary();
-      setPayoutSummary(res.data);
-    } catch (err) {
-      setErrorSummary(err?.response?.data?.message || t("courses.payoutsTab.summaryLoadError"));
-    } finally { setLoadingSummary(false); }
+    try { setPayoutSummary((await courseApi.getPayoutSummary()).data); }
+    catch (err) { setErrorSummary(err?.response?.data?.message || t("courses.payoutsTab.summaryLoadError")); }
+    finally { setLoadingSummary(false); }
   }, []);
-
   useEffect(() => { loadPayoutSummary(); }, [loadPayoutSummary]);
 
-  // ── School-wide revenue summary ─────────────────────────────────
   const [revenue, setRevenue] = useState(null);
   const [loadingRevenue, setLoadingRevenue] = useState(true);
   const [errorRevenue, setErrorRevenue] = useState(null);
-
   const loadRevenue = useCallback(async () => {
     setLoadingRevenue(true); setErrorRevenue(null);
-    try {
-      const res = await courseApi.getRevenue();
-      setRevenue(res.data);
-    } catch (err) {
-      setErrorRevenue(err?.response?.data?.message || t("courses.payoutsTab.revenueLoadError"));
-    } finally { setLoadingRevenue(false); }
+    try { setRevenue((await courseApi.getRevenue()).data); }
+    catch (err) { setErrorRevenue(err?.response?.data?.message || t("courses.payoutsTab.revenueLoadError")); }
+    finally { setLoadingRevenue(false); }
   }, []);
-
   useEffect(() => { loadRevenue(); }, [loadRevenue]);
 
-  // ── Per-course invoice list ─────────────────────────────────────
   const [invoices, setInvoices] = useState([]);
   const [loadingInv, setLoadingInv] = useState(false);
   const [errorInv, setErrorInv] = useState(null);
-
   const loadInvoices = useCallback(async () => {
     if (!invoiceCourse) { setInvoices([]); return; }
     setLoadingInv(true); setErrorInv(null);
-    try {
-      const res = await courseApi.getInvoicesByCourse(invoiceCourse);
-      setInvoices(res.data ?? []);
-    } catch (err) {
-      setErrorInv(err?.response?.data?.message || t("courses.payoutsTab.invoicesLoadError"));
-    } finally { setLoadingInv(false); }
+    try { setInvoices((await courseApi.getInvoicesByCourse(invoiceCourse)).data ?? []); }
+    catch (err) { setErrorInv(err?.response?.data?.message || t("courses.payoutsTab.invoicesLoadError")); }
+    finally { setLoadingInv(false); }
   }, [invoiceCourse]);
-
   useEffect(() => { loadInvoices(); }, [loadInvoices]);
 
   const refreshAll = () => { loadPayoutSummary(); loadRevenue(); loadInvoices(); };
-
   const courseOptions = courses.map((c) => ({ value: String(c.id), label: c.name }));
 
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-
-      {/* ── Revenue overview ── */}
-      <div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-          <CircleDollarSign size={15} color={P} />
-          <h3 style={{ fontSize: 13.5, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("courses.payoutsTab.revenueOverviewTitle")}</h3>
-        </div>
-        {loadingRevenue ? (
-          <div style={{ display: "flex", justifyContent: "center", padding: "1.5rem" }}><Spinner size={24} /></div>
-        ) : errorRevenue ? (
-          <ErrorBox msg={errorRevenue} />
-        ) : revenue && (
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <StatCard icon={CircleDollarSign} label={t("courses.payoutsTab.expectedRevenue")} value={fmtMoney(revenue.totalExpected)} color={P} bg="#EBF4FE" />
-            <StatCard icon={Check} label={t("courses.payoutsTab.collected")} value={fmtMoney(revenue.totalCollected)} color={GREEN} bg="#E1F5EE" />
-            <StatCard icon={CalendarClock} label={t("courses.payoutsTab.pending")} value={fmtMoney(revenue.totalPending)} color="#92400E" bg="#FEF3C7" />
-            <StatCard icon={AlertCircle} label={t("courses.payoutsTab.overdue")} value={fmtMoney(revenue.totalOverdue)} color="#DC2626" bg="#FEE2E2" />
-          </div>
-        )}
+  const PayoutLine = ({ icon, title, meta, amount, status, onClick }) => (
+    <button onClick={onClick}
+      className={`group flex w-full flex-wrap items-center gap-4 bg-white p-4 text-start transition duration-300 hover:-translate-y-0.5 ${CARD_SHADOW}`}>
+      <span className="grid size-10 shrink-0 place-items-center rounded-sm bg-green-deep text-gold transition-colors group-hover:bg-gold group-hover:text-green-deep">
+        {icon}
+      </span>
+      <div className="min-w-32 flex-1">
+        <p className="truncate font-display text-sm text-green-deep">{title}</p>
+        <p className="mt-0.5 text-xs text-green-deep/55">{meta}</p>
       </div>
+      {amount != null && <p className="font-display text-sm text-green-deep">{amount}</p>}
+      {status}
+      <Chevron className="size-4 shrink-0 text-gold-deep" />
+    </button>
+  );
 
-      {/* ── Teacher payouts summary ── */}
-      <div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-          <Wallet size={15} color={P} />
-          <h3 style={{ fontSize: 13.5, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("courses.payoutsTab.teacherPayoutsTitle")}</h3>
-        </div>
+  return (
+    <div className="space-y-14">
+      {/* Revenue */}
+      <section>
+        <SectionTitle icon={CircleDollarSign}>{t("courses.payoutsTab.revenueOverviewTitle")}</SectionTitle>
+        {loadingRevenue ? <div className={centered}><Spinner className="size-7" /></div>
+          : errorRevenue ? <ErrorNote msg={errorRevenue} />
+          : revenue && (
+            <div className="flex flex-wrap gap-4">
+              <SoftStat icon={CircleDollarSign} tone="dark" label={t("courses.payoutsTab.expectedRevenue")} value={fmtMoney(revenue.totalExpected)} />
+              <SoftStat icon={Check} tone="sand" label={t("courses.payoutsTab.collected")} value={fmtMoney(revenue.totalCollected)} />
+              <SoftStat icon={CalendarClock} tone="gold" label={t("courses.payoutsTab.pending")} value={fmtMoney(revenue.totalPending)} />
+              <SoftStat icon={AlertCircle} tone="red" label={t("courses.payoutsTab.overdue")} value={fmtMoney(revenue.totalOverdue)} />
+            </div>
+          )}
+      </section>
 
-        {loadingSummary ? (
-          <div style={{ display: "flex", justifyContent: "center", padding: "1.5rem" }}><Spinner size={24} /></div>
-        ) : errorSummary ? (
-          <ErrorBox msg={errorSummary} />
-        ) : payoutSummary && (
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
-            <StatCard icon={CalendarClock} label={t("courses.payoutsTab.duePayouts")} value={fmtMoney(payoutSummary.totalPayoutsDue)} color="#92400E" bg="#FEF3C7" />
-            <StatCard icon={Check} label={t("courses.payoutsTab.paidPayouts")} value={fmtMoney(payoutSummary.totalPayoutsPaid)} color={GREEN} bg="#E1F5EE" />
-            <StatCard icon={BookOpen} label={t("courses.payoutsTab.courseCount")} value={payoutSummary.courseCount ?? courses.length} color={P} bg="#EBF4FE" />
-          </div>
-        )}
+      {/* Teacher payouts */}
+      <section>
+        <SectionTitle icon={Wallet}>{t("courses.payoutsTab.teacherPayoutsTitle")}</SectionTitle>
+        {loadingSummary ? <div className={centered}><Spinner className="size-7" /></div>
+          : errorSummary ? <ErrorNote msg={errorSummary} />
+          : payoutSummary && (
+            <div className="mb-6 flex flex-wrap gap-4">
+              <SoftStat icon={CalendarClock} tone="gold" label={t("courses.payoutsTab.duePayouts")} value={fmtMoney(payoutSummary.totalPayoutsDue)} />
+              <SoftStat icon={Check} tone="dark" label={t("courses.payoutsTab.paidPayouts")} value={fmtMoney(payoutSummary.totalPayoutsPaid)} />
+              <SoftStat icon={Layers} tone="sand" label={t("courses.payoutsTab.courseCount")} value={payoutSummary.courseCount ?? courses.length} />
+            </div>
+          )}
 
         {payoutSummary?.payouts?.length > 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div className="space-y-3">
             {payoutSummary.payouts.map((p) => {
-              const stMap = {
-                PENDING: { bg: "#FEF3C7", color: "#92400E", border: "#FDE68A" },
-                PAID:    { bg: "#E1F5EE", color: "#0F6E56", border: "#A7F3D0" },
-              };
-              const st = stMap[p.status] || stMap.PENDING;
-              const stLabel = t(`courses.payoutStatus.${p.status}`) || t("courses.payoutStatus.PENDING");
-              const relatedCourse = courses.find((c) => c.id === p.courseId) || { id: p.courseId, name: p.courseName, teacherName: p.teacherName, teacherPercentage: p.percentage };
+              const related = courses.find((c) => c.id === p.courseId) || { id: p.courseId, name: p.courseName, teacherName: p.teacherName, teacherPercentage: p.percentage };
               return (
-                <button key={p.id} onClick={() => setPayoutCourse(relatedCourse)}
-                  style={{ textAlign: dir === "rtl" ? "right" : "left", display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", borderRadius: 12, border: "1.5px solid #E2E8F0", background: "#fff", cursor: "pointer", fontFamily: "inherit", width: "100%", flexWrap: "wrap" }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 10, background: "#E1F5EE", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <Wallet size={16} color={GREEN} />
-                  </div>
-                  <div style={{ flex: 1, minWidth: 120 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.courseName}</div>
-                    <div style={{ fontSize: 10.5, color: "#94A3B8", marginTop: 1 }}>{p.teacherName || "—"} · {p.percentage ?? "—"}%</div>
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", flexShrink: 0 }}>{fmtMoney(p.payoutAmount)}</div>
-                  <Badge label={stLabel} bg={st.bg} color={st.color} border={st.border} />
-                  {dir === "rtl" ? <ChevronLeft size={14} color="#CBD5E1" style={{ flexShrink: 0 }} /> : <ChevronRight size={14} color="#CBD5E1" style={{ flexShrink: 0 }} />}
-                </button>
+                <PayoutLine key={p.id} icon={<Wallet className="size-4" />}
+                  title={p.courseName} meta={`${p.teacherName || "—"} · ${p.percentage ?? "—"}%`}
+                  amount={fmtMoney(p.payoutAmount)}
+                  status={<Pill tone={PAYOUT_TONE[p.status] || "gold"}>{t(`courses.payoutStatus.${p.status}`) || t("courses.payoutStatus.PENDING")}</Pill>}
+                  onClick={() => setPayoutCourse(related)} />
               );
             })}
           </div>
         ) : courses.length === 0 ? (
           <EmptyState icon={Wallet} title={t("courses.payoutsTab.emptyNoCourses")} subtitle={t("courses.payoutsTab.emptyNoCoursesSub")} />
         ) : (
-          <div className="sac-payout-course-cards" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 10 }}>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {courses.map((c) => (
-              <button key={c.id} onClick={() => setPayoutCourse(c)}
-                style={{ textAlign: dir === "rtl" ? "right" : "left", display: "flex", alignItems: "center", gap: 10, padding: "11px 13px", borderRadius: 12, border: "1.5px solid #E2E8F0", background: "#fff", cursor: "pointer", fontFamily: "inherit" }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: "#E1F5EE", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Wallet size={16} color={GREEN} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</div>
-                  <div style={{ fontSize: 10.5, color: "#94A3B8", marginTop: 1 }}>{c.teacherName || "—"} · {c.teacherPercentage ?? "—"}%</div>
-                </div>
-                {dir === "rtl" ? <ChevronLeft size={14} color="#CBD5E1" style={{ flexShrink: 0 }} /> : <ChevronRight size={14} color="#CBD5E1" style={{ flexShrink: 0 }} />}
-              </button>
+              <PayoutLine key={c.id} icon={<Wallet className="size-4" />} title={c.name}
+                meta={`${c.teacherName || "—"} · ${c.teacherPercentage ?? "—"}%`} onClick={() => setPayoutCourse(c)} />
             ))}
           </div>
         )}
-      </div>
+      </section>
 
-      {/* ── Student invoices ── */}
-      <div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <ReceiptText size={15} color="#854F0B" />
-            <h3 style={{ fontSize: 13.5, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("courses.payoutsTab.invoicesTitle")}</h3>
-          </div>
-          <button onClick={() => setManualInvoiceOpen(true)}
-            style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 9, border: "none", background: P, color: "#fff", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-            <Plus size={13} /> {t("courses.payoutsTab.manualInvoice")}
-          </button>
-        </div>
-        <div className="sac-filter-select" style={{ width: 220, marginBottom: 12 }}>
-          <Select value={invoiceCourse} onChange={setInvoiceCourse} options={courseOptions} placeholder={t("courses.payoutsTab.chooseCoursePlaceholder")} />
+      {/* Invoices */}
+      <section>
+        <SectionTitle icon={ReceiptText}
+          action={<NButton variant="gold" size="sm" icon={Plus} onClick={() => setManualInvoiceOpen(true)}>{t("courses.payoutsTab.manualInvoice")}</NButton>}>
+          {t("courses.payoutsTab.invoicesTitle")}
+        </SectionTitle>
+        <div className="mb-6 w-60">
+          <SelectInput className="bg-white shadow-sm" value={invoiceCourse} onChange={setInvoiceCourse} options={courseOptions} placeholder={t("courses.payoutsTab.chooseCoursePlaceholder")} />
         </div>
 
         {!invoiceCourse ? (
           <EmptyState icon={ReceiptText} title={t("courses.payoutsTab.chooseCourseTitle")} subtitle={t("courses.payoutsTab.chooseCourseSub")} />
         ) : loadingInv ? (
-          <div style={{ display: "flex", justifyContent: "center", padding: "2.5rem" }}><Spinner size={26} /></div>
+          <div className={centered}><Spinner className="size-7" /></div>
         ) : errorInv ? (
-          <div style={{ textAlign: "center", padding: "2rem", color: "#DC2626", fontSize: 13 }}>{errorInv}</div>
+          <ErrorNote msg={errorInv} />
         ) : invoices.length === 0 ? (
           <EmptyState icon={ReceiptText} title={t("courses.payoutsTab.emptyInvoicesTitle")} subtitle={t("courses.payoutsTab.emptyInvoicesSub")} />
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div className="space-y-3">
             {invoices.map((inv) => (
               <InvoiceRow key={inv.id} invoice={inv} onPaid={() => { loadInvoices(); loadRevenue(); }} t={t} fmtMoney={fmtMoney} locale={locale} />
             ))}
           </div>
         )}
-      </div>
+      </section>
 
-      {payoutCourse && (
-        <PayoutPanel course={payoutCourse} onClose={() => { setPayoutCourse(null); refreshAll(); }} t={t} dir={dir} fmtMoney={fmtMoney} locale={locale} />
-      )}
-      {manualInvoiceOpen && (
-        <ManualInvoiceModal courses={courses} onClose={() => setManualInvoiceOpen(false)} onCreated={() => { loadInvoices(); loadRevenue(); }} t={t} dir={dir} fmtMoney={fmtMoney} />
-      )}
+      {payoutCourse && <PayoutPanel course={payoutCourse} onClose={() => { setPayoutCourse(null); refreshAll(); }} t={t} dir={dir} fmtMoney={fmtMoney} locale={locale} />}
+      {manualInvoiceOpen && <ManualInvoiceModal courses={courses} onClose={() => setManualInvoiceOpen(false)} onCreated={() => { loadInvoices(); loadRevenue(); }} t={t} dir={dir} fmtMoney={fmtMoney} />}
     </div>
   );
 }
@@ -1445,17 +1184,11 @@ function PayoutsTab({ courses, initialCourse, onConsumeInitial, t, dir, fmtMoney
 // ══════════════════════════════════════════════════════════════════
 export default function SchoolAdminCourses() {
   const { t, dir, locale } = useLanguage();
-  // `locale` (e.g. "ar-DZ" / "fr-FR" / "en-US") is expected from
-  // LanguageContext for Intl.NumberFormat/toLocaleDateString use below.
-  // Falls back to "ar-DZ" if the context doesn't expose it.
   const resolvedLocale = locale || "ar-DZ";
-  const currency = t("courses.invoiceStatus") ? undefined : undefined; // no-op, keeps t referenced
 
   const fmtMoney = useCallback((v) => {
     if (v == null) return "—";
     const amount = Number(v).toLocaleString(resolvedLocale, { maximumFractionDigits: 2 });
-    // Currency string lives under studentDashboard.currency in the
-    // provided translations.js; reuse it so "DA / دج / DA" follows locale.
     return `${amount} ${t("studentDashboard.currency")}`;
   }, [resolvedLocale, t]);
 
@@ -1475,69 +1208,65 @@ export default function SchoolAdminCourses() {
         courseApi.getTeachers().catch(() => ({ data: [] })),
       ]);
       setCourses(coursesRes.data ?? []);
-      setTeachers((teachersRes.data ?? []).filter((t2) => !t2.archived));
+      setTeachers((teachersRes.data ?? []).filter((x) => !x.archived));
     } catch (err) {
       setError(err?.response?.data?.message || t("courses.coursesTab.loadError"));
     } finally { setLoading(false); }
   }, [t]);
 
   const loadPendingCount = useCallback(async () => {
-    try {
-      const res = await courseApi.countPending();
-      setPendingCount(res.data?.pendingCount ?? 0);
-    } catch { /* non-critical */ }
+    try { setPendingCount((await courseApi.countPending()).data?.pendingCount ?? 0); }
+    catch { /* non-critical */ }
   }, []);
 
   useEffect(() => { loadCourses(); loadPendingCount(); }, [loadCourses, loadPendingCount]);
 
   const tabs = [
-    { key: "courses",    label: t("courses.tabs.courses"),   icon: BookOpen,      badge: 0 },
-    { key: "requests",   label: t("courses.tabs.requests"),  icon: Inbox,         badge: pendingCount },
-    { key: "attendance", label: t("courses.tabs.attendance"),icon: GraduationCap, badge: 0 },
-    { key: "payouts",    label: t("courses.tabs.payouts"),   icon: Wallet,        badge: 0 },
+    { key: "courses",    label: t("courses.tabs.courses"),    icon: BookOpen,      badge: 0 },
+    { key: "requests",   label: t("courses.tabs.requests"),   icon: Inbox,         badge: pendingCount },
+    { key: "attendance", label: t("courses.tabs.attendance"), icon: GraduationCap, badge: 0 },
+    { key: "payouts",    label: t("courses.tabs.payouts"),    icon: Wallet,        badge: 0 },
   ];
 
+  const subtitle = loading
+    ? "..."
+    : `${interp(t("courses.activeCourseCount"), { count: courses.length })}${pendingCount > 0 ? interp(t("courses.pendingRequestsSuffix"), { count: pendingCount }) : ""}`;
+
   return (
-    <div dir={dir} className="sac-root" style={{ padding: "1.25rem 1.5rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh", display: "flex", flexDirection: "column", gap: "1.1rem" }}>
-      <ResponsiveStyles />
-
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
-        <div>
-          <h1 style={{ fontSize: 17, fontWeight: 800, color: "#0F172A", margin: 0 }}>{t("courses.pageTitle")}</h1>
-          <p style={{ fontSize: 12, color: "#94A3B8", margin: "3px 0 0" }}>
-            {loading
-              ? "..."
-              : `${interp(t("courses.activeCourseCount"), { count: courses.length })}${pendingCount > 0 ? interp(t("courses.pendingRequestsSuffix"), { count: pendingCount }) : ""}`}
-          </p>
+    <div dir={dir} className="min-h-screen space-y-8 bg-ivory p-4 sm:p-8">
+      {/* Header band */}
+      <header className="relative overflow-hidden rounded-sm bg-green-deep px-6 py-10 sm:px-10 sm:py-12">
+        <div className="nm-pattern pointer-events-none absolute inset-0 opacity-[0.08]" />
+        <div className="pointer-events-none absolute -top-32 start-1/4 size-96 rounded-full bg-gold/10 blur-[110px]" />
+        <ColumnMark className="pointer-events-none absolute -bottom-4 end-6 h-44 text-gold/10" />
+        <div className="relative">
+          <span className="inline-flex items-center gap-2 text-xs font-bold text-gold">
+            <Diamond className="size-2" />{subtitle}
+          </span>
+          <h1 className="mt-3 font-display text-3xl text-ivory sm:text-5xl">
+            <AnimatedText text={t("courses.pageTitle")} />
+          </h1>
         </div>
-      </div>
+      </header>
 
-      <TabBar active={activeTab} onChange={setActiveTab} tabs={tabs} />
+      <PillTabs active={activeTab} onChange={setActiveTab} tabs={tabs} />
 
-      <div>
+      <main>
         {activeTab === "courses" && (
-          <CoursesTab
-            courses={courses}
-            teachers={teachers}
-            loading={loading}
-            error={error}
+          <CoursesTab courses={courses} teachers={teachers} loading={loading} error={error}
             onReload={() => { loadCourses(); loadPendingCount(); }}
             onOpenPayout={(c) => { setPayoutCourseTarget(c); setActiveTab("payouts"); }}
-            t={t}
-            dir={dir}
-            fmtMoney={fmtMoney}
-          />
+            t={t} dir={dir} fmtMoney={fmtMoney} />
         )}
         {activeTab === "requests" && (
           <RequestsTab courses={courses} onPendingCountChange={setPendingCount} t={t} dir={dir} fmtMoney={fmtMoney} locale={resolvedLocale} />
         )}
-        {activeTab === "attendance" && (
-          <AttendanceTab courses={courses} t={t} dir={dir} locale={resolvedLocale} />
-        )}
+        {activeTab === "attendance" && <AttendanceTab courses={courses} t={t} dir={dir} locale={resolvedLocale} />}
         {activeTab === "payouts" && (
-          <PayoutsTab courses={courses} initialCourse={payoutCourseTarget} onConsumeInitial={() => setPayoutCourseTarget(null)} t={t} dir={dir} fmtMoney={fmtMoney} locale={resolvedLocale} />
+          <PayoutsTab courses={courses} initialCourse={payoutCourseTarget}
+            onConsumeInitial={() => setPayoutCourseTarget(null)} t={t} dir={dir} fmtMoney={fmtMoney} locale={resolvedLocale} />
         )}
-      </div>
+      </main>
     </div>
   );
 }

@@ -1,0 +1,8 @@
+/* Add inside the existing @theme block of src/index.css (skip any token that already exists) */
+@theme {
+  --color-brand: #0F5A46;   /* Deep Emerald */
+  --color-gold: #C8A24B;    /* Royal Gold */
+  --color-danger: #C53030;  /* Algerian Red */
+  --color-paper: #FAFAF7;   /* Warm Off White */
+  --color-ink: #1F2A26;
+}

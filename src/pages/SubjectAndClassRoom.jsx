@@ -1,7 +1,19 @@
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
+import { BookOpen, Building2, GraduationCap, Users, Plus, AlertCircle } from "lucide-react";
+import { toast } from "sonner";
+
 import api from "../api";
 import { useLanguage } from "../context/LanguageContext";
+
+import NButton from "../components/home/NButton";
+import Reveal from "../components/home/Reveal";
+import { Diamond } from "../components/home/Marks";
+import EmptyState from "../components/BrowseSchools/EmptyState";
+import ItemCard, { Chip, CardAction } from "../components/Subject&Classroom/ItemCard";
+import ItemCardSkeleton from "../components/Subject&Classroom/ItemCardSkeleton";
+import Modal from "../components/Subject&Classroom/Modal";
+import { FormInput, FormTextarea, FormSelect } from "../components/Subject&Classroom/Inputs";
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 const fetchSubjects    = ()         => api.get("/api/subjects").then(r => r.data);
@@ -16,8 +28,9 @@ const fetchTeachers    = ()         => api.get("/api/teachers").then(r => r.data
 // ─── Constants ────────────────────────────────────────────────────────────────
 const EMPTY_SUBJECT   = { name: "", description: "", teacherId: "" };
 const EMPTY_CLASSROOM = { name: "", capacity: "" };
+const GRID = "grid gap-6 sm:grid-cols-2 xl:grid-cols-3";
 
-// ─── Shared UI ────────────────────────────────────────────────────────────────
+// ─── Local pieces ─────────────────────────────────────────────────────────────
 function TabBar({ active, onChange }) {
   const { t } = useLanguage();
   const tabs = [
@@ -25,116 +38,53 @@ function TabBar({ active, onChange }) {
     { key: "classrooms", label: t("subjectsClassrooms.tabs.classrooms") },
   ];
   return (
-    <div className="flex gap-2 mb-6 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
-      {tabs.map(t => (
-        <button key={t.key} onClick={() => onChange(t.key)}
-          className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-200 whitespace-nowrap shrink-0 ${
-            active === t.key
-              ? "bg-[#185FA5] text-white shadow"
-              : "bg-white text-gray-500 border border-gray-200 hover:border-[#185FA5] hover:text-[#185FA5]"
-          }`}>
-          {t.label}
+    <div role="tablist" className="mb-8 flex border-b border-gold/25">
+      {tabs.map(tab => (
+        <button
+          key={tab.key}
+          role="tab"
+          type="button"
+          aria-selected={active === tab.key}
+          onClick={() => onChange(tab.key)}
+          className={`-mb-px h-12 border-b-2 px-6 text-sm font-bold transition-colors ${
+            active === tab.key
+              ? "border-gold text-green-deep"
+              : "border-transparent text-green-deep/50 hover:text-green-deep"
+          }`}
+        >
+          {tab.label}
         </button>
       ))}
     </div>
   );
 }
 
-function Modal({ open, title, onClose, onConfirm, confirmLabel, confirmColor = "blue", children }) {
-  const { t, dir } = useLanguage();
-  if (!open) return null;
-  const btnColor =
-    confirmColor === "red"   ? "bg-red-500 hover:bg-red-600"      :
-    confirmColor === "green" ? "bg-[#0F6E56] hover:bg-[#0a5540]" :
-                               "bg-[#185FA5] hover:bg-[#134d8a]";
+function Toolbar({ countLabel, addLabel, onAdd }) {
   return (
-    <AnimatePresence>
-      {open && (
-        <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
-          <motion.div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-5 sm:p-6"
-            initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.92, opacity: 0 }}
-            transition={{ type: "spring", damping: 20, stiffness: 300 }}
-            onClick={e => e.stopPropagation()} dir={dir}>
-            <h2 className="text-lg font-bold text-gray-800 mb-4">{title}</h2>
-            <div className="space-y-3">{children}</div>
-            <div className="flex gap-2 mt-6 justify-end">
-              <button onClick={onClose}
-                className="flex-1 sm:flex-none px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition">
-                {t("subjectsClassrooms.modal.cancel")}
-              </button>
-              <button onClick={onConfirm}
-                className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm text-white font-semibold transition ${btnColor}`}>
-                {confirmLabel}
-              </button>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-}
-
-function Input({ label, value, onChange, type = "text", placeholder = "" }) {
-  return (
-    <div className="flex flex-col gap-1">
-      {label && <label className="text-sm font-medium text-gray-700">{label}</label>}
-      <input type={type} value={value} placeholder={placeholder}
-        onChange={e => onChange(e.target.value)}
-        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#185FA5]/30 focus:border-[#185FA5] transition" />
+    <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+      <span className="inline-flex items-center gap-2 text-sm font-bold tabular-nums text-gold-deep">
+        <Diamond className="size-2" />
+        {countLabel}
+      </span>
+      <NButton variant="gold" onClick={onAdd}>
+        <Plus className="size-4" />
+        {addLabel}
+      </NButton>
     </div>
   );
 }
 
-function Textarea({ label, value, onChange, placeholder = "" }) {
+function SkeletonGrid() {
   return (
-    <div className="flex flex-col gap-1">
-      {label && <label className="text-sm font-medium text-gray-700">{label}</label>}
-      <textarea value={value} placeholder={placeholder} rows={3}
-        onChange={e => onChange(e.target.value)}
-        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#185FA5]/30 focus:border-[#185FA5] transition" />
-    </div>
-  );
-}
-
-function SelectField({ label, value, onChange, options, placeholder }) {
-  return (
-    <div className="flex flex-col gap-1">
-      {label && <label className="text-sm font-medium text-gray-700">{label}</label>}
-      <select value={value} onChange={e => onChange(e.target.value)}
-        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#185FA5]/30 focus:border-[#185FA5] transition bg-white text-gray-800">
-        <option value="">{placeholder}</option>
-        {options.map(o => (
-          <option key={o.value} value={o.value}>{o.label}</option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
-function EmptyState({ message }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-      <svg className="w-12 h-12 mb-3 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-      </svg>
-      <p className="text-sm text-center px-4">{message}</p>
-    </div>
-  );
-}
-
-function Spinner() {
-  return (
-    <div className="flex justify-center py-16">
-      <div className="w-8 h-8 border-4 border-[#185FA5]/20 border-t-[#185FA5] rounded-full animate-spin" />
+    <div className={GRID}>
+      {[0, 1, 2].map(i => <ItemCardSkeleton key={i} />)}
     </div>
   );
 }
 
 // ─── SUBJECTS TAB ─────────────────────────────────────────────────────────────
 function SubjectsTab() {
-  const { t, dir } = useLanguage();
+  const { t } = useLanguage();
   const [subjects,      setSubjects]      = useState([]);
   const [teachers,      setTeachers]      = useState([]);
   const [loading,       setLoading]       = useState(true);
@@ -144,6 +94,8 @@ function SubjectsTab() {
   const [archiveTarget, setArchiveTarget] = useState(null);
   const [form,          setForm]          = useState(EMPTY_SUBJECT);
   const [submitting,    setSubmitting]    = useState(false);
+
+  const cancelLabel = t("subjectsClassrooms.modal.cancel");
 
   useEffect(() => { load(); }, []);
 
@@ -162,40 +114,40 @@ function SubjectsTab() {
     label: `${tc.fullName}${tc.specialization ? " — " + tc.specialization : ""}`,
   }));
 
-  function openCreate() { setForm(EMPTY_SUBJECT); setCreateOpen(true); }
+  const buildPayload = () => ({
+    name:        form.name.trim(),
+    description: form.description.trim(),
+    teacherId:   form.teacherId ? Number(form.teacherId) : null,
+  });
 
-  async function handleCreate() {
-    if (!form.name.trim()) return;
-    try {
-      setSubmitting(true);
-      const created = await createSubject({
-        name:        form.name.trim(),
-        description: form.description.trim(),
-        teacherId:   form.teacherId ? Number(form.teacherId) : null,
-      });
-      setSubjects(prev => [created, ...prev]);
-      setCreateOpen(false);
-    } catch { alert(t("subjectsClassrooms.subjects.createError")); }
-    finally { setSubmitting(false); }
-  }
+  function openCreate() { setForm(EMPTY_SUBJECT); setCreateOpen(true); }
 
   function openEdit(s) {
     setForm({ name: s.name, description: s.description || "", teacherId: s.teacherId ? String(s.teacherId) : "" });
     setEditTarget(s);
   }
 
+  function closeForm() { setCreateOpen(false); setEditTarget(null); }
+
+  async function handleCreate() {
+    if (!form.name.trim()) return;
+    try {
+      setSubmitting(true);
+      const created = await createSubject(buildPayload());
+      setSubjects(prev => [created, ...prev]);
+      closeForm();
+    } catch { toast.error(t("subjectsClassrooms.subjects.createError")); }
+    finally { setSubmitting(false); }
+  }
+
   async function handleEdit() {
     if (!form.name.trim()) return;
     try {
       setSubmitting(true);
-      const updated = await updateSubject(editTarget.id, {
-        name:        form.name.trim(),
-        description: form.description.trim(),
-        teacherId:   form.teacherId ? Number(form.teacherId) : null,
-      });
+      const updated = await updateSubject(editTarget.id, buildPayload());
       setSubjects(prev => prev.map(s => s.id === updated.id ? updated : s));
-      setEditTarget(null);
-    } catch { alert(t("subjectsClassrooms.subjects.editError")); }
+      closeForm();
+    } catch { toast.error(t("subjectsClassrooms.subjects.editError")); }
     finally { setSubmitting(false); }
   }
 
@@ -205,100 +157,72 @@ function SubjectsTab() {
       await archiveSubject(archiveTarget.id);
       setSubjects(prev => prev.filter(s => s.id !== archiveTarget.id));
       setArchiveTarget(null);
-    } catch { alert(t("subjectsClassrooms.subjects.archiveError")); }
+    } catch { toast.error(t("subjectsClassrooms.subjects.archiveError")); }
     finally { setSubmitting(false); }
   }
 
-  const subjectForm = (
-    <>
-      <Input label={t("subjectsClassrooms.subjects.form.nameLabel")} value={form.name}
-        onChange={v => setForm(f => ({ ...f, name: v }))} placeholder={t("subjectsClassrooms.subjects.form.namePlaceholder")} />
-      <Textarea label={t("subjectsClassrooms.subjects.form.descriptionLabel")} value={form.description}
-        onChange={v => setForm(f => ({ ...f, description: v }))} placeholder={t("subjectsClassrooms.subjects.form.descriptionPlaceholder")} />
-      <SelectField
-        label={t("subjectsClassrooms.subjects.form.teacherLabel")}
-        value={form.teacherId}
-        onChange={v => setForm(f => ({ ...f, teacherId: v }))}
-        options={teacherOptions}
-        placeholder={t("subjectsClassrooms.subjects.form.teacherPlaceholder")}
-      />
-    </>
-  );
+  const isEditing = !!editTarget;
+  const savingLabel = t("subjectsClassrooms.subjects.saving");
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-        <p className="text-sm text-gray-500 shrink-0">{t("subjectsClassrooms.subjects.countLabel", { count: subjects.length })}</p>
-        <button onClick={openCreate}
-          className="flex items-center justify-center gap-2 px-4 py-2 bg-[#185FA5] text-white text-sm font-semibold rounded-xl hover:bg-[#134d8a] transition shadow shrink-0">
-          <span className="text-lg leading-none">+</span> {t("subjectsClassrooms.subjects.addButton")}
-        </button>
-      </div>
+      <Toolbar
+        countLabel={t("subjectsClassrooms.subjects.countLabel", { count: subjects.length })}
+        addLabel={t("subjectsClassrooms.subjects.addButton")}
+        onAdd={openCreate} />
 
-      {loading ? <Spinner /> : error ? (
-        <div className="text-center py-10 text-red-500 text-sm">{error}</div>
+      {loading ? <SkeletonGrid /> : error ? (
+        <EmptyState icon={AlertCircle} title={error} tone="error" />
       ) : subjects.length === 0 ? (
-        <EmptyState message={t("subjectsClassrooms.subjects.emptyMessage")} />
+        <EmptyState icon={BookOpen} title={t("subjectsClassrooms.subjects.emptyMessage")} />
       ) : (
-        <div className="grid gap-3">
+        <div className={GRID}>
           <AnimatePresence>
             {subjects.map(s => (
-              <motion.div key={s.id}
-                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.2 }}
-                className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-3"
-                dir={dir}>
-                <div className="flex items-start gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-[#185FA5]/10 flex items-center justify-center shrink-0">
-                    <svg className="w-5 h-5 text-[#185FA5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                    </svg>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-semibold text-gray-800 text-sm">{s.name}</p>
-                    {s.description && (
-                      <p className="text-xs text-gray-400 mt-0.5 sm:truncate sm:max-w-xs">{s.description}</p>
-                    )}
-                    {s.teacherName ? (
-                      <p className="text-xs text-[#185FA5] mt-1">👨‍🏫 {s.teacherName}</p>
-                    ) : (
-                      <p className="text-xs text-gray-300 mt-1">{t("subjectsClassrooms.subjects.noTeacher")}</p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex gap-2 shrink-0">
-                  <button onClick={() => openEdit(s)}
-                    className="flex-1 sm:flex-none text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:border-[#185FA5] hover:text-[#185FA5] transition">
+              <ItemCard key={s.id} icon={BookOpen} title={s.name} description={s.description}
+                actions={<>
+                  <CardAction onClick={() => openEdit(s)}>
                     {t("subjectsClassrooms.subjects.editButton")}
-                  </button>
-                  <button onClick={() => setArchiveTarget(s)}
-                    className="flex-1 sm:flex-none text-xs px-3 py-1.5 rounded-lg border border-red-100 text-red-500 hover:bg-red-50 transition">
+                  </CardAction>
+                  <CardAction tone="danger" onClick={() => setArchiveTarget(s)}>
                     {t("subjectsClassrooms.subjects.archiveButton")}
-                  </button>
-                </div>
-              </motion.div>
+                  </CardAction>
+                </>}
+                footer={s.teacherName ? (
+                  <Chip tone="gold" icon={GraduationCap}>{s.teacherName}</Chip>
+                ) : (
+                  <Chip tone="muted">{t("subjectsClassrooms.subjects.noTeacher")}</Chip>
+                )} />
             ))}
           </AnimatePresence>
         </div>
       )}
 
-      <Modal open={createOpen} title={t("subjectsClassrooms.subjects.createTitle")}
-        onClose={() => setCreateOpen(false)} onConfirm={handleCreate}
-        confirmLabel={submitting ? t("subjectsClassrooms.subjects.saving") : t("subjectsClassrooms.subjects.save")}>
-        {subjectForm}
-      </Modal>
-
-      <Modal open={!!editTarget} title={t("subjectsClassrooms.subjects.editTitle")}
-        onClose={() => setEditTarget(null)} onConfirm={handleEdit}
-        confirmLabel={submitting ? t("subjectsClassrooms.subjects.saving") : t("subjectsClassrooms.subjects.saveChanges")}>
-        {subjectForm}
+      {/* Create + edit share one modal */}
+      <Modal open={createOpen || isEditing}
+        title={isEditing ? t("subjectsClassrooms.subjects.editTitle") : t("subjectsClassrooms.subjects.createTitle")}
+        onClose={closeForm} onConfirm={isEditing ? handleEdit : handleCreate}
+        cancelLabel={cancelLabel} disabled={submitting}
+        confirmLabel={submitting ? savingLabel : isEditing
+          ? t("subjectsClassrooms.subjects.saveChanges")
+          : t("subjectsClassrooms.subjects.save")}>
+        <FormInput req label={t("subjectsClassrooms.subjects.form.nameLabel")} value={form.name}
+          onChange={v => setForm(f => ({ ...f, name: v }))}
+          placeholder={t("subjectsClassrooms.subjects.form.namePlaceholder")} />
+        <FormTextarea label={t("subjectsClassrooms.subjects.form.descriptionLabel")} value={form.description}
+          onChange={v => setForm(f => ({ ...f, description: v }))}
+          placeholder={t("subjectsClassrooms.subjects.form.descriptionPlaceholder")} />
+        <FormSelect label={t("subjectsClassrooms.subjects.form.teacherLabel")} value={form.teacherId}
+          onChange={v => setForm(f => ({ ...f, teacherId: v }))}
+          options={teacherOptions}
+          placeholder={t("subjectsClassrooms.subjects.form.teacherPlaceholder")} />
       </Modal>
 
       <Modal open={!!archiveTarget} title={t("subjectsClassrooms.subjects.archiveTitle")}
         onClose={() => setArchiveTarget(null)} onConfirm={handleArchive}
-        confirmLabel={submitting ? t("subjectsClassrooms.subjects.archiving") : t("subjectsClassrooms.subjects.archiveConfirm")} confirmColor="red">
-        <p className="text-sm text-gray-600">
+        cancelLabel={cancelLabel} confirmVariant="danger" disabled={submitting}
+        confirmLabel={submitting ? t("subjectsClassrooms.subjects.archiving") : t("subjectsClassrooms.subjects.archiveConfirm")}>
+        <p className="text-sm leading-7 text-green-deep/70">
           {t("subjectsClassrooms.subjects.archiveConfirmText", { name: archiveTarget?.name })}
           <br />{t("subjectsClassrooms.subjects.archiveConfirmNote")}
         </p>
@@ -309,7 +233,7 @@ function SubjectsTab() {
 
 // ─── CLASSROOMS TAB ───────────────────────────────────────────────────────────
 function ClassroomsTab() {
-  const { t, dir } = useLanguage();
+  const { t } = useLanguage();
   const [classrooms, setClassrooms] = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState(null);
@@ -328,95 +252,90 @@ function ClassroomsTab() {
     finally { setLoading(false); }
   }
 
-  function openCreate() { setForm(EMPTY_CLASSROOM); setCreateOpen(true); }
+  const buildPayload = () => ({ name: form.name.trim(), capacity: Number(form.capacity) });
+  const isInvalid    = () => !form.name.trim() || !form.capacity;
 
-  async function handleCreate() {
-    if (!form.name.trim() || !form.capacity) return;
-    try {
-      setSubmitting(true);
-      const created = await createClassroom({ name: form.name.trim(), capacity: Number(form.capacity) });
-      setClassrooms(prev => [created, ...prev]);
-      setCreateOpen(false);
-    } catch (err) { alert(err?.response?.data || t("subjectsClassrooms.classrooms.createError")); }
-    finally { setSubmitting(false); }
-  }
+  function openCreate() { setForm(EMPTY_CLASSROOM); setCreateOpen(true); }
 
   function openEdit(c) {
     setForm({ name: c.name, capacity: String(c.capacity) });
     setEditTarget(c);
   }
 
-  async function handleEdit() {
-    if (!form.name.trim() || !form.capacity) return;
+  function closeForm() { setCreateOpen(false); setEditTarget(null); }
+
+  async function handleCreate() {
+    if (isInvalid()) return;
     try {
       setSubmitting(true);
-      const updated = await updateClassroom(editTarget.id, { name: form.name.trim(), capacity: Number(form.capacity) });
-      setClassrooms(prev => prev.map(c => c.id === updated.id ? updated : c));
-      setEditTarget(null);
-    } catch { alert(t("subjectsClassrooms.classrooms.editError")); }
+      const created = await createClassroom(buildPayload());
+      setClassrooms(prev => [created, ...prev]);
+      closeForm();
+    } catch (err) {
+      const msg = err?.response?.data;
+      toast.error(typeof msg === "string" && msg ? msg : t("subjectsClassrooms.classrooms.createError"));
+    }
     finally { setSubmitting(false); }
   }
 
+  async function handleEdit() {
+    if (isInvalid()) return;
+    try {
+      setSubmitting(true);
+      const updated = await updateClassroom(editTarget.id, buildPayload());
+      setClassrooms(prev => prev.map(c => c.id === updated.id ? updated : c));
+      closeForm();
+    } catch { toast.error(t("subjectsClassrooms.classrooms.editError")); }
+    finally { setSubmitting(false); }
+  }
+
+  const isEditing = !!editTarget;
+
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-        <p className="text-sm text-gray-500 shrink-0">{t("subjectsClassrooms.classrooms.countLabel", { count: classrooms.length })}</p>
-        <button onClick={openCreate}
-          className="flex items-center justify-center gap-2 px-4 py-2 bg-[#0F6E56] text-white text-sm font-semibold rounded-xl hover:bg-[#0a5540] transition shadow shrink-0">
-          <span className="text-lg leading-none">+</span> {t("subjectsClassrooms.classrooms.addButton")}
-        </button>
-      </div>
+      <Toolbar
+        countLabel={t("subjectsClassrooms.classrooms.countLabel", { count: classrooms.length })}
+        addLabel={t("subjectsClassrooms.classrooms.addButton")}
+        onAdd={openCreate} />
 
-      {loading ? <Spinner /> : error ? (
-        <div className="text-center py-10 text-red-500 text-sm">{error}</div>
+      {loading ? <SkeletonGrid /> : error ? (
+        <EmptyState icon={AlertCircle} title={error} tone="error" />
       ) : classrooms.length === 0 ? (
-        <EmptyState message={t("subjectsClassrooms.classrooms.emptyMessage")} />
+        <EmptyState icon={Building2} title={t("subjectsClassrooms.classrooms.emptyMessage")} />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className={GRID}>
           <AnimatePresence>
             {classrooms.map(c => (
-              <motion.div key={c.id}
-                initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.2 }}
-                className="bg-white rounded-xl border border-gray-100 shadow-sm p-4" dir={dir}>
-                <div className="flex items-start justify-between mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-[#0F6E56]/10 flex items-center justify-center">
-                    <svg className="w-5 h-5 text-[#0F6E56]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                    </svg>
-                  </div>
-                  <button onClick={() => openEdit(c)}
-                    className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:border-[#0F6E56] hover:text-[#0F6E56] transition">
+              <ItemCard key={c.id} icon={Building2} title={c.name}
+                actions={
+                  <CardAction onClick={() => openEdit(c)}>
                     {t("subjectsClassrooms.classrooms.editButton")}
-                  </button>
-                </div>
-                <p className="font-bold text-gray-800 text-base">{c.name}</p>
-                <div className="flex items-center gap-1.5 mt-2">
-                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                      d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  <span className="text-xs text-gray-500">{t("subjectsClassrooms.classrooms.capacityLabel", { capacity: c.capacity })}</span>
-                </div>
-              </motion.div>
+                  </CardAction>
+                }
+                footer={
+                  <Chip tone="green" icon={Users}>
+                    {t("subjectsClassrooms.classrooms.capacityLabel", { capacity: c.capacity })}
+                  </Chip>
+                } />
             ))}
           </AnimatePresence>
         </div>
       )}
 
-      <Modal open={createOpen} title={t("subjectsClassrooms.classrooms.createTitle")}
-        onClose={() => setCreateOpen(false)} onConfirm={handleCreate}
-        confirmLabel={submitting ? t("subjectsClassrooms.classrooms.saving") : t("subjectsClassrooms.classrooms.save")} confirmColor="green">
-        <Input label={t("subjectsClassrooms.classrooms.form.nameLabel")} value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} placeholder={t("subjectsClassrooms.classrooms.form.namePlaceholder")} />
-        <Input label={t("subjectsClassrooms.classrooms.form.capacityLabel")} type="number" value={form.capacity} onChange={v => setForm(f => ({ ...f, capacity: v }))} placeholder={t("subjectsClassrooms.classrooms.form.capacityPlaceholder")} />
-      </Modal>
-
-      <Modal open={!!editTarget} title={t("subjectsClassrooms.classrooms.editTitle")}
-        onClose={() => setEditTarget(null)} onConfirm={handleEdit}
-        confirmLabel={submitting ? t("subjectsClassrooms.classrooms.saving") : t("subjectsClassrooms.classrooms.saveChanges")} confirmColor="green">
-        <Input label={t("subjectsClassrooms.classrooms.form.nameLabel")} value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} />
-        <Input label={t("subjectsClassrooms.classrooms.form.capacityLabel")} type="number" value={form.capacity} onChange={v => setForm(f => ({ ...f, capacity: v }))} />
+      <Modal open={createOpen || isEditing}
+        title={isEditing ? t("subjectsClassrooms.classrooms.editTitle") : t("subjectsClassrooms.classrooms.createTitle")}
+        onClose={closeForm} onConfirm={isEditing ? handleEdit : handleCreate}
+        cancelLabel={t("subjectsClassrooms.modal.cancel")} disabled={submitting}
+        confirmLabel={submitting ? t("subjectsClassrooms.classrooms.saving") : isEditing
+          ? t("subjectsClassrooms.classrooms.saveChanges")
+          : t("subjectsClassrooms.classrooms.save")}>
+        <FormInput req label={t("subjectsClassrooms.classrooms.form.nameLabel")} value={form.name}
+          onChange={v => setForm(f => ({ ...f, name: v }))}
+          placeholder={t("subjectsClassrooms.classrooms.form.namePlaceholder")} />
+        <FormInput req label={t("subjectsClassrooms.classrooms.form.capacityLabel")} type="number" min="1" inputMode="numeric"
+          value={form.capacity}
+          onChange={v => setForm(f => ({ ...f, capacity: v }))}
+          placeholder={t("subjectsClassrooms.classrooms.form.capacityPlaceholder")} />
       </Modal>
     </div>
   );
@@ -428,14 +347,17 @@ export default function SubjectsAndClassrooms() {
   const [activeTab, setActiveTab] = useState("subjects");
 
   return (
-    <div className="min-h-screen bg-gray-50 p-3 sm:p-6" dir={dir}>
-      <div className="mb-6">
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{t("subjectsClassrooms.page.title")}</h1>
-        <p className="text-sm text-gray-400 mt-1">{t("subjectsClassrooms.page.subtitle")}</p>
-      </div>
+    <div dir={dir} className="min-h-screen bg-ivory p-4 font-body sm:p-8">
+      <Reveal className="mb-8">
+        <h1 className="font-display text-2xl text-green-deep sm:text-3xl">{t("subjectsClassrooms.page.title")}</h1>
+        <p className="mt-2 text-sm text-green-deep/60">{t("subjectsClassrooms.page.subtitle")}</p>
+        <span className="nm-rule mt-4 block w-24" />
+      </Reveal>
+
       <TabBar active={activeTab} onChange={setActiveTab} />
+
       <AnimatePresence mode="wait">
-        <motion.div key={activeTab}
+        <motion.div key={activeTab} role="tabpanel"
           initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.18 }}>
           {activeTab === "subjects" ? <SubjectsTab /> : <ClassroomsTab />}

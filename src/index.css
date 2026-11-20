@@ -246,3 +246,9 @@ body::before {
   background-clip: text;
   color: transparent;
 }
+@theme {
+  /* your existing tokens: green-deep, gold, ivory... */
+--color-canvas: var(--color-ivory);
+--color-ink: var(--color-green-deep);
+--color-accent: var(--color-gold-deep);
+}

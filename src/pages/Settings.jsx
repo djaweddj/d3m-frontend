@@ -1,16 +1,24 @@
 import { useState, useRef, useEffect } from "react";
-import { Upload, School, Save, Loader2, X, Lock, Eye, EyeOff, CheckCircle2 } from "lucide-react";
+import { Upload, School, Loader2, X, Lock, Save, CheckCircle2 } from "lucide-react";
+import { toast } from "sonner";
+
 import { useAuth } from "../context/authContext";
 import { useLanguage } from "../context/LanguageContext";
-import api, { uploadSchoolLogo } from "../api";
-import { toast } from "sonner";
 import { useSchool } from "../context/SchoolContext";
+import api, { uploadSchoolLogo } from "../api";
+
+import NButton from "../components/home/NButton";
+import Reveal from "../components/home/Reveal";
+import FormSection from "../components/SchoolRegister/FromSection";
+import { Field } from "../components/SchoolRegister/FormField";
+import PasswordInput from "../components/Enroll/PasswordInput";
+import StrengthMeter from "../components/Enroll/StrengthMeter";
 
 // Keep these in sync with the backend's FileValidator
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
 const ALLOWED_TYPES = ["image/png", "image/svg+xml"];
 
-const BRAND = "#185FA5";
+const CARD = "border border-gold/25 bg-white";
 
 export default function Settings() {
   const { t, dir } = useLanguage();
@@ -19,8 +27,7 @@ export default function Settings() {
   const { user, updateSchool } = useAuth();
   const { school } = useSchool();
 
-  const changePassword = (data) =>
-    api.put("/auth/change-password", data);
+  const changePassword = (data) => api.put("/auth/change-password", data);
 
   // ── Logo upload state — driven by the backend ──
   const [uploading, setUploading] = useState(false);
@@ -113,50 +120,34 @@ export default function Settings() {
   const schoolName = school?.schoolName ?? user?.fullName ?? t("settings.logo.schoolFallback");
 
   return (
-    <div dir={dir} className="settings-root" style={{ padding: "1.25rem", fontFamily: "'Cairo', sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
-
+    <div dir={dir} className="min-h-screen bg-ivory p-4 font-body sm:p-8">
       {/* Page title */}
-      <div style={{ marginBottom: "1.25rem" }}>
-        <h1 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("settings.pageTitle")}</h1>
-        <p style={{ fontSize: 12, color: "#94A3B8", marginTop: 3, margin: 0 }}>
-          {t("settings.pageSubtitle")}
-        </p>
+      <Reveal className="mb-8">
+        <h1 className="font-display text-2xl text-green-deep sm:text-3xl">{t("settings.pageTitle")}</h1>
+        <p className="mt-2 text-sm text-green-deep/60">{t("settings.pageSubtitle")}</p>
+        <span className="nm-rule mt-4 block w-24" />
+      </Reveal>
+
+      <div className="grid items-start gap-6 lg:grid-cols-2">
+        <Reveal>
+          <LogoCard
+            schoolName={schoolName}
+            logoUrl={logoUrl}
+            uploading={uploading}
+            uploadProgress={uploadProgress}
+            dragActive={dragActive}
+            setDragActive={setDragActive}
+            fileRef={fileRef}
+            onFile={handleFile}
+            onDrop={handleDrop}
+            onRemove={removeLogo}
+          />
+        </Reveal>
+
+        <Reveal delay={0.1}>
+          <PasswordCard changePassword={changePassword} />
+        </Reveal>
       </div>
-
-      <div className="settings-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 16, alignItems: "start" }}>
-
-        <LogoCard
-          schoolName={schoolName}
-          logoUrl={logoUrl}
-          uploading={uploading}
-          uploadProgress={uploadProgress}
-          dragActive={dragActive}
-          setDragActive={setDragActive}
-          fileRef={fileRef}
-          onFile={handleFile}
-          onDrop={handleDrop}
-          onRemove={removeLogo}
-        />
-
-        <PasswordCard changePassword={changePassword} dir={dir} />
-
-      </div>
-
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        @keyframes fadeSlideIn {
-          from { opacity: 0; transform: translateY(-4px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @media (max-width: 480px) {
-          .settings-root { padding: 0.85rem !important; }
-          .settings-grid { grid-template-columns: 1fr !important; }
-          .settings-card { padding: 1.1rem !important; }
-        }
-      `}</style>
     </div>
   );
 }
@@ -170,181 +161,107 @@ function LogoCard({
   const { t } = useLanguage();
 
   return (
-    <div className="settings-card" style={{
-      background: "#fff", borderRadius: 16, border: "1px solid #E8EEF6",
-      padding: "1.4rem", boxShadow: "0 1px 2px rgba(15,23,42,0.03)",
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 3 }}>
-        <div style={{
-          width: 30, height: 30, borderRadius: 9, background: `${BRAND}14`,
-          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-        }}>
-          <School size={15} color={BRAND} />
-        </div>
-        <div>
-          <p style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("settings.logo.title")}</p>
-          <p style={{ fontSize: 11, color: "#94A3B8", margin: 0 }}>{t("settings.logo.subtitle")}</p>
-        </div>
-      </div>
+    <div className={CARD}>
+      <FormSection icon={School} label={t("settings.logo.title")} sub={t("settings.logo.subtitle")}>
+        {/* Current logo preview strip */}
+        <div className="flex items-center gap-4 border border-gold/25 bg-ivory p-4">
+          <span
+            className={`grid size-14 shrink-0 place-items-center overflow-hidden rounded-sm ${
+              logoUrl ? "border border-gold/25 bg-white" : "bg-green-deep text-gold"
+            }`}
+          >
+            {logoUrl ? (
+              <img src={logoUrl} alt={t("settings.logo.altText")} className="size-full object-contain" />
+            ) : (
+              <School className="size-6" strokeWidth={1.5} />
+            )}
+          </span>
 
-      {/* Current logo preview strip */}
-      <div style={{
-        marginTop: 16, display: "flex", alignItems: "center", gap: 12,
-        background: "linear-gradient(135deg, #F8FAFC, #F1F5F9)", borderRadius: 12,
-        padding: "14px 14px", border: "1px solid #E8EEF6",
-      }}>
-        <div style={{
-          width: 52, height: 52, borderRadius: 12, flexShrink: 0,
-          background: logoUrl ? "#fff" : BRAND,
-          border: logoUrl ? "1px solid #E8EEF6" : "none",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          overflow: "hidden", boxShadow: logoUrl ? "0 1px 3px rgba(15,23,42,0.06)" : "none",
-        }}>
-          {logoUrl ? (
-            <img src={logoUrl} alt={t("settings.logo.altText")} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-          ) : (
-            <School size={22} color="#fff" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-display text-green-deep">{schoolName}</p>
+            <p className="mt-0.5 text-xs text-green-deep/60">
+              {logoUrl ? t("settings.logo.currentLogo") : t("settings.logo.noLogoYet")}
+            </p>
+          </div>
+
+          {logoUrl && !uploading && (
+            <button
+              type="button"
+              onClick={onRemove}
+              title={t("settings.logo.removeTitle")}
+              aria-label={t("settings.logo.removeTitle")}
+              className="grid size-9 shrink-0 place-items-center rounded-sm border border-algeria-red/40 text-algeria-red transition-colors hover:bg-algeria-red/10"
+            >
+              <X className="size-4" />
+            </button>
           )}
         </div>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <p style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {schoolName}
-          </p>
-          <p style={{ fontSize: 10.5, color: "#94A3B8", margin: 0 }}>
-            {logoUrl ? t("settings.logo.currentLogo") : t("settings.logo.noLogoYet")}
-          </p>
-        </div>
-        {logoUrl && !uploading && (
-          <button
-            onClick={onRemove}
-            title={t("settings.logo.removeTitle")}
-            style={{
-              width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-              background: "#fff", border: "1px solid #FECACA", color: "#DC2626",
-              cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-              transition: "background .15s",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#FEF2F2")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "#fff")}
-          >
-            <X size={13} />
-          </button>
-        )}
-      </div>
 
-      {/* Dropzone */}
-      <button
-        onClick={() => !uploading && fileRef.current?.click()}
-        onDragOver={(e) => { e.preventDefault(); if (!uploading) setDragActive(true); }}
-        onDragLeave={() => setDragActive(false)}
-        onDrop={onDrop}
-        disabled={uploading}
-        style={{
-          width: "100%", marginTop: 12, borderRadius: 12, padding: "1.6rem 0",
-          border: `2px dashed ${dragActive ? BRAND : "#E2E8F0"}`,
-          background: dragActive ? `${BRAND}0A` : "transparent",
-          cursor: uploading ? "not-allowed" : "pointer", textAlign: "center",
-          transition: "border-color .15s, background .15s",
-          opacity: uploading ? 0.7 : 1,
-        }}
-        onMouseEnter={(e) => { if (!uploading && !dragActive) { e.currentTarget.style.borderColor = BRAND; e.currentTarget.style.background = `${BRAND}0A`; } }}
-        onMouseLeave={(e) => { if (!dragActive) { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.background = "transparent"; } }}
-      >
-        {uploading ? (
-          <>
-            <Loader2 size={24} color={BRAND} style={{ margin: "0 auto 8px", animation: "spin 1s linear infinite" }} />
-            <p style={{ fontSize: 12, color: BRAND, margin: 0, fontWeight: 700 }}>
-              {t("settings.logo.dropzoneUploading", { percent: uploadProgress })}
-            </p>
-            <div style={{ width: "60%", margin: "10px auto 0", height: 5, borderRadius: 4, background: "#E8EEF6", overflow: "hidden" }}>
-              <div style={{ height: "100%", width: `${uploadProgress}%`, background: BRAND, transition: "width .2s ease", borderRadius: 4 }} />
-            </div>
-          </>
-        ) : (
-          <>
-            <div style={{
-              width: 40, height: 40, borderRadius: 12, background: "#F1F5F9",
-              display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 8px",
-            }}>
-              <Upload size={18} color="#94A3B8" />
-            </div>
-            <p style={{ fontSize: 12.5, color: "#334155", margin: 0, fontWeight: 600 }}>{t("settings.logo.dropzoneIdleTitle")}</p>
-            <p style={{ fontSize: 10.5, color: "#CBD5E1", margin: "3px 0 0" }}>{t("settings.logo.dropzoneHint")}</p>
-          </>
-        )}
-      </button>
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/png,image/svg+xml"
-        style={{ display: "none" }}
-        onChange={onFile}
-        disabled={uploading}
-      />
+        {/* Dropzone */}
+        <button
+          type="button"
+          onClick={() => !uploading && fileRef.current?.click()}
+          onDragOver={(e) => { e.preventDefault(); if (!uploading) setDragActive(true); }}
+          onDragLeave={() => setDragActive(false)}
+          onDrop={onDrop}
+          disabled={uploading}
+          className={`w-full border border-dashed px-4 py-8 text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/40 disabled:cursor-not-allowed disabled:opacity-70 ${
+            dragActive ? "border-gold bg-gold/10" : "border-gold/50 bg-white hover:border-gold hover:bg-gold/5"
+          }`}
+        >
+          {uploading ? (
+            <>
+              <Loader2 className="mx-auto mb-3 size-6 animate-spin text-gold-deep" />
+              <p className="text-sm font-bold tabular-nums text-green-deep">
+                {t("settings.logo.dropzoneUploading", { percent: uploadProgress })}
+              </p>
+              <div
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={uploadProgress}
+                className="mx-auto mt-4 h-1.5 w-3/5 bg-sand"
+              >
+                <div className="h-full bg-gold transition-[width] duration-200" style={{ width: `${uploadProgress}%` }} />
+              </div>
+            </>
+          ) : (
+            <>
+              <span className="mx-auto mb-4 grid size-12 place-items-center rounded-sm bg-green-deep text-gold">
+                <Upload className="size-5" strokeWidth={1.5} />
+              </span>
+              <p className="text-sm font-bold text-green-deep">{t("settings.logo.dropzoneIdleTitle")}</p>
+              <p className="mt-1 text-xs text-green-deep/60">{t("settings.logo.dropzoneHint")}</p>
+            </>
+          )}
+        </button>
+
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/png,image/svg+xml"
+          className="hidden"
+          onChange={onFile}
+          disabled={uploading}
+        />
+      </FormSection>
     </div>
   );
 }
 
 /* ───────────────────────── Password card ───────────────────────── */
 
-function PasswordField({ label, value, onChange, show, toggleShow, placeholder, error, dir }) {
-  const isRtl = dir === "rtl";
-  return (
-    <div>
-      <label style={{ fontSize: 11.5, color: "#64748B", fontWeight: 600, display: "block", marginBottom: 5 }}>
-        {label}
-      </label>
-      <div style={{ position: "relative" }}>
-        <input
-          type={show ? "text" : "password"}
-          value={value}
-          onChange={onChange}
-          placeholder={placeholder}
-          autoComplete="new-password"
-          style={{
-            width: "100%", boxSizing: "border-box", fontFamily: "inherit",
-            padding: isRtl ? "10px 12px 10px 40px" : "10px 40px 10px 12px",
-            borderRadius: 10, fontSize: 12.5,
-            border: `1.5px solid ${error ? "#FCA5A5" : "#E2E8F0"}`,
-            outline: "none", color: "#0F172A", background: "#F8FAFC",
-            transition: "border-color .15s, background .15s",
-          }}
-          onFocus={(e) => { e.currentTarget.style.borderColor = error ? "#FCA5A5" : BRAND; e.currentTarget.style.background = "#fff"; }}
-          onBlur={(e) => { e.currentTarget.style.borderColor = error ? "#FCA5A5" : "#E2E8F0"; e.currentTarget.style.background = "#F8FAFC"; }}
-        />
-        <button
-          type="button"
-          onClick={toggleShow}
-          tabIndex={-1}
-          style={{
-            position: "absolute",
-            [isRtl ? "right" : "left"]: 10,
-            top: "50%", transform: "translateY(-50%)",
-            background: "none", border: "none", cursor: "pointer", color: "#94A3B8",
-            display: "flex", padding: 2,
-          }}
-        >
-          {show ? <EyeOff size={15} /> : <Eye size={15} />}
-        </button>
-      </div>
-      {error && <p style={{ fontSize: 10.5, color: "#DC2626", margin: "5px 0 0" }}>{error}</p>}
-    </div>
-  );
-}
-
-function PasswordCard({ changePassword, dir }) {
+function PasswordCard({ changePassword }) {
   const { t } = useLanguage();
 
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showOld, setShowOld] = useState(false);
-  const [showNew, setShowNew] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
   const MIN_LEN = 8;
+  const toggleLabel = t("settings.password.togglePassword") || "Show / hide password";
 
   const strength = (() => {
     if (!newPassword) return 0;
@@ -356,12 +273,12 @@ function PasswordCard({ changePassword, dir }) {
     return score; // 0..4
   })();
 
-  const strengthMeta = [
-    { label: t("settings.password.strength.veryWeak"), color: "#DC2626" },
-    { label: t("settings.password.strength.weak"), color: "#DC2626" },
-    { label: t("settings.password.strength.medium"), color: "#D97706" },
-    { label: t("settings.password.strength.good"), color: "#059669" },
-    { label: t("settings.password.strength.strong"), color: "#059669" },
+  const strengthLabel = [
+    t("settings.password.strength.veryWeak"),
+    t("settings.password.strength.weak"),
+    t("settings.password.strength.medium"),
+    t("settings.password.strength.good"),
+    t("settings.password.strength.strong"),
   ][strength];
 
   const validate = () => {
@@ -389,6 +306,8 @@ function PasswordCard({ changePassword, dir }) {
     setConfirmPassword("");
     setErrors({});
   };
+
+  const clearError = (key) => errors[key] && setErrors((p) => ({ ...p, [key]: undefined }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -419,99 +338,69 @@ function PasswordCard({ changePassword, dir }) {
     }
   };
 
+  const fieldProps = (id, key) => ({
+    id,
+    "aria-invalid": errors[key] ? true : undefined,
+    "aria-describedby": errors[key] ? `${id}-error` : undefined,
+    toggleLabel,
+  });
+
   return (
-    <div className="settings-card" style={{
-      background: "#fff", borderRadius: 16, border: "1px solid #E8EEF6",
-      padding: "1.4rem", boxShadow: "0 1px 2px rgba(15,23,42,0.03)",
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-        <div style={{
-          width: 30, height: 30, borderRadius: 9, background: `${BRAND}14`,
-          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-        }}>
-          <Lock size={14} color={BRAND} />
-        </div>
-        <div>
-          <p style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("settings.password.title")}</p>
-          <p style={{ fontSize: 11, color: "#94A3B8", margin: 0 }}>{t("settings.password.subtitle")}</p>
-        </div>
-      </div>
+    <div className={CARD}>
+      <FormSection icon={Lock} label={t("settings.password.title")} sub={t("settings.password.subtitle")}>
+        <form onSubmit={handleSubmit} noValidate className="space-y-5">
+          <Field id="old-password" label={t("settings.password.currentLabel")} error={errors.oldPassword}>
+            <PasswordInput
+              {...fieldProps("old-password", "oldPassword")}
+              autoComplete="current-password"
+              value={oldPassword}
+              onChange={(e) => { setOldPassword(e.target.value); clearError("oldPassword"); }}
+              placeholder={t("settings.password.currentPlaceholder")}
+            />
+          </Field>
 
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <PasswordField
-          label={t("settings.password.currentLabel")}
-          value={oldPassword}
-          onChange={(e) => { setOldPassword(e.target.value); if (errors.oldPassword) setErrors((p) => ({ ...p, oldPassword: undefined })); }}
-          show={showOld}
-          toggleShow={() => setShowOld((s) => !s)}
-          placeholder={t("settings.password.currentPlaceholder")}
-          error={errors.oldPassword}
-          dir={dir}
-        />
-
-        <div>
-          <PasswordField
-            label={t("settings.password.newLabel")}
-            value={newPassword}
-            onChange={(e) => { setNewPassword(e.target.value); if (errors.newPassword) setErrors((p) => ({ ...p, newPassword: undefined })); }}
-            show={showNew}
-            toggleShow={() => setShowNew((s) => !s)}
-            placeholder={t("settings.password.newPlaceholder")}
-            error={errors.newPassword}
-            dir={dir}
-          />
-          {newPassword && (
-            <div style={{ marginTop: 7, display: "flex", alignItems: "center", gap: 8, animation: "fadeSlideIn .15s ease" }}>
-              <div style={{ flex: 1, height: 4, borderRadius: 4, background: "#E8EEF6", overflow: "hidden", display: "flex", gap: 3 }}>
-                {[0, 1, 2, 3].map((i) => (
-                  <div key={i} style={{
-                    flex: 1, borderRadius: 4,
-                    background: i < strength ? strengthMeta.color : "#E8EEF6",
-                    transition: "background .2s",
-                  }} />
-                ))}
-              </div>
-              <span style={{ fontSize: 10, fontWeight: 600, color: strengthMeta.color, whiteSpace: "nowrap" }}>
-                {strengthMeta.label}
-              </span>
-            </div>
-          )}
-        </div>
-
-        <PasswordField
-          label={t("settings.password.confirmLabel")}
-          value={confirmPassword}
-          onChange={(e) => { setConfirmPassword(e.target.value); if (errors.confirmPassword) setErrors((p) => ({ ...p, confirmPassword: undefined })); }}
-          show={showConfirm}
-          toggleShow={() => setShowConfirm((s) => !s)}
-          placeholder={t("settings.password.confirmPlaceholder")}
-          error={errors.confirmPassword}
-          dir={dir}
-        />
-        {confirmPassword && confirmPassword === newPassword && !errors.confirmPassword && (
-          <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: -8, animation: "fadeSlideIn .15s ease" }}>
-            <CheckCircle2 size={12} color="#059669" />
-            <span style={{ fontSize: 10.5, color: "#059669", fontWeight: 600 }}>{t("settings.password.matchLabel")}</span>
+          <div className="space-y-3">
+            <Field id="new-password" label={t("settings.password.newLabel")} error={errors.newPassword}>
+              <PasswordInput
+                {...fieldProps("new-password", "newPassword")}
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(e) => { setNewPassword(e.target.value); clearError("newPassword"); }}
+                placeholder={t("settings.password.newPlaceholder")}
+              />
+            </Field>
+            {newPassword && <StrengthMeter score={strength} label={strengthLabel} />}
           </div>
-        )}
 
-        <button
-          type="submit"
-          disabled={submitting}
-          style={{
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-            padding: "11px 22px", borderRadius: 10, border: "none", marginTop: 4,
-            background: BRAND, color: "#fff",
-            fontSize: 13, fontWeight: 700, cursor: submitting ? "not-allowed" : "pointer",
-            fontFamily: "inherit", transition: "opacity .15s", opacity: submitting ? 0.7 : 1,
-          }}
-          onMouseEnter={(e) => { if (!submitting) e.currentTarget.style.opacity = ".88"; }}
-          onMouseLeave={(e) => { if (!submitting) e.currentTarget.style.opacity = "1"; }}
-        >
-          {submitting ? <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> : <Save size={15} />}
-          {submitting ? t("settings.password.submitting") : t("settings.password.submit")}
-        </button>
-      </form>
+          <div className="space-y-3">
+            <Field id="confirm-password" label={t("settings.password.confirmLabel")} error={errors.confirmPassword}>
+              <PasswordInput
+                {...fieldProps("confirm-password", "confirmPassword")}
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(e) => { setConfirmPassword(e.target.value); clearError("confirmPassword"); }}
+                placeholder={t("settings.password.confirmPlaceholder")}
+              />
+            </Field>
+            {confirmPassword && confirmPassword === newPassword && !errors.confirmPassword && (
+              <p className="flex items-center gap-1.5 text-xs font-bold text-green-deep">
+                <CheckCircle2 className="size-3.5 text-gold-deep" />
+                {t("settings.password.matchLabel")}
+              </p>
+            )}
+          </div>
+
+          <NButton
+            type="submit"
+            variant="gold"
+            disabled={submitting}
+            className="w-full disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {submitting ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+            {submitting ? t("settings.password.submitting") : t("settings.password.submit")}
+          </NButton>
+        </form>
+      </FormSection>
     </div>
   );
 }

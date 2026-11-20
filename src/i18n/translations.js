@@ -1094,6 +1094,16 @@ classroomConflictGeneric: "This classroom is already booked at one of the chosen
   removedFromModule: 'Removed {name} from "{module}" ✓',
   removeFromModuleError: "Could not remove student from module",
   retry: "Retry",
+  groupsPage: {
+  tag: "Students",
+  subtitle: "Choose a level, then open a group to see its students.",
+  levelLabel: "Level",
+  allStudents: "All students",
+  allStudentsHint: "Across every level and group",
+  prev: "Previous",
+  next: "Next",
+  close: "Close",
+},
 
   status: { PAID: "Paid", PENDING: "Pending", OVERDUE: "Overdue", CANCELLED: "Cancelled" },
 
@@ -2765,6 +2775,16 @@ classroomConflictGeneric: "هذه القاعة محجوزة بالفعل في أ
   removedFromModule: 'تم إزالة {name} من "{module}" ✓',
   removeFromModuleError: "تعذر إزالة التلميذ من الوحدة",
   retry: "إعادة المحاولة",
+  groupsPage: {
+  tag: "الطلاب",
+  subtitle: "اختر المستوى ثم افتح مجموعة لعرض طلابها.",
+  levelLabel: "المستوى",
+  allStudents: "كل الطلاب",
+  allStudentsHint: "عبر جميع المستويات والمجموعات",
+  prev: "السابق",
+  next: "التالي",
+  close: "إغلاق",
+},
 
   status: { PAID: "مدفوع", PENDING: "معلق", OVERDUE: "متأخر", CANCELLED: "ملغى" },
 
@@ -4439,6 +4459,16 @@ classroomConflictGeneric: "Cette salle est déjà réservée pour l'un des crén
   removedFromModule: '{name} retiré de "{module}" ✓',
   removeFromModuleError: "Impossible de retirer l'élève du module",
   retry: "Réessayer",
+  groupsPage: {
+  tag: "Élèves",
+  subtitle: "Choisissez un niveau, puis ouvrez un groupe pour voir ses élèves.",
+  levelLabel: "Niveau",
+  allStudents: "Tous les élèves",
+  allStudentsHint: "Tous niveaux et groupes confondus",
+  prev: "Précédent",
+  next: "Suivant",
+  close: "Fermer",
+},
 
   status: { PAID: "Payé", PENDING: "En attente", OVERDUE: "En retard", CANCELLED: "Annulé" },
 

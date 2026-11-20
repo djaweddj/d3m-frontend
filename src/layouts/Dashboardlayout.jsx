@@ -6,18 +6,15 @@ import { SchoolProvider } from "../context/SchoolContext";
 export default function DashboardLayout() {
   return (
     <SchoolProvider>
-    <div
-      className="flex h-screen bg-gray-50 overflow-hidden"
-      style={{ fontFamily: "'Cairo', sans-serif" }}
-    >
-      <Sidebar />
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <Topbar />
-        <main className="flex-1 overflow-y-auto">
-          <Outlet />
-        </main>
+      <div className="flex h-screen overflow-hidden bg-canvas">
+        <Sidebar />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <Topbar />
+          <main className="flex-1 overflow-y-auto">
+            <Outlet />
+          </main>
+        </div>
       </div>
-    </div>
     </SchoolProvider>
   );
 }

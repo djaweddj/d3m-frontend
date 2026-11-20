@@ -1,440 +1,149 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Trash2, ChevronDown, Check, ArrowRight, AlertCircle, Calendar, CreditCard } from "lucide-react";
+import {
+  Plus, Trash2, Check, ArrowRight, ArrowLeft, AlertCircle,
+  Calendar, CalendarRange, CreditCard, BookOpen, Users, Clock,
+} from "lucide-react";
 import api from "../api";
 import { useLanguage } from "../context/LanguageContext";
+import NButton from "../components/home/NButton";
+import { Field } from "../components/SchoolRegister/FormField"; // ← adjust path
+import {
+  Spinner, CenterState, EmptyBlock, Notice, InlineError,
+  SectionCard, FormGrid, Tabs, TextInput, SelectInput, PricingOption,
+} from "../components/createmodule/ModuleFormParts";
+import {
+  DAY_VALUES, LEVEL_KEYS, LEVEL_CANONICAL_AR, OTHER_LEVEL_VALUE, NEW_SCHEDULE_ROW,
+  findClassroomConflicts, findTeacherConflicts,
+} from "../components/createmodule/moduleHelpers";
 
-const getSubjects   = ()  => api.get("/api/subjects").then(r => r.data);
-const getTeachers   = ()  => api.get("/api/teachers").then(r => r.data?.content ?? r.data ?? []);
-const getClassrooms = ()  => api.get("/api/classrooms").then(r => r.data);
-const postModule    = (d) => api.post("/api/modules", d).then(r => r.data);
-const getArchivedModules = () => api.get("/api/modules/archived").then(r => r.data);
+// ─── API ──────────────────────────────────────────────────────────────────────
+const getSubjects        = ()   => api.get("/api/subjects").then(r => r.data);
+const getTeachers        = ()   => api.get("/api/teachers").then(r => r.data?.content ?? r.data ?? []);
+const getClassrooms      = ()   => api.get("/api/classrooms").then(r => r.data);
+const postModule         = (d)  => api.post("/api/modules", d).then(r => r.data);
+const getArchivedModules = ()   => api.get("/api/modules/archived").then(r => r.data);
 const restoreModule      = (id) => api.patch(`/api/modules/${id}/restore`).then(r => r.data);
-// ASSUMPTION: this endpoint returns the full list of existing modules, each with
-// `classroomId` and a `schedules` array of { day, startTime, endTime }. If your
-// modules list endpoint or field names differ, adjust `getModules` and the
-// `mod.classroomId` / `sch.day` / `sch.startTime` / `sch.endTime` accesses below.
-const getModules    = ()  => api.get("/api/modules").then(r => r.data?.content ?? r.data ?? []);
+// ASSUMPTION (unchanged): returns all modules with `classroomId`, `teacherId`
+// and a `schedules` array of { day, startTime, endTime }.
+const getModules         = ()   => api.get("/api/modules").then(r => r.data?.content ?? r.data ?? []);
 
-const DAY_VALUES = ["SATURDAY", "SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"];
+const COLUMN = "flex w-full max-w-3xl flex-col gap-4";
 
-const LEVEL_KEYS = [
-  "preparatory", "primary1", "primary2", "primary3", "primary4", "primary5",
-  "middle1", "middle2", "middle3", "middle4",
-  "secondary1", "secondary2", "secondary3", "other",
-];
-const LEVEL_CANONICAL_AR = {
-  preparatory: "التحضيري",
-  primary1: "السنة الأولى ابتدائي",
-  primary2: "السنة الثانية ابتدائي",
-  primary3: "السنة الثالثة ابتدائي",
-  primary4: "السنة الرابعة ابتدائي",
-  primary5: "السنة الخامسة ابتدائي",
-  middle1: "السنة الأولى متوسط",
-  middle2: "السنة الثانية متوسط",
-  middle3: "السنة الثالثة متوسط",
-  middle4: "السنة الرابعة متوسط",
-  secondary1: "السنة الأولى ثانوي",
-  secondary2: "السنة الثانية ثانوي",
-  secondary3: "السنة الثالثة ثانوي (البكالوريا)",
-  other: "مستوى آخر...",
-};
-const OTHER_LEVEL_VALUE = LEVEL_CANONICAL_AR.other;
-
-const P = "#185FA5";
-
-function useIsMobile(breakpoint = 640) {
-  const [isMobile, setIsMobile] = useState(
-    typeof window !== "undefined" ? window.innerWidth <= breakpoint : false
-  );
-  useEffect(() => {
-    const onResize = () => setIsMobile(window.innerWidth <= breakpoint);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [breakpoint]);
-  return isMobile;
-}
-
-// --- classroom time-conflict helpers ---
-function toMinutes(hhmm) {
-  if (!hhmm) return null;
-  const [h, m] = hhmm.split(":").map(Number);
-  return h * 60 + (m || 0);
-}
-
-function timeRangesOverlap(aStart, aEnd, bStart, bEnd) {
-  const as = toMinutes(aStart), ae = toMinutes(aEnd);
-  const bs = toMinutes(bStart), be = toMinutes(bEnd);
-  if (as == null || ae == null || bs == null || be == null) return false;
-  return as < be && bs < ae;
-}
-
-// Generic version: returns a map of { [rowIndex]: conflictingModuleName } for
-// the current entityId/schedules against every other existing module's
-// schedule that uses the same entity (classroom OR teacher — whichever
-// `entityField` points to, e.g. "classroomId" or "teacherId").
-function findEntityConflicts(entityId, entityField, schedules, modules) {
-  const conflicts = {};
-  if (!entityId) return conflicts;
-  const eid = Number(entityId);
-
-  schedules.forEach((row, idx) => {
-    if (!row.day || !row.startTime || !row.endTime) return;
-    for (const mod of modules) {
-      if (Number(mod[entityField]) !== eid) continue;
-      const modSchedules = mod.schedules ?? mod.scheduleEntries ?? [];
-      for (const sch of modSchedules) {
-        if (sch.day !== row.day) continue;
-        if (timeRangesOverlap(row.startTime, row.endTime, sch.startTime?.slice(0, 5), sch.endTime?.slice(0, 5))) {
-          conflicts[idx] = mod.name ?? mod.moduleName ?? "";
-          break;
-        }
-      }
-      if (conflicts[idx]) break;
-    }
-  });
-
-  return conflicts;
-}
-
-// Returns a map of { [rowIndex]: conflictingModuleName } for the current
-// classroomId/schedules against every other existing module's schedule
-// that uses the same classroom.
-function findClassroomConflicts(classroomId, schedules, modules) {
-  return findEntityConflicts(classroomId, "classroomId", schedules, modules);
-}
-
-// ASSUMPTION: existing modules expose the assigned teacher's id as
-// `teacherId` (same shape as `classroomId`). Adjust the field name below if
-// your `/api/modules` response uses something else (e.g. `teacher.id`).
-function findTeacherConflicts(teacherId, schedules, modules) {
-  return findEntityConflicts(teacherId, "teacherId", schedules, modules);
-}
-
-function Label({ children, required }) {
-  return (
-    <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>
-      {children} {required && <span style={{ color: "#EF4444" }}>*</span>}
-    </label>
-  );
-}
-
-function TabBar({ active, onChange, tabs }) {
-  return (
-    <div style={{ display: "flex", gap: 6, background: "#EEF2F7", borderRadius: 12, padding: 4, width: "fit-content" }}>
-      {tabs.map(tab => {
-        const isActive = tab.value === active;
-        return (
-          <button key={tab.value} type="button" onClick={() => onChange(tab.value)}
-            style={{
-              padding: "8px 16px", borderRadius: 9, border: "none",
-              background: isActive ? "#fff" : "transparent",
-              color: isActive ? P : "#64748B",
-              fontSize: 13, fontWeight: 700, cursor: "pointer",
-              fontFamily: "'Cairo',sans-serif",
-              boxShadow: isActive ? "0 1px 3px rgba(0,0,0,.08)" : "none",
-              transition: "all .15s",
-            }}>
-            {tab.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function ArchivedModuleCard({ module, onRestore, restoring, isMobile }) {
+// ─── Local pieces ─────────────────────────────────────────────────────────────
+function ArchivedModuleCard({ module, onRestore, restoring }) {
   const { t } = useLanguage();
   return (
-    <div style={{
-      background: "#fff", borderRadius: 14, border: "1.5px solid #E2E8F0",
-      padding: isMobile ? "1rem" : "1.1rem 1.25rem",
-      display: "flex", flexDirection: isMobile ? "column" : "row",
-      alignItems: isMobile ? "stretch" : "center", justifyContent: "space-between",
-      gap: 12,
-    }}>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>{module.name}</div>
-        <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 4 }}>
+    <article className="flex flex-col gap-3 rounded-sm border border-gold/40 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <h3 className="text-sm font-bold text-green-deep">{module.name}</h3>
+        <p className="mt-1 text-xs text-green-deep/60">
           {module.subjectName} · {module.teacherName} · {module.level}
-        </div>
-        <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 2 }}>
+        </p>
+        <p className="mt-0.5 text-[11px] text-green-deep/50">
           {module.periodStart} → {module.periodEnd}
-        </div>
+        </p>
       </div>
-      <button type="button" disabled={restoring} onClick={() => onRestore(module.id)}
-        style={{
-          padding: "9px 16px", borderRadius: 10, border: "none",
-          background: restoring ? "#94A3B8" : P, color: "#fff",
-          fontSize: 13, fontWeight: 700, cursor: restoring ? "default" : "pointer",
-          fontFamily: "'Cairo',sans-serif", flexShrink: 0,
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-        }}>
-        {restoring ? (
-          <div style={{ width: 14, height: 14, borderRadius: "50%", border: "2px solid rgba(255,255,255,.4)", borderTopColor: "#fff", animation: "spin .8s linear infinite" }} />
-        ) : (
-          t("createModule.archived.restore") || "Restore"
-        )}
-      </button>
-    </div>
+      <NButton type="button" disabled={restoring} onClick={() => onRestore(module.id)}
+        className="shrink-0 disabled:cursor-not-allowed disabled:opacity-60">
+        {restoring ? <Spinner /> : (t("createModule.archived.restore") || "Restore")}
+      </NButton>
+    </article>
   );
 }
 
-function TextInput({ value, onChange, placeholder, type = "text", min, disabled }) {
-  return (
-    <input
-      type={type} value={value}
-      onChange={e => onChange(e.target.value)}
-      placeholder={placeholder} min={min} disabled={disabled}
-      style={{
-        width: "100%", padding: "10px 12px", borderRadius: 10,
-        border: "1.5px solid #E2E8F0", fontSize: 16, color: "#0F172A",
-        fontFamily: "'Cairo',sans-serif",
-        background: disabled ? "#F1F5F9" : "#FAFCFF",
-        outline: "none", boxSizing: "border-box",
-        opacity: disabled ? 0.6 : 1,
-      }}
-      onFocus={e => !disabled && (e.target.style.borderColor = P)}
-      onBlur={e  => (e.target.style.borderColor = "#E2E8F0")}
-    />
-  );
-}
-
-function Select({ value, onChange, options, placeholder }) {
-  const { t } = useLanguage();
-  const [open, setOpen] = useState(false);
-  const selected = options.find(o => o.value === value);
-  return (
-    <div style={{ position: "relative" }}>
-      <button type="button" onClick={() => setOpen(p => !p)}
-        style={{
-          width: "100%", padding: "10px 12px", borderRadius: 10,
-          border: `1.5px solid ${open ? P : "#E2E8F0"}`, fontSize: 13,
-          fontFamily: "'Cairo',sans-serif", background: "#FAFCFF",
-          color: selected ? "#0F172A" : "#94A3B8", cursor: "pointer",
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          boxSizing: "border-box",
-        }}>
-        <span>{selected ? selected.label : placeholder}</span>
-        <ChevronDown size={14} color="#94A3B8"
-          style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
-      </button>
-      {open && (
-        <div style={{
-          position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 100,
-          background: "#fff", border: "1.5px solid #E2E8F0", borderRadius: 10,
-          boxShadow: "0 8px 24px rgba(0,0,0,.12)", maxHeight: 220, overflowY: "auto",
-        }}>
-          {options.length === 0 ? (
-            <div style={{ padding: "12px 14px", fontSize: 12, color: "#94A3B8", textAlign: "center" }}>
-              {t("createModule.noData")}
-            </div>
-          ) : options.map(o => (
-            <div key={o.value} onClick={() => { onChange(o.value); setOpen(false); }}
-              style={{
-                padding: "10px 14px", cursor: "pointer", fontSize: 13,
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-                background: o.value === value ? "#EBF4FE" : "transparent",
-                color: o.value === value ? P : "#0F172A",
-                borderBottom: "1px solid #F8FAFC", fontFamily: "'Cairo',sans-serif",
-              }}
-              onMouseEnter={e => { if (o.value !== value) e.currentTarget.style.background = "#F8FAFC"; }}
-              onMouseLeave={e => { if (o.value !== value) e.currentTarget.style.background = "transparent"; }}>
-              <span>{o.label}</span>
-              {o.value === value && <Check size={13} color={P} />}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function SectionCard({ title, subtitle, children, icon: Icon, isMobile }) {
-  return (
-    <div style={{
-      background: "#fff", borderRadius: 14, border: "1.5px solid #E2E8F0",
-      padding: isMobile ? "1rem" : "1.25rem 1.5rem",
-      display: "flex", flexDirection: "column", gap: 16,
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        {Icon && (
-          <div style={{ width: 32, height: 32, borderRadius: 9, background: "#EBF4FE", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <Icon size={15} color={P} />
-          </div>
-        )}
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>{title}</div>
-          {subtitle && <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 3 }}>{subtitle}</div>}
-        </div>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function Row({ children, cols = 2, isMobile }) {
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : `repeat(${cols}, 1fr)`, gap: 14 }}>
-      {children}
-    </div>
-  );
-}
-
-function Field({ children, style }) {
-  return <div style={{ display: "flex", flexDirection: "column", ...style }}>{children}</div>;
-}
-
-function PricingModelCard({ value, current, onClick, title, desc, icon: Icon, example, isMobile }) {
-  const isSelected = current === value;
-  return (
-    <div onClick={onClick} style={{
-      flex: 1, padding: isMobile ? "14px" : "16px 18px", borderRadius: 12, cursor: "pointer",
-      border: isSelected ? `2px solid ${P}` : "1.5px solid #E2E8F0",
-      background: isSelected ? "#EBF4FE" : "#fff",
-      transition: "all .15s", position: "relative",
-      minWidth: 0,
-    }}>
-      {isSelected && (
-        <div style={{
-          position: "absolute", top: 12, left: 12,
-          width: 20, height: 20, borderRadius: "50%",
-          background: P, display: "flex", alignItems: "center", justifyContent: "center",
-        }}>
-          <Check size={11} color="#fff" />
-        </div>
-      )}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-        <Icon size={16} color={isSelected ? P : "#64748B"} />
-        <span style={{ fontSize: 13, fontWeight: 700, color: isSelected ? P : "#0F172A" }}>{title}</span>
-      </div>
-      <p style={{ fontSize: 11, color: "#64748B", lineHeight: 1.6, margin: "0 0 8px" }}>{desc}</p>
-      <div style={{
-        fontSize: 10, color: isSelected ? P : "#94A3B8",
-        background: isSelected ? "rgba(24,95,165,.08)" : "#F8FAFC",
-        padding: "5px 9px", borderRadius: 7,
-        border: `1px dashed ${isSelected ? "#B5D4F4" : "#E2E8F0"}`,
-      }}>
-        {example}
-      </div>
-    </div>
-  );
-}
-
-function ScheduleRow({ entry, onChange, onRemove, usedDays, days, isMobile, conflictMessage, teacherConflictMessage }) {
+function ScheduleRow({ index, entry, onChange, onRemove, usedDays, days, conflictMessage, teacherConflictMessage }) {
   const { t } = useLanguage();
   const availableDays = days.filter(d => !usedDays.includes(d.value) || d.value === entry.day);
-  const hasAnyConflict = !!(conflictMessage || teacherConflictMessage);
+  const hasConflict = !!(conflictMessage || teacherConflictMessage);
+  const removeLabel = t("createModule.schedule.removeDay") || t("createModule.actions.cancel");
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr auto",
-        gap: 10, alignItems: "end",
-        padding: "12px 14px", borderRadius: 10,
-        background: hasAnyConflict ? "#FEF2F2" : "#F8FAFC",
-        border: `1.5px solid ${hasAnyConflict ? "#FCA5A5" : "#E2E8F0"}`,
-      }}>
-        <Field style={isMobile ? { gridColumn: "1 / -1" } : undefined}>
-          <Label>{t("createModule.schedule.day")}</Label>
-          <Select value={entry.day} onChange={v => onChange({ ...entry, day: v })}
-            options={availableDays.map(d => ({ value: d.value, label: d.label }))}
-            placeholder={t("createModule.schedule.chooseDay")} />
+    <div className="flex flex-col gap-2">
+      <div className={`grid grid-cols-2 items-end gap-3 rounded-sm border p-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:p-4 ${
+        hasConflict ? "border-algeria-red/50 bg-algeria-red/5" : "border-gold/40 bg-gold/10"
+      }`}>
+        <div className="col-span-2 sm:col-span-1">
+          <Field id={`day-${index}`} label={t("createModule.schedule.day")}>
+            <SelectInput id={`day-${index}`} value={entry.day}
+              onChange={v => onChange({ ...entry, day: v })}
+              options={availableDays.map(d => ({ value: d.value, label: d.label }))}
+              placeholder={t("createModule.schedule.chooseDay")} />
+          </Field>
+        </div>
+        <Field id={`start-${index}`} label={t("createModule.schedule.startTime")}>
+          <TextInput id={`start-${index}`} type="time" value={entry.startTime}
+            onChange={v => onChange({ ...entry, startTime: v })} />
         </Field>
-        <Field>
-          <Label>{t("createModule.schedule.startTime")}</Label>
-          <TextInput type="time" value={entry.startTime} onChange={v => onChange({ ...entry, startTime: v })} />
+        <Field id={`end-${index}`} label={t("createModule.schedule.endTime")}>
+          <TextInput id={`end-${index}`} type="time" value={entry.endTime}
+            onChange={v => onChange({ ...entry, endTime: v })} />
         </Field>
-        <Field>
-          <Label>{t("createModule.schedule.endTime")}</Label>
-          <TextInput type="time" value={entry.endTime} onChange={v => onChange({ ...entry, endTime: v })} />
-        </Field>
-        <button type="button" onClick={onRemove}
-          style={{
-            height: 40, borderRadius: 9, border: "1.5px solid #FECACA",
-            background: "#FEF2F2", cursor: "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-            ...(isMobile ? { gridColumn: "1 / -1", width: "100%", gap: 6 } : { width: 36 }),
-          }}>
-          <Trash2 size={14} color="#EF4444" />
-          {isMobile && (
-            <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "'Cairo',sans-serif", color: "#EF4444" }}>
-              {t("createModule.schedule.removeDay") || t("createModule.actions.cancel")}
-            </span>
-          )}
+        <button type="button" onClick={onRemove} aria-label={removeLabel}
+          className="col-span-2 flex h-12 items-center justify-center gap-2 rounded-sm border border-algeria-red/40 bg-algeria-red/10 text-xs font-bold text-algeria-red transition-colors hover:bg-algeria-red hover:text-ivory sm:col-span-1 sm:w-12">
+          <Trash2 className="size-4" />
+          <span className="sm:hidden">{removeLabel}</span>
         </button>
       </div>
+
       {conflictMessage && (
-        <div style={{
-          display: "flex", alignItems: "center", gap: 6,
-          fontSize: 11.5, color: "#DC2626", padding: "0 4px",
-        }}>
-          <AlertCircle size={13} style={{ flexShrink: 0 }} />
-          <span>
-            {t("createModule.errors.classroomConflict", { module: conflictMessage })
-              || `This classroom is already booked at this time (${conflictMessage}).`}
-          </span>
-        </div>
+        <InlineError>
+          {t("createModule.errors.classroomConflict", { module: conflictMessage })
+            || `This classroom is already booked at this time (${conflictMessage}).`}
+        </InlineError>
       )}
       {teacherConflictMessage && (
-        <div style={{
-          display: "flex", alignItems: "center", gap: 6,
-          fontSize: 11.5, color: "#DC2626", padding: "0 4px",
-        }}>
-          <AlertCircle size={13} style={{ flexShrink: 0 }} />
-          <span>
-            {t("createModule.errors.teacherConflict", { module: teacherConflictMessage })
-              || `This teacher is already teaching at this time (${teacherConflictMessage}).`}
-          </span>
-        </div>
+        <InlineError>
+          {t("createModule.errors.teacherConflict", { module: teacherConflictMessage })
+            || `This teacher is already teaching at this time (${teacherConflictMessage}).`}
+        </InlineError>
       )}
     </div>
   );
 }
 
+// ─── PAGE ─────────────────────────────────────────────────────────────────────
 export default function CreateModule() {
   const navigate = useNavigate();
   const { t, dir } = useLanguage();
-  const isMobile = useIsMobile();
+  const BackIcon = dir === "rtl" ? ArrowRight : ArrowLeft;
 
   const [subjects,    setSubjects]    = useState([]);
   const [teachers,    setTeachers]    = useState([]);
   const [classrooms,  setClassrooms]  = useState([]);
-  const [modules,     setModules]     = useState([]); // existing modules, used for classroom conflict checks
+  const [modules,     setModules]     = useState([]); // existing modules, for conflict checks
   const [dataLoading, setDataLoading] = useState(true);
   const [dataError,   setDataError]   = useState(null);
 
-  const [name,           setName]           = useState("");
-  const [subjectId,      setSubjectId]      = useState("");
-  const [teacherId,      setTeacherId]      = useState("");
-  const [classroomId,    setClassroomId]    = useState("");
-  const [level,          setLevel]          = useState("");
-  const [maxStudents,    setMaxStudents]    = useState("");
-  const [cycleNumber,    setCycleNumber]    = useState("");
-  const [pricingModel,   setPricingModel]   = useState("MONTHLY_FLAT");
-  const [monthlyPrice,   setMonthlyPrice]   = useState(null);
-  const [pricePerSession,setPricePerSession]= useState("");
-  const [periodStart,    setPeriodStart]    = useState("");
-  const [periodEnd,      setPeriodEnd]      = useState("");
-  const [schedules,      setSchedules]      = useState([{ day: "", startTime: "08:00", endTime: "09:30" }]);
-  const [saving,         setSaving]         = useState(false);
-  const [error,          setError]          = useState(null);
-  const [success,        setSuccess]        = useState(false);
+  const [name,            setName]            = useState("");
+  const [subjectId,       setSubjectId]       = useState("");
+  const [teacherId,       setTeacherId]       = useState("");
+  const [classroomId,     setClassroomId]     = useState("");
+  const [level,           setLevel]           = useState("");
+  const [customLevel,     setCustomLevel]     = useState("");
+  const [maxStudents,     setMaxStudents]     = useState("");
+  const [cycleNumber,     setCycleNumber]     = useState("");
+  const [pricingModel,    setPricingModel]    = useState("MONTHLY_FLAT");
+  const [monthlyPrice,    setMonthlyPrice]    = useState("");
+  const [pricePerSession, setPricePerSession] = useState("");
+  const [periodStart,     setPeriodStart]     = useState("");
+  const [periodEnd,       setPeriodEnd]       = useState("");
+  const [schedules,       setSchedules]       = useState([{ ...NEW_SCHEDULE_ROW }]);
+  const [saving,          setSaving]          = useState(false);
+  const [error,           setError]           = useState(null);
+  const [success,         setSuccess]         = useState(false);
 
-  const [customLevel, setCustomLevel] = useState("");
-  const [activeTab, setActiveTab] = useState("create");
+  const [activeTab,       setActiveTab]       = useState("create");
   const [archivedModules, setArchivedModules] = useState([]);
   const [archivedLoading, setArchivedLoading] = useState(false);
-  const [archivedError, setArchivedError] = useState(null);
-  const [restoringId, setRestoringId] = useState(null);
-  const [restoreError, setRestoreError] = useState(null);
+  const [archivedError,   setArchivedError]   = useState(null);
+  const [restoringId,     setRestoringId]     = useState(null);
+  const [restoreError,    setRestoreError]    = useState(null);
 
-  const DAYS = DAY_VALUES.map(v => ({ value: v, label: t(`dashboard.days.${v}`) }));
-  const levels = LEVEL_KEYS.map(k => ({
-    value: LEVEL_CANONICAL_AR[k],
-    label: t(`createModule.levels.${k}`),
-  }));
+  const DAYS   = DAY_VALUES.map(v => ({ value: v, label: t(`dashboard.days.${v}`) }));
+  const levels = LEVEL_KEYS.map(k => ({ value: LEVEL_CANONICAL_AR[k], label: t(`createModule.levels.${k}`) }));
 
+  // archived tab
   useEffect(() => {
     if (activeTab !== "archived") return;
     setArchivedLoading(true);
@@ -459,11 +168,12 @@ export default function CreateModule() {
     }
   };
 
+  // form data
   useEffect(() => {
     Promise.all([getSubjects(), getTeachers(), getClassrooms(), getModules()])
-      .then(([s, t, c, m]) => {
+      .then(([s, tch, c, m]) => {
         setSubjects(s?.content ?? s ?? []);
-        setTeachers((Array.isArray(t) ? t : []).filter(tc => !tc.archived));
+        setTeachers((Array.isArray(tch) ? tch : []).filter(tc => !tc.archived));
         setClassrooms(c?.content ?? c ?? []);
         setModules(Array.isArray(m) ? m : []);
       })
@@ -489,16 +199,10 @@ export default function CreateModule() {
       ? Math.round(Number(pricePerSession) * weeklySessionCount * 4.3)
       : null;
 
-  // Recomputed on every render from current classroomId/schedules/modules —
-  // maps schedule-row index -> name of the module it conflicts with.
   const classroomConflicts = findClassroomConflicts(classroomId, schedules, modules);
+  const teacherConflicts   = findTeacherConflicts(teacherId, schedules, modules);
   const hasClassroomConflict = Object.keys(classroomConflicts).length > 0;
-
-  // Same idea, but keyed off the selected teacher: flags rows where the
-  // teacher is already teaching another module at that day/time.
-  const teacherConflicts = findTeacherConflicts(teacherId, schedules, modules);
-  const hasTeacherConflict = Object.keys(teacherConflicts).length > 0;
-
+  const hasTeacherConflict   = Object.keys(teacherConflicts).length > 0;
   const hasAnyScheduleConflict = hasClassroomConflict || hasTeacherConflict;
 
   const validate = () => {
@@ -540,13 +244,13 @@ export default function CreateModule() {
     setError(null); setSaving(true);
     try {
       await postModule({
-        name:           name.trim(),
-        subjectId:      Number(subjectId),
-        teacherId:      Number(teacherId),
-        classroomId:    Number(classroomId),
-        level: level === OTHER_LEVEL_VALUE ? customLevel : level,
-        maxStudents:    Number(maxStudents),
-        cycleNumber:    cycleNumber !== "" ? Number(cycleNumber) : null,
+        name:        name.trim(),
+        subjectId:   Number(subjectId),
+        teacherId:   Number(teacherId),
+        classroomId: Number(classroomId),
+        level:       level === OTHER_LEVEL_VALUE ? customLevel : level,
+        maxStudents: Number(maxStudents),
+        cycleNumber: cycleNumber !== "" ? Number(cycleNumber) : null,
         pricingModel,
         monthlyPrice:    pricingModel === "MONTHLY_FLAT" ? Number(monthlyPrice)    : null,
         pricePerSession: pricingModel === "PER_SESSION"  ? Number(pricePerSession) : null,
@@ -561,8 +265,6 @@ export default function CreateModule() {
       setSuccess(true);
       setTimeout(() => navigate("/schedule"), 1200);
     } catch (err) {
-      // If the backend also enforces classroom-conflict checks (e.g. HTTP 409),
-      // surface that message specifically rather than the generic submit-failed one.
       if (err?.response?.status === 409) {
         setError(err?.response?.data?.message || t("createModule.errors.classroomConflictGeneric") || "This classroom is already booked at the selected time.");
       } else {
@@ -571,288 +273,206 @@ export default function CreateModule() {
     } finally { setSaving(false); }
   };
 
+  // ─── page states ────────────────────────────────────────────────────────────
   if (dataLoading) return (
-    <div dir={dir} style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh", fontFamily: "'Cairo',sans-serif" }}>
-      <div style={{ textAlign: "center", color: "#94A3B8" }}>
-        <div style={{ width: 36, height: 36, borderRadius: "50%", border: `3px solid ${P}`, borderTopColor: "transparent", animation: "spin .8s linear infinite", margin: "0 auto 12px" }} />
-        <div style={{ fontSize: 13 }}>{t("createModule.loading")}</div>
-        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-      </div>
+    <div dir={dir}>
+      <CenterState>
+        <Spinner className="mx-auto mb-3 size-9 text-gold-deep" />
+        {t("createModule.loading")}
+      </CenterState>
     </div>
   );
 
   if (dataError) return (
-    <div dir={dir} style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh", fontFamily: "'Cairo',sans-serif" }}>
-      <div style={{ textAlign: "center", color: "#EF4444" }}>
-        <AlertCircle size={36} style={{ marginBottom: 10 }} />
-        <div style={{ fontSize: 13 }}>{dataError}</div>
-      </div>
+    <div dir={dir}>
+      <CenterState tone="text-algeria-red">
+        <AlertCircle className="mx-auto mb-3 size-9" />
+        {dataError}
+      </CenterState>
     </div>
   );
 
+  const submitDisabled = saving || success || hasAnyScheduleConflict;
+
   return (
-    <div dir={dir} style={{ padding: isMobile ? "1rem" : "1.5rem", fontFamily: "'Cairo',sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: "1.5rem" }}>
-        <button onClick={() => navigate(-1)}
-          style={{ width: 36, height: 36, borderRadius: 10, border: "1.5px solid #E2E8F0", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <ArrowRight size={16} color="#64748B" />
+    <div dir={dir} className="min-h-screen bg-ivory p-4 sm:p-6">
+      <header className="mb-6 flex items-center gap-3">
+        <button type="button" onClick={() => navigate(-1)} aria-label={t("createModule.actions.cancel")}
+          className="grid size-10 shrink-0 place-items-center rounded-sm border border-gold/40 bg-white text-green-deep transition-colors hover:bg-gold">
+          <BackIcon className="size-4" />
         </button>
-        <div style={{ minWidth: 0 }}>
-          <h1 style={{ fontSize: isMobile ? 16 : 18, fontWeight: 700, color: "#0F172A", margin: 0 }}>{t("createModule.pageTitle")}</h1>
-          <p style={{ fontSize: 12, color: "#94A3B8", margin: "3px 0 0" }}>
-            {t("createModule.pageSubtitle")}
-          </p>
+        <div className="min-w-0">
+          <h1 className="text-lg font-extrabold text-green-deep sm:text-xl">{t("createModule.pageTitle")}</h1>
+          <p className="mt-0.5 text-xs text-green-deep/60">{t("createModule.pageSubtitle")}</p>
         </div>
-      </div>
+      </header>
 
-      <div style={{ marginBottom: 16 }}>
-        <TabBar
-          active={activeTab}
-          onChange={setActiveTab}
+      <div className="mb-4">
+        <Tabs active={activeTab} onChange={setActiveTab}
           tabs={[
-            { value: "create",   label: t("createModule.tabs.create")   || "Create" },
+            { value: "create",   label: t("createModule.tabs.create")   || "Create"   },
             { value: "archived", label: t("createModule.tabs.archived") || "Archived" },
-          ]}
-        />
+          ]} />
       </div>
 
       {activeTab === "create" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 780, width: "100%", boxSizing: "border-box" }}>
+        <div className={COLUMN}>
 
-          {/* Basic Info */}
-          <SectionCard isMobile={isMobile} title={t("createModule.basicInfo.title")} subtitle={t("createModule.basicInfo.subtitle")}>
-            <Row cols={2} isMobile={isMobile}>
-              <Field>
-                <Label required>{t("createModule.basicInfo.moduleName")}</Label>
-                <TextInput value={name} onChange={setName} placeholder={t("createModule.basicInfo.moduleNamePlaceholder")} />
+          {/* Basic info */}
+          <SectionCard icon={BookOpen} title={t("createModule.basicInfo.title")} subtitle={t("createModule.basicInfo.subtitle")}>
+            <FormGrid>
+              <Field id="moduleName" label={t("createModule.basicInfo.moduleName")} req>
+                <TextInput id="moduleName" value={name} onChange={setName}
+                  placeholder={t("createModule.basicInfo.moduleNamePlaceholder")} />
               </Field>
-              <Field>
-                <Label required>{t("createModule.basicInfo.level")}</Label>
-
-                <select
-                  value={level}
-                  onChange={(e) => {
-                    setLevel(e.target.value);
-                    if (e.target.value !== OTHER_LEVEL_VALUE) {
-                      setCustomLevel("");
-                    }
-                  }}
-                  style={{
-                    width: "100%", padding: "10px 12px", borderRadius: 10,
-                    border: "1.5px solid #E2E8F0", fontSize: 16, color: "#0F172A",
-                    fontFamily: "'Cairo',sans-serif", background: "#FAFCFF",
-                    outline: "none", boxSizing: "border-box",
-                  }}
-                >
-                  <option value="">{t("createModule.basicInfo.levelPlaceholder")}</option>
-
-                  {levels.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-
+              <Field id="level" label={t("createModule.basicInfo.level")} req>
+                <SelectInput id="level" value={level} options={levels}
+                  placeholder={t("createModule.basicInfo.levelPlaceholder")}
+                  onChange={v => { setLevel(v); if (v !== OTHER_LEVEL_VALUE) setCustomLevel(""); }} />
                 {level === OTHER_LEVEL_VALUE && (
-                  <div style={{ marginTop: 12 }}>
-                    <TextInput
-                      value={customLevel}
-                      onChange={setCustomLevel}
-                      placeholder={t("createModule.basicInfo.customLevelPlaceholder")}
-                    />
-                  </div>
+                  <TextInput id="customLevel" value={customLevel} onChange={setCustomLevel}
+                    placeholder={t("createModule.basicInfo.customLevelPlaceholder")} />
                 )}
               </Field>
-            </Row>
-            <Row cols={2} isMobile={isMobile}>
-              <Field>
-                <Label required>{t("createModule.basicInfo.maxStudents")}</Label>
-                <TextInput type="number" value={maxStudents} onChange={setMaxStudents} placeholder={t("createModule.basicInfo.maxStudentsPlaceholder")} min="1" />
+              <Field id="maxStudents" label={t("createModule.basicInfo.maxStudents")} req>
+                <TextInput id="maxStudents" type="number" min="1" value={maxStudents} onChange={setMaxStudents}
+                  placeholder={t("createModule.basicInfo.maxStudentsPlaceholder")} />
               </Field>
-              <Field>
-                <Label>{t("createModule.basicInfo.cycleNumber") || "Cycle Number"}</Label>
-                <TextInput
-                  type="number"
-                  value={cycleNumber}
-                  onChange={setCycleNumber}
-                  placeholder={t("createModule.basicInfo.cycleNumberPlaceholder") || "e.g. 1"}
-                  min="1"
-                />
+              <Field id="cycleNumber" label={t("createModule.basicInfo.cycleNumber") || "Cycle Number"}>
+                <TextInput id="cycleNumber" type="number" min="1" value={cycleNumber} onChange={setCycleNumber}
+                  placeholder={t("createModule.basicInfo.cycleNumberPlaceholder") || "e.g. 1"} />
               </Field>
-            </Row>
+            </FormGrid>
           </SectionCard>
 
-          {/* Pricing Model */}
-          <SectionCard isMobile={isMobile} title={t("createModule.pricing.title")} subtitle={t("createModule.pricing.subtitle")} icon={CreditCard}>
-            <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 12 }}>
-              <PricingModelCard
-                value="MONTHLY_FLAT" current={pricingModel}
-                onClick={() => setPricingModel("MONTHLY_FLAT")}
+          {/* Pricing */}
+          <SectionCard icon={CreditCard} title={t("createModule.pricing.title")} subtitle={t("createModule.pricing.subtitle")}>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <PricingOption
+                selected={pricingModel === "MONTHLY_FLAT"} onClick={() => setPricingModel("MONTHLY_FLAT")}
                 icon={Calendar}
                 title={t("createModule.pricing.monthlyFlat.title")}
                 desc={t("createModule.pricing.monthlyFlat.desc")}
-                example={t("createModule.pricing.monthlyFlat.example")}
-                isMobile={isMobile}
-              />
-              <PricingModelCard
-                value="PER_SESSION" current={pricingModel}
-                onClick={() => setPricingModel("PER_SESSION")}
+                example={t("createModule.pricing.monthlyFlat.example")} />
+              <PricingOption
+                selected={pricingModel === "PER_SESSION"} onClick={() => setPricingModel("PER_SESSION")}
                 icon={CreditCard}
                 title={t("createModule.pricing.perSession.title")}
                 desc={t("createModule.pricing.perSession.desc")}
-                example={t("createModule.pricing.perSession.example")}
-                isMobile={isMobile}
-              />
+                example={t("createModule.pricing.perSession.example")} />
             </div>
 
             {pricingModel === "MONTHLY_FLAT" ? (
-              <Field>
-                <Label required>{t("createModule.pricing.monthlyPriceLabel")}</Label>
-                <TextInput type="number" value={monthlyPrice} onChange={setMonthlyPrice} placeholder={t("createModule.pricing.monthlyPricePlaceholder")} min="0" />
+              <Field id="monthlyPrice" label={t("createModule.pricing.monthlyPriceLabel")} req>
+                <TextInput id="monthlyPrice" type="number" min="0" value={monthlyPrice} onChange={setMonthlyPrice}
+                  placeholder={t("createModule.pricing.monthlyPricePlaceholder")} />
               </Field>
             ) : (
               <>
-                <Field>
-                  <Label required>{t("createModule.pricing.perSessionPriceLabel")}</Label>
-                  <TextInput type="number" value={pricePerSession} onChange={setPricePerSession} placeholder={t("createModule.pricing.perSessionPricePlaceholder")} min="0" />
+                <Field id="pricePerSession" label={t("createModule.pricing.perSessionPriceLabel")} req>
+                  <TextInput id="pricePerSession" type="number" min="0" value={pricePerSession} onChange={setPricePerSession}
+                    placeholder={t("createModule.pricing.perSessionPricePlaceholder")} />
                 </Field>
                 {estimatedMonthly && (
-                  <div style={{ fontSize: 12, color: "#854F0B", background: "#FAEEDA", border: "1px solid #F0C87A", borderRadius: 9, padding: "10px 14px" }}>
+                  <Notice variant="gold">
                     {t("createModule.pricing.estimateIntro", { count: weeklySessionCount })}{" "}
-                    <strong>{estimatedMonthly.toLocaleString()} {t("students.print.currency")}</strong> {t("createModule.pricing.estimateSuffix")}
-                    <span style={{ fontSize: 10, opacity: .7 }}> {t("createModule.pricing.estimateNote")}</span>
-                  </div>
+                    <strong>{estimatedMonthly.toLocaleString()} {t("students.print.currency")}</strong>{" "}
+                    {t("createModule.pricing.estimateSuffix")}{" "}
+                    <span className="text-xs opacity-70">{t("createModule.pricing.estimateNote")}</span>
+                  </Notice>
                 )}
               </>
             )}
           </SectionCard>
 
           {/* Assignment */}
-          <SectionCard isMobile={isMobile} title={t("createModule.assignment.title")} subtitle={t("createModule.assignment.subtitle")}>
-            <Field>
-              <Label required>{t("createModule.assignment.subject")}</Label>
-              <Select value={subjectId} onChange={v => { setSubjectId(v); setTeacherId(""); }}
-                options={subjectOptions} placeholder={t("createModule.assignment.subjectPlaceholder")} />
+          <SectionCard icon={Users} title={t("createModule.assignment.title")} subtitle={t("createModule.assignment.subtitle")}>
+            <Field id="subject" label={t("createModule.assignment.subject")} req>
+              <SelectInput id="subject" value={subjectId} options={subjectOptions}
+                placeholder={t("createModule.assignment.subjectPlaceholder")}
+                onChange={v => { setSubjectId(v); setTeacherId(""); }} />
             </Field>
-            <Field>
-              <Label required>{t("createModule.assignment.teacher")}</Label>
-              <Select value={teacherId} onChange={setTeacherId} options={teacherOptions} placeholder={t("createModule.assignment.teacherPlaceholder")} />
+            <Field id="teacher" label={t("createModule.assignment.teacher")} req>
+              <SelectInput id="teacher" value={teacherId} options={teacherOptions} onChange={setTeacherId}
+                placeholder={t("createModule.assignment.teacherPlaceholder")} />
             </Field>
-            <Field>
-              <Label required>{t("createModule.assignment.classroom")}</Label>
-              <Select value={classroomId} onChange={setClassroomId} options={classroomOptions} placeholder={t("createModule.assignment.classroomPlaceholder")} />
+            <Field id="classroom" label={t("createModule.assignment.classroom")} req>
+              <SelectInput id="classroom" value={classroomId} options={classroomOptions} onChange={setClassroomId}
+                placeholder={t("createModule.assignment.classroomPlaceholder")} />
             </Field>
           </SectionCard>
 
           {/* Period */}
-          <SectionCard isMobile={isMobile} title={t("createModule.period.title")} subtitle={t("createModule.period.subtitle")}>
-            <Row cols={2} isMobile={isMobile}>
-              <Field>
-                <Label required>{t("createModule.period.startDate")}</Label>
-                <TextInput type="date" value={periodStart} onChange={setPeriodStart} />
+          <SectionCard icon={CalendarRange} title={t("createModule.period.title")} subtitle={t("createModule.period.subtitle")}>
+            <FormGrid>
+              <Field id="periodStart" label={t("createModule.period.startDate")} req>
+                <TextInput id="periodStart" type="date" value={periodStart} onChange={setPeriodStart} />
               </Field>
-              <Field>
-                <Label required>{t("createModule.period.endDate")}</Label>
-                <TextInput type="date" value={periodEnd} onChange={setPeriodEnd} min={periodStart} />
+              <Field id="periodEnd" label={t("createModule.period.endDate")} req>
+                <TextInput id="periodEnd" type="date" min={periodStart} value={periodEnd} onChange={setPeriodEnd} />
               </Field>
-            </Row>
+            </FormGrid>
             {periodStart && periodEnd && periodStart < periodEnd && (
-              <div style={{ fontSize: 12, color: "#0F6E56", background: "#ECFDF5", border: "1px solid #A7F3D0", borderRadius: 9, padding: "8px 13px" }}>
+              <Notice variant="green">
                 {t("createModule.period.durationText", {
                   weeks: Math.ceil((new Date(periodEnd) - new Date(periodStart)) / (1000 * 60 * 60 * 24 * 7)),
                 })}
-              </div>
+              </Notice>
             )}
           </SectionCard>
 
           {/* Schedule */}
-          <SectionCard isMobile={isMobile} title={t("createModule.schedule.title")} subtitle={t("createModule.schedule.subtitle")}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <SectionCard icon={Clock} title={t("createModule.schedule.title")} subtitle={t("createModule.schedule.subtitle")}>
+            <div className="flex flex-col gap-3">
               {schedules.map((entry, idx) => (
-                <ScheduleRow key={idx} entry={entry} days={DAYS} isMobile={isMobile}
+                <ScheduleRow key={idx} index={idx} entry={entry} days={DAYS} usedDays={usedDays}
                   onChange={updated => setSchedules(prev => prev.map((s, i) => i === idx ? updated : s))}
                   onRemove={() => setSchedules(prev => prev.filter((_, i) => i !== idx))}
-                  usedDays={usedDays}
                   conflictMessage={classroomConflicts[idx]}
                   teacherConflictMessage={teacherConflicts[idx]} />
               ))}
             </div>
             {schedules.length < 7 && (
-              <button type="button"
-                onClick={() => setSchedules(prev => [...prev, { day: "", startTime: "08:00", endTime: "09:30" }])}
-                style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, border: `1.5px dashed ${P}`, background: "#EBF4FE", color: P, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "'Cairo',sans-serif", width: isMobile ? "100%" : "fit-content", justifyContent: "center" }}>
-                <Plus size={14} /> {t("createModule.schedule.addDay")}
-              </button>
+              <NButton type="button" variant="outline" className="w-full border-dashed sm:w-fit"
+                onClick={() => setSchedules(prev => [...prev, { ...NEW_SCHEDULE_ROW }])}>
+                <Plus className="size-4" /> {t("createModule.schedule.addDay")}
+              </NButton>
             )}
           </SectionCard>
 
-          {error && (
-            <div style={{ fontSize: 13, color: "#DC2626", background: "#FEF2F2", border: "1.5px solid #FECACA", borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 8 }}>
-              <AlertCircle size={16} color="#DC2626" style={{ flexShrink: 0 }} />
-              {error}
-            </div>
-          )}
+          {error && <Notice icon={AlertCircle}>{error}</Notice>}
 
-          <div style={{ display: "flex", flexDirection: isMobile ? "column-reverse" : "row", gap: 10, paddingBottom: "2rem" }}>
-            <button onClick={() => navigate(-1)}
-              style={{ flex: isMobile ? "none" : 1, width: isMobile ? "100%" : "auto", padding: "12px", borderRadius: 12, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'Cairo',sans-serif" }}>
+          <div className="flex flex-col-reverse gap-3 pb-8 sm:flex-row">
+            <NButton type="button" variant="outline" onClick={() => navigate(-1)} className="sm:flex-1">
               {t("createModule.actions.cancel")}
-            </button>
-            <button onClick={handleSubmit} disabled={saving || success || hasAnyScheduleConflict}
-              style={{ flex: isMobile ? "none" : 3, width: isMobile ? "100%" : "auto", padding: "12px", borderRadius: 12, border: "none", background: success ? "#10B981" : (saving || hasAnyScheduleConflict) ? "#94A3B8" : P, color: "#fff", fontSize: 14, fontWeight: 700, cursor: (saving || success || hasAnyScheduleConflict) ? "default" : "pointer", fontFamily: "'Cairo',sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "background .3s" }}>
+            </NButton>
+            <NButton variant={success ? "gold" : "green"} onClick={handleSubmit} disabled={submitDisabled}
+              className="disabled:cursor-not-allowed disabled:opacity-60 sm:flex-[3]">
               {success ? (
-                <><Check size={16} /> {t("createModule.actions.success")}</>
+                <><Check className="size-4" /> {t("createModule.actions.success")}</>
               ) : saving ? (
-                <>
-                  <div style={{ width: 16, height: 16, borderRadius: "50%", border: "2px solid rgba(255,255,255,.4)", borderTopColor: "#fff", animation: "spin .8s linear infinite" }} />
-                  {t("createModule.actions.submitting")}
-                </>
+                <><Spinner /> {t("createModule.actions.submitting")}</>
               ) : (
-                <><Plus size={16} /> {t("createModule.actions.submit")}</>
+                <><Plus className="size-4" /> {t("createModule.actions.submit")}</>
               )}
-            </button>
+            </NButton>
           </div>
         </div>
       )}
 
       {activeTab === "archived" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 780, width: "100%", boxSizing: "border-box" }}>
+        <div className={COLUMN}>
           {archivedLoading && (
-            <div style={{ textAlign: "center", padding: "2rem", color: "#94A3B8", fontSize: 13 }}>
-              {t("createModule.archived.loading") || "Loading..."}
-            </div>
+            <EmptyBlock>{t("createModule.archived.loading") || "Loading..."}</EmptyBlock>
           )}
-
-          {archivedError && (
-            <div style={{ fontSize: 13, color: "#DC2626", background: "#FEF2F2", border: "1.5px solid #FECACA", borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 8 }}>
-              <AlertCircle size={16} color="#DC2626" style={{ flexShrink: 0 }} />
-              {archivedError}
-            </div>
-          )}
-
-          {restoreError && (
-            <div style={{ fontSize: 13, color: "#DC2626", background: "#FEF2F2", border: "1.5px solid #FECACA", borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 8 }}>
-              <AlertCircle size={16} color="#DC2626" style={{ flexShrink: 0 }} />
-              {restoreError}
-            </div>
-          )}
-
+          {archivedError && <Notice icon={AlertCircle}>{archivedError}</Notice>}
+          {restoreError  && <Notice icon={AlertCircle}>{restoreError}</Notice>}
           {!archivedLoading && !archivedError && archivedModules.length === 0 && (
-            <div style={{ textAlign: "center", padding: "2.5rem 1rem", color: "#94A3B8", fontSize: 13 }}>
-              {t("createModule.archived.empty") || "No archived modules"}
-            </div>
+            <EmptyBlock>{t("createModule.archived.empty") || "No archived modules"}</EmptyBlock>
           )}
-
           {archivedModules.map(module => (
-            <ArchivedModuleCard
-              key={module.id}
-              module={module}
-              isMobile={isMobile}
-              restoring={restoringId === module.id}
-              onRestore={handleRestore}
-            />
+            <ArchivedModuleCard key={module.id} module={module}
+              restoring={restoringId === module.id} onRestore={handleRestore} />
           ))}
         </div>
       )}

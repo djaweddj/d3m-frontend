@@ -203,11 +203,11 @@ export default function Navbar() {
           {/* Teacher-only */}
           {user?.role === "TEACHER" && (
             <>
-              <button className={solid} onClick={() => navigate("/teacherDashboard")}>
+              <button className={solid} onClick={() => navigate("/teacherhome")}>
                 <LayoutDashboard size={14} />
                 لوحتي
               </button>
-              <UserPill initials={initials} name={user.fullName} onClick={() => navigate("/teacherDashboard")} />
+              <UserPill initials={initials} name={user.fullName} onClick={() => navigate("/teacherhome")} />
             </>
           )}
         </nav>

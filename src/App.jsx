@@ -10,7 +10,7 @@ import { AuthProvider } from "./context/authContext";
 // Layouts
 import GuestLayout from "./layouts/GuestLayout";
 import DashboardLayout from "./layouts/Dashboardlayout";
-import TeacherLayout from "./layouts/TeacherLayout";
+
 
 
 
@@ -35,8 +35,13 @@ import Requests from "./pages/Requests";
 import SubjectsAndClassrooms from "./pages/SubjectAndClassRoom";
 
 // teacherdashboard
-import TeacherDashboard from "./pages/teacherDashboard";
-import MyStudents from "./pages/MyStudent";
+import TeacherLayout from "./components/teacherdash/TeacherLayout"
+import TeacherHome from "./pages/TeacherHome";
+import TeacherProfile from "./pages/TeacherProfile";
+import TeacherStudents from "./pages/TeacherStudents";
+import TeacherSchedule from "./pages/TeacherSchedule";
+import TeacherAttendance from "./pages/TeacherAttendance";
+import TeacherPayouts from "./pages/TeacherPayouts";
 
 
 import ProtectedRoute from "./auth/ProtectedRoutes";
@@ -120,9 +125,15 @@ export default function App() {
 
   {/* TEACHER */}
   <Route element={<ProtectedRoute role="TEACHER" />}>
-   
-      <Route path="/teacherdashboard" element={<TeacherDashboard />} />
-      
+  <Route  element={<TeacherLayout />}>
+  <Route path="/teacherhome" element={<TeacherHome />} />
+  <Route path="/teacherprofile" element={<TeacherProfile />} />
+   <Route path="/teacherstudents" element={<TeacherStudents />} />
+   <Route path="/teacherschedule" element={<TeacherSchedule />} />
+   <Route path="/teacherattendance" element={<TeacherAttendance />} />
+   <Route path="/teacherpayouts" element={<TeacherPayouts />} />
+     
+      </Route>
   </Route>
 
   {/* SUPER ADMIN */}

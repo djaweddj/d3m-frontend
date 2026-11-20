@@ -43,7 +43,7 @@ export default function Login() {
   useEffect(() => {
     if (user?.role === "SCHOOL_ADMIN") navigate("/dashboard");
     else if (user?.role === "STUDENT") navigate("/studentdashboard");
-    else if (user?.role === "TEACHER") navigate("/teacherDashboard");
+    else if (user?.role === "TEACHER") navigate("/teacherhome");
     else if (user?.role === "SUPER_ADMIN") navigate("/superadmindashboard");
   }, [user, navigate]);
 
